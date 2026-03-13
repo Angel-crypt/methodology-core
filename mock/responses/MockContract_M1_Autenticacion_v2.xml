@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MockContract – Módulo 1: Autenticación y Control de Acceso
+  Sistema de Registro Metodológico de Métricas Lingüísticas
+  Versión: 2.0  |  Fecha: 2026-03-12  |  Estado: En revisión
+-->
+
+<mockContract module="M1-Autenticacion" version="2.0">
+
+  <moduleInfo>
+    <name>Módulo 1 – Autenticación y Control de Acceso</name>
+    <basePath>/api/v1</basePath>
+    <jwtAlgorithm>HS256</jwtAlgorithm>
+    <jwtExpiresSeconds>21600</jwtExpiresSeconds>
+    <jwtSecret>Docker Secret (nunca variable de entorno)</jwtSecret>
+    <jwtPayloadFields>user_id, role, iat, exp, jti</jwtPayloadFields>
+    <passwordHash>bcrypt, factor mínimo 12</passwordHash>
+    <revokedTokensStorage>tabla PostgreSQL revoked_tokens(jti UUID, expires_at TIMESTAMP)</revokedTokensStorage>
+    <rateLimiting>5 intentos fallidos en 60 s → bloqueo IP/cuenta 5 min</rateLimiting>
+    <responseStructure>{ "status": "success|error", "message": "...", "data": {} }</responseStructure>
+  </moduleInfo>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       TABLAS DE BASE DE DATOS
+  ═══════════════════════════════════════════════════════════ -->
+  <databaseSchema>
+    <table name="users">
+      <column name="id"            type="UUID"      notes="PK, generado automáticamente"/>
+      <column name="full_name"     type="VARCHAR"   notes="Nombre completo"/>
+      <column name="email"         type="VARCHAR"   notes="Único, índice"/>
+      <column name="password_hash" type="VARCHAR"   notes="bcrypt factor >= 12"/>
+      <column name="role"          type="ENUM"      notes="administrator | researcher | applicator"/>
+      <column name="active"              type="BOOLEAN"   notes="TRUE por defecto"/>
+      <column name="created_at"          type="TIMESTAMP" notes="UTC"/>
+      <column name="password_changed_at" type="TIMESTAMP" notes="NULL por defecto. Se actualiza en cada cambio de contraseña. Middleware rechaza tokens con iat anterior a este valor."/>
+    </table>
+    <table name="revoked_tokens">
+      <column name="jti"           type="UUID"      notes="PK, extraído del payload JWT"/>
+      <column name="expires_at"    type="TIMESTAMP" notes="Igual a exp del token. Usado por cron de limpieza."/>
+    </table>
+  </databaseSchema>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       ENDPOINTS
+  ═══════════════════════════════════════════════════════════ -->
+  <endpoints>
+
+    <!-- ──────────────────────────────────────────────────────
+         RF-M1-01 · HU1 – Crear usuario con rol
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-01" hu="HU1" risk="Alto">
+      <method>POST</method>
+      <path>/users</path>
+      <auth>Bearer token – rol: administrator</auth>
+      <description>
+        Registra un nuevo usuario con rol asignado.
+        El correo debe ser único. La contraseña se hashea con bcrypt (factor >= 12).
+        El usuario se crea con active=TRUE por defecto.
+        Solo accesible por el rol administrator.
+      </description>
+      <request>
+        <field name="full_name" type="string"  required="true"/>
+        <field name="email"     type="string"  required="true" notes="Único en el sistema"/>
+        <field name="password"  type="string"  required="true" notes="Nunca se almacena en texto plano"/>
+        <field name="role"      type="enum"    required="true" values="administrator | researcher | applicator"/>
+      </request>
+      <responses>
+        <response status="201">
+          <description>Usuario creado exitosamente</description>
+          <field name="id"         type="UUID"/>
+          <field name="full_name"  type="string"/>
+          <field name="email"      type="string"/>
+          <field name="role"       type="enum"/>
+          <field name="active"     type="boolean" value="true"/>
+          <field name="created_at" type="timestamp"/>
+          <!-- password_hash NUNCA incluido en la respuesta -->
+        </response>
+        <response status="400">
+          <description>Rol inválido o campo obligatorio ausente (CA-HU1-03)</description>
+        </response>
+        <response status="401">
+          <description>Token JWT ausente o inválido</description>
+        </response>
+        <response status="403">
+          <description>Rol sin permiso para esta acción (CA-HU1-04)</description>
+        </response>
+        <response status="409">
+          <description>Correo ya registrado en el sistema (CA-HU1-02)</description>
+        </response>
+      </responses>
+    </endpoint>
+
+    <!-- ──────────────────────────────────────────────────────
+         RF-M1-02 · HU2 – Activar / desactivar usuario
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-02" hu="HU2" risk="Alto">
+      <method>PATCH</method>
+      <path>/users/{id}/status</path>
+      <auth>Bearer token – rol: administrator</auth>
+      <description>
+        Cambia el estado active de un usuario.
+        Protección: si el usuario objetivo es el último administrator con active=TRUE,
+        la operación es rechazada con 409 (CA-HU2-05).
+        El middleware evalúa active=TRUE en cada request; un token válido de usuario
+        desactivado es rechazado con 401 (CA-HU2-04).
+        Los registros históricos del usuario permanecen intactos.
+      </description>
+      <request>
+        <field name="active" type="boolean" required="true" notes="true → activar · false → desactivar"/>
+      </request>
+      <responses>
+        <response status="200">
+          <description>Estado actualizado (CA-HU2-01, CA-HU2-03)</description>
+          <field name="id"     type="UUID"/>
+          <field name="active" type="boolean"/>
+        </response>
+        <response status="400">
+          <description>Valor de active inválido (no booleano)</description>
+        </response>
+        <response status="401">
+          <description>Token JWT ausente o inválido</description>
+        </response>
+        <response status="403">
+          <description>Rol sin permiso para esta acción</description>
+        </response>
+        <response status="404">
+          <description>Usuario no encontrado</description>
+        </response>
+        <response status="409">
+          <description>
+            Intento de desactivar al único Administrador activo del sistema (CA-HU2-05).
+            La operación es rechazada para preservar acceso administrativo mínimo.
+          </description>
+        </response>
+      </responses>
+    </endpoint>
+
+    <!-- ──────────────────────────────────────────────────────
+         RF-M1-03 · HU3 – Iniciar sesión
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-03" hu="HU3" risk="Crítico">
+      <method>POST</method>
+      <path>/auth/login</path>
+      <auth>Ninguna (endpoint público)</auth>
+      <description>
+        Autentica al usuario validando credenciales y estado active=TRUE.
+        Emite un token JWT firmado con HS256 (Docker Secret).
+        El token incluye: user_id, role, iat, exp (iat + 21600), jti (UUID único).
+        No incluye datos personales.
+
+        Anti-fingerprinting (AD-07): todos los fallos de autenticación retornan
+        HTTP 401 con mensaje genérico idéntico, sin revelar causa:
+          - Credenciales incorrectas → 401 genérico.
+          - Usuario inexistente → 401 genérico.
+          - Cuenta desactivada → 401 genérico (no se revela que la cuenta existe).
+        La causa real se registra en audit_log.
+
+        Rate limiting (CA-HU3-06, AD-08):
+          5 intentos fallidos en 60 s → bloqueo IP/cuenta 5 minutos.
+          Durante el bloqueo: HTTP 401 genérico. No se retorna HTTP 429.
+          El evento AUTH_RATE_LIMIT_TRIGGERED queda en audit_log.
+
+        Stateless (CA-HU3-05):
+          El token es válido entre reinicios del servicio porque la clave reside
+          en el Docker Secret compartido entre todos los nodos del clúster.
+      </description>
+      <request>
+        <field name="email"    type="string" required="true"/>
+        <field name="password" type="string" required="true"/>
+      </request>
+      <responses>
+        <response status="200">
+          <description>Login exitoso (CA-HU3-01)</description>
+          <field name="access_token"  type="string"  notes="JWT firmado HS256"/>
+          <field name="token_type"    type="string"  value="Bearer"/>
+          <field name="expires_in"    type="integer" value="21600"/>
+        </response>
+        <response status="401">
+          <description>
+            Cualquier fallo de autenticación: credenciales incorrectas, usuario inexistente,
+            cuenta desactivada, o IP/cuenta bloqueada por rate limiting.
+            Mensaje genérico idéntico en todos los casos. No se revela causa (AD-07, AD-08).
+          </description>
+        </response>
+      </responses>
+    </endpoint>
+
+    <!-- ──────────────────────────────────────────────────────
+         RF-M1-04 · HU4 – Cerrar sesión
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-04" hu="HU4" risk="Alto">
+      <method>POST</method>
+      <path>/auth/logout</path>
+      <auth>Bearer token – cualquier rol autenticado</auth>
+      <description>
+        Extrae el jti del token y lo registra en revoked_tokens con
+        expires_at = exp del token (CA-HU4-01).
+
+        Peticiones posteriores con ese token son rechazadas por el middleware
+        con 401, aunque el token no haya expirado naturalmente (CA-HU4-02).
+
+        Un cron dentro del contenedor elimina periódicamente entradas de
+        revoked_tokens cuyo expires_at &lt; NOW(), evitando crecimiento
+        ilimitado de la tabla (CA-HU4-03).
+
+        Como revoked_tokens reside en PostgreSQL compartido, la invalidación
+        es consistente entre todas las réplicas del servicio (CA-HU4-05).
+      </description>
+      <request>
+        <!-- Sin body. El token se extrae del header Authorization: Bearer -->
+      </request>
+      <responses>
+        <response status="200">
+          <description>Sesión cerrada. jti registrado en revoked_tokens (CA-HU4-01)</description>
+        </response>
+        <response status="401">
+          <description>Token ausente, inválido o ya revocado (CA-HU4-04)</description>
+        </response>
+      </responses>
+    </endpoint>
+
+    <!-- ──────────────────────────────────────────────────────
+         RF-M1-05 · HU5 – Middleware de autorización (RBAC)
+         No es un endpoint REST sino un middleware transversal.
+         Se documenta aquí como referencia de contrato.
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-05" hu="HU5" risk="Crítico" type="middleware">
+      <method>MIDDLEWARE</method>
+      <path>/api/v1/* (excepto rutas en whitelist)</path>
+      <description>
+        Función compartida importada por todos los servicios del stack Swarm.
+        Evalúa en orden para cada petición protegida:
+          (1) Validación de firma HS256. Si falla → 401 (antes de evaluar rol) (CA-HU5-04).
+          (2) jti en revoked_tokens → 401.
+          (3) active=TRUE en users → 401 si FALSE.
+          (4) Rol del token vs. matriz de permisos → 403 si sin permiso.
+
+        Verificación del rol es stateless: extraído del JWT sin consulta a BD (CA-HU5-05).
+
+        Rutas públicas (whitelist explícita, ej. /health) excluidas de la verificación (CA-HU5-06).
+      </description>
+      <responses>
+        <response status="401">
+          <description>
+            Firma inválida (CA-HU5-04) · token en revoked_tokens · usuario inactivo (CA-HU2-04)
+          </description>
+        </response>
+        <response status="403">
+          <description>
+            Rol sin permiso para el endpoint solicitado (CA-HU5-01, CA-HU5-02)
+          </description>
+        </response>
+      </responses>
+    </endpoint>
+
+    <!-- ──────────────────────────────────────────────────────
+         RF-M1-LIST – Listar usuarios
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-LIST" risk="Bajo">
+      <method>GET</method>
+      <path>/users</path>
+      <auth>Bearer token – rol: administrator</auth>
+      <description>
+        Devuelve el listado de usuarios registrados.
+        Soporta filtros opcionales: active (boolean), role (enum).
+        La respuesta nunca incluye password_hash.
+      </description>
+      <queryParams>
+        <param name="active" type="boolean" required="false" notes="Filtrar por estado active"/>
+        <param name="role"   type="enum"    required="false" values="administrator | researcher | applicator"/>
+      </queryParams>
+      <responses>
+        <response status="200">
+          <description>Listado de usuarios</description>
+          <field name="users" type="array">
+            <field name="id"         type="UUID"/>
+            <field name="full_name"  type="string"/>
+            <field name="email"      type="string"/>
+            <field name="role"       type="enum"/>
+            <field name="active"     type="boolean"/>
+            <field name="created_at" type="timestamp"/>
+          </field>
+        </response>
+        <response status="401">
+          <description>Token JWT ausente o inválido</description>
+        </response>
+        <response status="403">
+          <description>Rol sin permiso (solo administrator)</description>
+        </response>
+      </responses>
+    </endpoint>
+
+    <!-- ──────────────────────────────────────────────────────
+         RF-M1-06 · HU6b – Cambiar contraseña
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-06" hu="HU6b" risk="Alto">
+      <method>PATCH</method>
+      <path>/users/me/password</path>
+      <auth>Bearer token – cualquier rol autenticado</auth>
+      <description>
+        Permite al usuario autenticado cambiar su propia contraseña.
+        Validaciones en orden:
+          (1) bcrypt.verify(current_password, password_hash). Si falla → 401.
+          (2) bcrypt.verify(new_password, password_hash). Si igual a la actual → 400.
+        Tras validación exitosa:
+          - Actualiza password_hash con bcrypt (factor >= 12).
+          - Registra password_changed_at = NOW() en tabla users.
+          - El middleware rechazará con 401 todos los tokens con iat anterior a este timestamp.
+          - Registra evento en AuditLog.
+      </description>
+      <request>
+        <field name="current_password" type="string" required="true" notes="Contraseña actual del usuario"/>
+        <field name="new_password"     type="string" required="true" notes="Nueva contraseña. No puede ser igual a la actual."/>
+      </request>
+      <responses>
+        <response status="200">
+          <description>Contraseña actualizada. Sesiones anteriores invalidadas (CA-HU6b-01)</description>
+        </response>
+        <response status="400">
+          <description>La nueva contraseña es idéntica a la actual (CA-HU6b-02)</description>
+        </response>
+        <response status="401">
+          <description>Token ausente/inválido, o contraseña actual incorrecta (CA-HU6b-03, CA-HU6b-05)</description>
+        </response>
+      </responses>
+    </endpoint>
+
+  </endpoints>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       REGLAS DE NEGOCIO DE AUTORIZACIÓN
+  ═══════════════════════════════════════════════════════════ -->
+  <authorizationRules>
+    <rule>El token JWT incluye: user_id, role, iat, exp, jti. Sin datos personales.</rule>
+    <rule>Expiración del token: 6 horas (21600 segundos).</rule>
+    <rule>Un usuario desactivado no puede autenticarse aunque sus credenciales sean correctas.</rule>
+    <rule>El cambio de rol requiere: desactivar cuenta → modificar rol → reactivar.</rule>
+    <rule>El middleware valida el token en cada solicitud. Sin caché de sesión en memoria entre réplicas.</rule>
+    <rule>La invalidación por logout se registra en revoked_tokens con TTL igual a exp del token.</rule>
+    <rule>El último Administrador activo no puede ser desactivado (→ 409).</rule>
+    <rule>Al cambiar contraseña, password_changed_at se actualiza a NOW(). El middleware rechaza tokens con iat anterior a ese timestamp (→ 401). Todas las sesiones previas quedan invalidadas.</rule>
+    <rule>Todos los fallos de autenticación en login retornan HTTP 401 con mensaje genérico idéntico. La causa real se registra en audit_log.</rule>
+  </authorizationRules>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       TRAZABILIDAD
+  ═══════════════════════════════════════════════════════════ -->
+  <traceability>
+    <entry hu="HU1" ca="CA-HU1-01 a 05" endpoint="POST /api/v1/users"                db="users"           risk="Alto"/>
+    <entry hu="HU2" ca="CA-HU2-01 a 05" endpoint="PATCH /api/v1/users/{id}/status"   db="users.active"    risk="Alto"/>
+    <entry hu="HU3" ca="CA-HU3-01 a 06" endpoint="POST /api/v1/auth/login"            db="users+DockerSecret" risk="Crítico"/>
+    <entry hu="HU4" ca="CA-HU4-01 a 05" endpoint="POST /api/v1/auth/logout"           db="revoked_tokens"  risk="Alto"/>
+    <entry hu="HU5"  ca="CA-HU5-01 a 06"  endpoint="Middleware /api/v1/*"                    db="JWT stateless"              risk="Crítico"/>
+    <entry hu="HU6b" ca="CA-HU6b-01 a 05" endpoint="PATCH /api/v1/users/me/password"         db="users+AuditLog"             risk="Alto"/>
+  </traceability>
+
+</mockContract>
