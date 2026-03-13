@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MockContract – Módulo 2: Gestión de Instrumentos
+  Sistema de Registro Metodológico de Métricas Lingüísticas
+  Versión: 2.0  |  Fecha: 2026-03-12  |  Estado: En revisión
+-->
+
+<mockModuleContract module="Instruments" version="1.0">
+
+    <moduleInfo>
+        <n>Instrument Management</n>
+        <description>
+            Permite registrar y administrar instrumentos metodológicos lingüísticos con
+            descripción científica, periodo de vigencia y estado de activación.
+            Solo los instrumentos activos y dentro de su periodo vigente pueden
+            recibir nuevas aplicaciones. Todos los endpoints requieren autenticación JWT
+            y rol Administrador.
+        </description>
+        <owner>Equipo de Desarrollo – Módulo 2</owner>
+        <basePath>/api/v1</basePath>
+    </moduleInfo>
+
+    <endpoints>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- RF-M2-01 · HU6 – Crear instrumento                         -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <endpoint id="RF-M2-01">
+            <n>Create Instrument</n>
+            <method>POST</method>
+            <path>/instruments</path>
+            <description>
+                Registra un nuevo instrumento metodológico lingüístico con nombre único.
+                El instrumento queda disponible en estado activo para asociarle métricas
+                y registrar aplicaciones.
+            </description>
+            <request>
+                <headers>
+                    <header name="Content-Type">application/json</header>
+                    <header name="Authorization">Bearer {jwt_token}</header>
+                </headers>
+                <body>
+                    <field name="name"                     type="string"  required="true"  description="Nombre único del instrumento"/>
+                    <field name="methodological_description" type="string" required="false" description="Descripción metodológica del instrumento"/>
+                    <field name="start_date"               type="date"    required="false" description="Fecha de inicio del periodo de vigencia (ISO 8601: YYYY-MM-DD)"/>
+                    <field name="end_date"                 type="date"    required="false" description="Fecha de fin del periodo de vigencia (ISO 8601: YYYY-MM-DD)"/>
+                </body>
+            </request>
+            <responses>
+                <response status="201">
+                    <description>Instrumento creado exitosamente</description>
+                    <body>
+                        <field name="status"  type="string" description="success"/>
+                        <field name="message" type="string" description="Instrument created successfully"/>
+                        <field name="data"    type="object">
+                            <field name="id"                          type="string"  description="UUID del instrumento"/>
+                            <field name="name"                        type="string"/>
+                            <field name="methodological_description"  type="string"/>
+                            <field name="start_date"                  type="date"/>
+                            <field name="end_date"                    type="date"/>
+                            <field name="status"                      type="string"  description="active"/>
+                            <field name="created_at"                  type="datetime"/>
+                        </field>
+                    </body>
+                </response>
+                <response status="400">
+                    <description>Datos inválidos o incoherencia temporal (end_date anterior a start_date)</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Descripción del error de validación"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="401">
+                    <description>Token JWT ausente o inválido</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Unauthorized"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="403">
+                    <description>Rol sin permisos para esta acción</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Forbidden: insufficient role permissions"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="409">
+                    <description>Ya existe un instrumento con ese nombre</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Instrument name already exists"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+            </responses>
+        </endpoint>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- RF-M2-02 · HU7 – Definir descripción metodológica          -->
+        <!-- RF-M2-03 · HU8 – Asociar periodo de aplicación             -->
+        <!-- Ambos operan sobre PATCH /instruments/{id}                  -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <endpoint id="RF-M2-02_RF-M2-03">
+            <n>Update Instrument</n>
+            <method>PATCH</method>
+            <path>/instruments/{id}</path>
+            <description>
+                Actualiza uno o más campos de un instrumento existente. Cubre:
+                RF-M2-02: edición de la descripción metodológica para trazabilidad científica.
+                RF-M2-03: definición o actualización del periodo de vigencia (start_date / end_date).
+                Las fechas deben ser coherentes: start_date debe ser anterior a end_date.
+                Solo accesible por el rol Administrador.
+            </description>
+            <request>
+                <headers>
+                    <header name="Content-Type">application/json</header>
+                    <header name="Authorization">Bearer {jwt_token}</header>
+                </headers>
+                <pathParams>
+                    <param name="id" type="string" required="true" description="UUID del instrumento"/>
+                </pathParams>
+                <body>
+                    <field name="methodological_description" type="string" required="false" description="Descripción metodológica actualizada"/>
+                    <field name="start_date"                type="date"   required="false" description="Fecha inicio de vigencia (ISO 8601: YYYY-MM-DD)"/>
+                    <field name="end_date"                  type="date"   required="false" description="Fecha fin de vigencia (ISO 8601: YYYY-MM-DD)"/>
+                </body>
+            </request>
+            <responses>
+                <response status="200">
+                    <description>Instrumento actualizado exitosamente</description>
+                    <body>
+                        <field name="status"  type="string" description="success"/>
+                        <field name="message" type="string" description="Instrument updated successfully"/>
+                        <field name="data"    type="object">
+                            <field name="id"                         type="string"/>
+                            <field name="name"                       type="string"/>
+                            <field name="methodological_description" type="string"/>
+                            <field name="start_date"                 type="date"/>
+                            <field name="end_date"                   type="date"/>
+                            <field name="status"                     type="string"/>
+                            <field name="updated_at"                 type="datetime"/>
+                        </field>
+                    </body>
+                </response>
+                <response status="400">
+                    <description>Datos inválidos o incoherencia temporal</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Descripción del error; ej: end_date must be after start_date"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="401">
+                    <description>Token JWT ausente o inválido</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Unauthorized"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="403">
+                    <description>Rol sin permisos para esta acción</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Forbidden: insufficient role permissions"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="404">
+                    <description>Instrumento no encontrado</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Instrument not found"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+            </responses>
+        </endpoint>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- RF-M2-04 · HU9 – Activar / Desactivar instrumento          -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <endpoint id="RF-M2-04">
+            <n>Update Instrument Status</n>
+            <method>PATCH</method>
+            <path>/instruments/{id}/status</path>
+            <description>
+                Activa o desactiva un instrumento sin afectar el historial de aplicaciones
+                previamente registradas. Los instrumentos inactivos no pueden recibir nuevas
+                aplicaciones. Solo accesible por el rol Administrador.
+            </description>
+            <request>
+                <headers>
+                    <header name="Content-Type">application/json</header>
+                    <header name="Authorization">Bearer {jwt_token}</header>
+                </headers>
+                <pathParams>
+                    <param name="id" type="string" required="true" description="UUID del instrumento"/>
+                </pathParams>
+                <body>
+                    <field name="status" type="string" required="true" description="Estado deseado: active | inactive"/>
+                </body>
+            </request>
+            <responses>
+                <response status="200">
+                    <description>Estado del instrumento actualizado</description>
+                    <body>
+                        <field name="status"  type="string" description="success"/>
+                        <field name="message" type="string" description="Instrument status updated"/>
+                        <field name="data"    type="object">
+                            <field name="id"         type="string"/>
+                            <field name="status"     type="string" description="active | inactive"/>
+                            <field name="updated_at" type="datetime"/>
+                        </field>
+                    </body>
+                </response>
+                <response status="400">
+                    <description>Valor de estado inválido</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Invalid status value. Accepted: active | inactive"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="401">
+                    <description>Token JWT ausente o inválido</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Unauthorized"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="403">
+                    <description>Rol sin permisos para esta acción</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Forbidden: insufficient role permissions"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="404">
+                    <description>Instrumento no encontrado</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Instrument not found"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+            </responses>
+        </endpoint>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- Endpoint de soporte – Listar instrumentos                   -->
+        <!-- Necesario para que M3 y M4 puedan seleccionar instrumentos  -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <endpoint id="RF-M2-LIST">
+            <n>List Instruments</n>
+            <method>GET</method>
+            <path>/instruments</path>
+            <description>
+                Devuelve el listado de instrumentos registrados. Accesible por todos los roles.
+                Utilizado por M3 para asociar métricas y por M4 para seleccionar instrumento
+                al registrar una aplicación.
+            </description>
+            <request>
+                <headers>
+                    <header name="Authorization">Bearer {jwt_token}</header>
+                </headers>
+                <queryParams>
+                    <param name="status" type="string" required="false" description="Filtrar por estado: active | inactive"/>
+                </queryParams>
+            </request>
+            <responses>
+                <response status="200">
+                    <description>Listado de instrumentos</description>
+                    <body>
+                        <field name="status"  type="string" description="success"/>
+                        <field name="message" type="string" description="Instruments retrieved"/>
+                        <field name="data"    type="array">
+                            <field name="id"                         type="string"/>
+                            <field name="name"                       type="string"/>
+                            <field name="methodological_description" type="string"/>
+                            <field name="start_date"                 type="date"/>
+                            <field name="end_date"                   type="date"/>
+                            <field name="status"                     type="string"/>
+                        </field>
+                    </body>
+                </response>
+                <response status="401">
+                    <description>Token JWT ausente o inválido</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Unauthorized"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+            </responses>
+        </endpoint>
+
+    </endpoints>
+
+</mockModuleContract>
