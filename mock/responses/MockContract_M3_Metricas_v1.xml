@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MockContract – Módulo 3: Métricas
+  Sistema de Registro Metodológico de Métricas Lingüísticas
+  Versión: 1.0  |  Fecha: 2026-03-12  |  Estado: En revisión
+-->
+
+<mockModuleContract module="Metrics" version="1.0">
+
+    <moduleInfo>
+        <n>Structured Metric Definition</n>
+        <description>
+            Permite configurar las métricas asociadas a cada instrumento metodológico.
+            Cada métrica declara su tipo de dato (MetricType), rango válido opcional para
+            métricas numéricas, y si es obligatoria u opcional. El backend valida que los
+            valores capturados en M4 respeten estas reglas estructurales.
+            Solo el Administrador puede crear o modificar métricas. Todos los roles
+            autenticados pueden consultarlas.
+            Depende de M1 (autenticación) y M2 (instrumentos existentes).
+        </description>
+        <owner>Equipo de Desarrollo – Módulo 3</owner>
+        <basePath>/api/v1</basePath>
+    </moduleInfo>
+
+    <endpoints>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- RF-M3-01 · HU10 – Crear nueva métrica                      -->
+        <!-- RF-M3-02 · HU11 – Declarar tipo de dato                    -->
+        <!-- RF-M3-04 · HU13 – Definir obligatoriedad                   -->
+        <!-- Los tres operan sobre POST /metrics                         -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <endpoint id="RF-M3-01_RF-M3-02_RF-M3-04">
+            <n>Create Metric</n>
+            <method>POST</method>
+            <path>/metrics</path>
+            <description>
+                Registra una nueva métrica asociada a un instrumento existente.
+                Cubre RF-M3-01 (creación y unicidad por instrumento),
+                RF-M3-02 (declaración del tipo de dato mediante MetricType),
+                RF-M3-04 (declaración de obligatoriedad).
+                El nombre de la métrica debe ser único dentro del mismo instrumento.
+                Solo accesible por el rol Administrador.
+
+                MetricType válidos:
+                  numeric     → admite min_value y max_value opcionales
+                  categorical → requiere options (lista de valores válidos)
+                  boolean     → valores true / false
+                  short_text  → texto corto sin estructura fija
+            </description>
+            <request>
+                <headers>
+                    <header name="Content-Type">application/json</header>
+                    <header name="Authorization">Bearer {jwt_token}</header>
+                </headers>
+                <body>
+                    <field name="instrument_id" type="string"  required="true"  description="UUID del instrumento al que se asocia la métrica"/>
+                    <field name="name"          type="string"  required="true"  description="Nombre único de la métrica dentro del instrumento"/>
+                    <field name="metric_type"   type="string"  required="true"  description="Tipo de dato: numeric | categorical | boolean | short_text"/>
+                    <field name="required"      type="boolean" required="true"  description="true si la métrica es obligatoria al capturar valores"/>
+                    <field name="min_value"     type="number"  required="false" description="Valor mínimo permitido. Solo aplicable si metric_type = numeric"/>
+                    <field name="max_value"     type="number"  required="false" description="Valor máximo permitido. Solo aplicable si metric_type = numeric"/>
+                    <field name="options"       type="array"   required="false" description="Lista de valores válidos. Solo aplicable si metric_type = categorical. Ej: ['Alta','Media','Baja']"/>
+                    <field name="description"   type="string"  required="false" description="Descripción metodológica de la métrica"/>
+                </body>
+            </request>
+            <responses>
+                <response status="201">
+                    <description>Métrica creada exitosamente</description>
+                    <body>
+                        <field name="status"  type="string" description="success"/>
+                        <field name="message" type="string" description="Metric created successfully"/>
+                        <field name="data"    type="object">
+                            <field name="id"            type="string"  description="UUID de la métrica"/>
+                            <field name="instrument_id" type="string"/>
+                            <field name="name"          type="string"/>
+                            <field name="metric_type"   type="string"  description="numeric | categorical | boolean | short_text"/>
+                            <field name="required"      type="boolean"/>
+                            <field name="min_value"     type="number"  description="null si no aplica"/>
+                            <field name="max_value"     type="number"  description="null si no aplica"/>
+                            <field name="options"       type="array"   description="null si no aplica"/>
+                            <field name="description"   type="string"  description="null si no se proporcionó"/>
+                            <field name="created_at"    type="datetime"/>
+                        </field>
+                    </body>
+                </response>
+                <response status="400">
+                    <description>
+                        Datos inválidos. Posibles causas:
+                        - metric_type no es uno de los valores permitidos
+                        - min_value o max_value provistos en métrica no numérica
+                        - min_value mayor o igual que max_value
+                        - options provistos en métrica no categórica
+                        - options ausentes en métrica categórica
+                        - campo requerido ausente
+                    </description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Descripción del error de validación"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="401">
+                    <description>Token JWT ausente o inválido</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Unauthorized"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="403">
+                    <description>Rol sin permisos para esta acción (solo Administrador)</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Forbidden: insufficient role permissions"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="404">
+                    <description>El instrumento referenciado no existe</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Instrument not found"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="409">
+                    <description>Ya existe una métrica con ese nombre en el mismo instrumento</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Metric name already exists for this instrument"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+            </responses>
+        </endpoint>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- RF-M3-02b · HU11 – Actualizar tipo de dato                 -->
+        <!-- RF-M3-03  · HU12 – Definir rango válido                    -->
+        <!-- RF-M3-04b · HU13 – Actualizar obligatoriedad               -->
+        <!-- Los tres operan sobre PATCH /metrics/{id}                   -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <endpoint id="RF-M3-02b_RF-M3-03_RF-M3-04b">
+            <n>Update Metric</n>
+            <method>PATCH</method>
+            <path>/metrics/{id}</path>
+            <description>
+                Actualiza uno o más atributos de una métrica existente. Cubre:
+                RF-M3-02b: cambio de tipo de dato (con re-validación de campos dependientes).
+                RF-M3-03: definición o actualización del rango válido (min_value / max_value)
+                          exclusivamente para métricas de tipo numeric.
+                RF-M3-04b: cambio de obligatoriedad.
+                Solo accesible por el rol Administrador.
+            </description>
+            <request>
+                <headers>
+                    <header name="Content-Type">application/json</header>
+                    <header name="Authorization">Bearer {jwt_token}</header>
+                </headers>
+                <pathParams>
+                    <param name="id" type="string" required="true" description="UUID de la métrica"/>
+                </pathParams>
+                <body>
+                    <field name="metric_type" type="string"  required="false" description="Tipo de dato actualizado: numeric | categorical | boolean | short_text"/>
+                    <field name="required"    type="boolean" required="false" description="Obligatoriedad actualizada"/>
+                    <field name="min_value"   type="number"  required="false" description="Valor mínimo. Solo si metric_type es (o queda como) numeric"/>
+                    <field name="max_value"   type="number"  required="false" description="Valor máximo. Solo si metric_type es (o queda como) numeric"/>
+                    <field name="options"     type="array"   required="false" description="Lista de valores válidos. Solo si metric_type es (o queda como) categorical"/>
+                    <field name="description" type="string"  required="false" description="Descripción metodológica actualizada"/>
+                </body>
+            </request>
+            <responses>
+                <response status="200">
+                    <description>Métrica actualizada exitosamente</description>
+                    <body>
+                        <field name="status"  type="string" description="success"/>
+                        <field name="message" type="string" description="Metric updated successfully"/>
+                        <field name="data"    type="object">
+                            <field name="id"            type="string"/>
+                            <field name="instrument_id" type="string"/>
+                            <field name="name"          type="string"/>
+                            <field name="metric_type"   type="string"/>
+                            <field name="required"      type="boolean"/>
+                            <field name="min_value"     type="number"  description="null si no aplica"/>
+                            <field name="max_value"     type="number"  description="null si no aplica"/>
+                            <field name="options"       type="array"   description="null si no aplica"/>
+                            <field name="description"   type="string"/>
+                            <field name="updated_at"    type="datetime"/>
+                        </field>
+                    </body>
+                </response>
+                <response status="400">
+                    <description>
+                        Datos inválidos. Posibles causas:
+                        - min_value o max_value enviados para métrica no numérica
+                        - min_value mayor o igual que max_value
+                        - options enviados para métrica no categórica
+                        - metric_type con valor fuera del enum
+                    </description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Descripción del error"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="401">
+                    <description>Token JWT ausente o inválido</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Unauthorized"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="403">
+                    <description>Rol sin permisos para esta acción</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Forbidden: insufficient role permissions"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="404">
+                    <description>Métrica no encontrada</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Metric not found"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+            </responses>
+        </endpoint>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- Endpoint de soporte – Listar métricas por instrumento       -->
+        <!-- Necesario para que M4 construya el formulario dinámico      -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <endpoint id="RF-M3-LIST">
+            <n>List Metrics by Instrument</n>
+            <method>GET</method>
+            <path>/metrics</path>
+            <description>
+                Devuelve las métricas registradas, filtradas opcionalmente por instrumento.
+                Utilizado por M4 para construir el formulario dinámico de captura de valores
+                y validar obligatoriedad antes de enviar el registro.
+                Accesible por todos los roles autenticados.
+            </description>
+            <request>
+                <headers>
+                    <header name="Authorization">Bearer {jwt_token}</header>
+                </headers>
+                <queryParams>
+                    <param name="instrument_id" type="string" required="true" description="UUID del instrumento cuyos métricas se desean consultar. Obligatorio."/>
+                </queryParams>
+            </request>
+            <responses>
+                <response status="200">
+                    <description>Listado de métricas</description>
+                    <body>
+                        <field name="status"  type="string" description="success"/>
+                        <field name="message" type="string" description="Metrics retrieved"/>
+                        <field name="data"    type="array">
+                            <field name="id"            type="string"/>
+                            <field name="instrument_id" type="string"/>
+                            <field name="name"          type="string"/>
+                            <field name="metric_type"   type="string"/>
+                            <field name="required"      type="boolean"/>
+                            <field name="min_value"     type="number"  description="null si no aplica"/>
+                            <field name="max_value"     type="number"  description="null si no aplica"/>
+                            <field name="options"       type="array"   description="null si no aplica"/>
+                            <field name="description"   type="string"/>
+                        </field>
+                    </body>
+                </response>
+                <response status="400">
+                    <description>Parámetro instrument_id ausente o con formato inválido (no es UUID)</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="instrument_id is required"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="401">
+                    <description>Token JWT ausente o inválido</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Unauthorized"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+            </responses>
+        </endpoint>
+
+    </endpoints>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Referencia de tipos de dato (MetricType enum)                  -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <metricTypes>
+        <type value="numeric"     description="Valor numérico entero o decimal. Admite min_value y max_value opcionales."/>
+        <type value="categorical" description="Valor de una lista cerrada de opciones definidas en options[]. Requiere options al crear."/>
+        <type value="boolean"     description="Valor verdadero o falso. Se envía como true / false en JSON."/>
+        <type value="short_text"  description="Texto corto descriptivo sin estructura fija. Sin validación de rango ni opciones."/>
+    </metricTypes>
+
+</mockModuleContract>
