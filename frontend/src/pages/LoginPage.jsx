@@ -1,26 +1,54 @@
 import { useState } from 'react'
-import { KeyRound, LogIn } from 'lucide-react'
+import { LogIn } from 'lucide-react'
 import { Button, FormField, Alert } from '@/components/app'
 
 /**
  * LoginPage
- * Solicita el token JWT al usuario para autenticar las peticiones al API.
+ * Autentica al usuario con email y contraseña contra POST /api/v1/auth/login.
+ * Guarda el access_token recibido y lo pasa al App via onLogin.
  *
  * Props:
- *   onLogin (token: string) => void — recibe el token ingresado
+ *   onLogin (token: string) => void
  */
 function LoginPage({ onLogin }) {
-  const [token, setToken] = useState('')
+  const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
+  const [cargando, setCargando] = useState(false)
 
-  function handleSubmit() {
-    const trimmed = token.trim()
-    if (!trimmed) {
-      setError('El token no puede estar vacío.')
+  function handleChange(campo) {
+    return (e) => {
+      setForm((prev) => ({ ...prev, [campo]: e.target.value }))
+      if (error) setError('')
+    }
+  }
+
+  async function handleSubmit() {
+    if (!form.email.trim() || !form.password.trim()) {
+      setError('El correo y la contraseña son obligatorios.')
       return
     }
+
+    setCargando(true)
     setError('')
-    onLogin(trimmed)
+
+    try {
+      const res = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email.trim(), password: form.password }),
+      })
+      const data = await res.json()
+
+      if (data.status === 'success') {
+        onLogin(data.data.access_token)
+      } else {
+        setError(data.message || 'Credenciales incorrectas.')
+      }
+    } catch {
+      setError('No se pudo conectar con el servidor.')
+    } finally {
+      setCargando(false)
+    }
   }
 
   function handleKeyDown(e) {
@@ -53,7 +81,7 @@ function LoginPage({ onLogin }) {
               color: 'var(--color-primary-dark)',
             }}
           >
-            <KeyRound size={24} aria-hidden="true" />
+            <LogIn size={24} aria-hidden="true" />
           </div>
 
           <div style={{ textAlign: 'center' }}>
@@ -73,7 +101,7 @@ function LoginPage({ onLogin }) {
                 marginTop: 'var(--space-1)',
               }}
             >
-              Ingresa tu token JWT para continuar
+              Inicia sesión para continuar
             </p>
           </div>
         </div>
@@ -86,24 +114,35 @@ function LoginPage({ onLogin }) {
         )}
 
         {/* Formulario */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <FormField
-            id="jwt-token"
-            label="Token JWT"
-            type="password"
-            placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            id="login-email"
+            label="Correo electrónico"
+            type="email"
+            placeholder="usuario@dominio.com"
             required
-            helper="El token lo provee el administrador del sistema."
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
+            value={form.email}
+            onChange={handleChange('email')}
             onKeyDown={handleKeyDown}
             autoFocus
+          />
+
+          <FormField
+            id="login-password"
+            label="Contraseña"
+            type="password"
+            placeholder="••••••••"
+            required
+            value={form.password}
+            onChange={handleChange('password')}
+            onKeyDown={handleKeyDown}
           />
 
           <Button
             icon={LogIn}
             iconPosition="right"
             onClick={handleSubmit}
+            loading={cargando}
             style={{ width: '100%' }}
           >
             Ingresar
