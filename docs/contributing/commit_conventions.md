@@ -58,8 +58,9 @@ chore(docker): update compose file to use Docker Secrets for JWT key
 ## 4. Commit Scopes
 
 The scope identifies the bounded context or technical area affected by the commit.
+Scopes must map to **stable architectural boundaries**, not arbitrary file groupings.
 
-### Module scopes
+### 4.1 Module scopes (backend)
 
 | Scope | Area |
 |---|---|
@@ -70,18 +71,52 @@ The scope identifies the bounded context or technical area affected by the commi
 | `query` | Module 5 — Internal Query |
 | `export` | Module 6 — Structured Export |
 
-### Cross-cutting scopes
+### 4.2 Frontend scopes
 
-| Scope | Area |
-|---|---|
-| `mock` | Mock server contracts (`mock/responses/`) |
-| `srs` | Software Requirements Specification documents |
-| `architecture` | ADRs, decision logs, system-level design documents |
-| `system` | Changes affecting the full stack (e.g., shared middleware, global config) |
-| `docker` | Container, Compose, or Swarm configuration |
-| `db` | Database schema, migrations (Alembic) |
+Frontend is a first-class architectural layer, not a subcategory of system.
+
+| Scope           | Area                                             |
+| --------------- | ------------------------------------------------ |
+| `frontend`      | Application layer (views, pages, routing, state) |
+| `ui`            | Reusable UI components (buttons, inputs, modals) |
+| `design-system` | Tokens, theming, spacing, typography, motion     |
+| `assets`        | Static assets (icons, images, fonts)             |
+
+#### Rules
+
+- Use frontend for feature-level changes (pages, flows)
+- Use ui for reusable components
+- Use design-system for tokens and visual foundations
+- Do NOT invent scopes like buttons, colors, tokens
+
+### 4.3 Cross-cutting scopes
+
+| Scope          | Area                                           |
+| -------------- | ---------------------------------------------- |
+| `mock`         | Mock server contracts (`mock/responses/`)      |
+| `srs`          | Software Requirements Specification documents  |
+| `architecture` | ADRs, decision logs, system-level design       |
+| `system`       | Cross-layer changes affecting multiple domains |
+| `docker`       | Container, Compose, or Swarm configuration     |
+| `db`           | Database schema, migrations                    |
+| `ci`           | CI/CD pipelines and workflows                  |
 
 Scopes must be singular, lowercase, and represent a single bounded context. Do not combine scopes in one commit — split the commit instead.
+
+### 4.4 Scope selection rules
+
+When multiple scopes could apply, follow this priority:
+
+1. Specific domain > generic
+    - ✅ feat(auth)
+    - ❌ feat(system)
+2. Layer-specific > cross-cutting
+    - ✅ feat(frontend)
+    - ❌ feat(system)
+3. Design system > UI > frontend
+    - tokens → design-system
+    - reusable component → ui
+    - page/flow → frontend
 
 ---
 
@@ -173,7 +208,25 @@ and RFC 9110 §15.5.21. Removed duplicate entry from 400 block.
 
 ---
 
-## 8. Guidelines for AI Development Agents
+## 8. Frontend Commit Conventions
+
+Frontend changes must reflect user-visible behavior or reusable abstractions.
+
+**Examples**
+
+```bash
+feat(frontend): add login page with form validation
+feat(ui): add reusable input component with error states
+feat(design-system): define color and typography tokens
+fix(ui): correct button disabled state accessibility
+refactor(frontend): extract auth flow into custom hook
+```
+
+**Critical rule**
+
+A UI change that affects user interaction MUST be feat or fix, not chore.
+
+## 9. Guidelines for AI Development Agents
 
 AI coding agents (Claude Code, GitHub Copilot, etc.) operating in this repository must comply with these conventions as strictly as human contributors.
 
