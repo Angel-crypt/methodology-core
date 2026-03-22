@@ -61,7 +61,7 @@ function Alert({ variant = 'info', title, children, icon: IconOverride }) {
       <Icon
         size={16}
         aria-hidden="true"
-        style={{ flexShrink: 0, marginTop: '2px' }}
+        style={{ flexShrink: 0, marginTop: 'var(--space-0-5)' }}
       />
       <div style={{ flex: 1 }}>
         {title && (
