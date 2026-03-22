@@ -22,9 +22,10 @@ import {
   ToastContainer,
   Alert,
   Spinner,
+  Sidebar,
   Typography,
+  useToast,
 } from '../components/app'
-import { useToast } from '../components/app'
 
 /* ─────────────────────────────────────────────────────────────
    INTERNAL: ComponentSection
@@ -189,7 +190,7 @@ function ComponentSection({ id, title, description, children, props: propsDef = 
               background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md)',
-              padding: '4px 10px',
+              padding: 'var(--space-1) var(--space-2-5)',
               fontSize: 'var(--font-size-caption)',
               fontWeight: 'var(--font-weight-medium)',
               cursor: 'pointer',
@@ -202,26 +203,6 @@ function ComponentSection({ id, title, description, children, props: propsDef = 
         </div>
       )}
     </section>
-  )
-}
-
-/* ─────────────────────────────────────────────────────────────
-   INTERNAL: CategoryLink (scroll anchor, no router)
-   ───────────────────────────────────────────────────────────── */
-
-function CategoryLink({ to, label, active, onClick }) {
-  return (
-    <a
-      href={`#${to}`}
-      onClick={(e) => {
-        e.preventDefault()
-        onClick(to)
-        document.getElementById(to)?.scrollIntoView({ behavior: 'smooth' })
-      }}
-      className={`sidebar-item${active ? ' is-active' : ''}`}
-    >
-      {label}
-    </a>
   )
 }
 
@@ -261,85 +242,55 @@ const CATEGORIES = [
   },
 ]
 
-function GallerySidebar({ search, onSearch, activeId, onNavigate }) {
-  const filtered = CATEGORIES.map((cat) => ({
-    ...cat,
-    items: cat.items.filter((item) =>
-      item.label.toLowerCase().includes(search.toLowerCase())
-    ),
-  })).filter((cat) => cat.items.length > 0)
+const ALL_SECTIONS = CATEGORIES.flatMap((cat) => cat.items)
 
-  return (
-    <aside className="sidebar">
-      {/* Header */}
-      <div
-        style={{
-          padding: 'var(--space-4)',
-          borderBottom: '1px solid var(--color-border)',
-        }}
-      >
-        <p
-          style={{
-            fontSize: 'var(--font-size-body)',
-            fontWeight: 'var(--font-weight-medium)',
-            color: 'var(--color-text-primary)',
-          }}
-        >
+function GallerySidebar({ search, onSearch, activeId, onNavigate }) {
+  const filtered = ALL_SECTIONS.filter((item) =>
+    item.label.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const sidebarHeader = (
+    <>
+      <div style={{ borderBottom: '1px solid var(--color-border)', padding: 'var(--space-4)', marginBottom: 'var(--space-2)' }}>
+        <p style={{ fontSize: 'var(--font-size-body)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
           Design System
         </p>
-        <p
-          style={{
-            fontSize: 'var(--font-size-caption)',
-            color: 'var(--color-text-tertiary)',
-          }}
-        >
+        <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>
           v1.0
         </p>
       </div>
-
-      {/* Search */}
-      <div style={{ padding: 'var(--space-3) var(--space-3)' }}>
+      <div style={{ padding: 'var(--space-3)' }}>
         <input
           type="search"
           placeholder="Buscar componente..."
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           className="input-base"
-          style={{ height: '34px', fontSize: 'var(--font-size-small)' }}
+          style={{ height: 'var(--input-height-sm)', fontSize: 'var(--font-size-small)' }}
           aria-label="Buscar componentes"
         />
       </div>
+    </>
+  )
 
-      {/* Navigation */}
-      <nav style={{ flex: 1, padding: 'var(--space-2) 0' }}>
-        {filtered.map((cat) => (
-          <div key={cat.label} style={{ marginBottom: 'var(--space-3)' }}>
-            <p
-              style={{
-                fontSize: 'var(--font-size-label)',
-                fontWeight: 'var(--font-weight-medium)',
-                textTransform: 'uppercase',
-                letterSpacing: 'var(--letter-spacing-label)',
-                color: 'var(--color-text-tertiary)',
-                padding: '0 var(--space-3)',
-                marginBottom: 'var(--space-1)',
-              }}
-            >
-              {cat.label}
-            </p>
-            {cat.items.map((item) => (
-              <CategoryLink
-                key={item.id}
-                to={item.id}
-                label={item.label}
-                active={activeId === item.id}
-                onClick={onNavigate}
-              />
-            ))}
-          </div>
-        ))}
-      </nav>
-    </aside>
+  return (
+    <Sidebar
+      items={filtered}
+      header={sidebarHeader}
+      renderItem={(item) => (
+        <a
+          href={`#${item.id}`}
+          onClick={(e) => {
+            e.preventDefault()
+            onNavigate(item.id)
+            document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth' })
+          }}
+          className={`sidebar-item${activeId === item.id ? ' is-active' : ''}`}
+        >
+          {item.label}
+        </a>
+      )}
+    />
   )
 }
 
@@ -392,7 +343,7 @@ function GalleryTopbar() {
           style={{
             fontSize: 'var(--font-size-caption)',
             color: 'var(--color-text-tertiary)',
-            padding: '2px var(--space-2)',
+            padding: 'var(--space-0-5) var(--space-2)',
             backgroundColor: 'var(--color-bg-subtle)',
             borderRadius: 'var(--radius-pill)',
           }}
