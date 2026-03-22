@@ -1,0 +1,36 @@
+# Dependencies — reinstalled inside container
+node_modules
+
+# Build outputs — rebuilt inside container
+dist
+.next
+out
+
+# Git
+.git
+.gitignore
+*.md
+
+# Environment files — never bake real env into image
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage
+.nyc_output
+
+# Docker files themselves (not needed in build context)
+Dockerfile*
+docker-compose*
+nginx.conf

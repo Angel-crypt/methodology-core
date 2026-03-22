@@ -1,0 +1,197 @@
+/* =============================================================
+   TOKENS — COLORES
+   Sistema de Perfiles Lingüísticos · Design System v1.0
+   Fuente: DESIGN_SYSTEM.md § 2.1
+   ============================================================= */
+
+:root {
+
+   /* -----------------------------------------------------------
+     RAMP — Verde Salvia (Teal)
+     Acento primario · CTA · Éxito · Estado activo
+     ----------------------------------------------------------- */
+   --sage-50: #E1F5EE;
+   --sage-100: #C5EBE0;
+   --sage-200: #9DDFC8;
+   --sage-300: #78D4B3;
+   --sage-400: #5DCAA5;
+   --sage-500: #1D9E75;
+   --sage-600: #0F6E56;
+   --sage-700: #0B5A47;
+   --sage-800: #085041;
+   --sage-900: #053630;
+
+   /* -----------------------------------------------------------
+     RAMP — Lila Académico (Purple)
+     Roles · Estado de énfasis · Identidad rol Admin
+     ----------------------------------------------------------- */
+   --purple-50: #EEEDFE;
+   --purple-100: #DDDCFC;
+   --purple-200: #C8C5F9;
+   --purple-300: #ADA8EF;
+   --purple-400: #7F77DD;
+   --purple-500: #6860CE;
+   --purple-600: #534AB7;
+   --purple-700: #473EA0;
+   --purple-800: #3C3489;
+   --purple-900: #2A2465;
+
+   /* -----------------------------------------------------------
+     RAMP — Ámbar Cálido (Amber)
+     Advertencias · Atención · Rol Prof. Aplicador
+     ----------------------------------------------------------- */
+   --amber-50: #FAEEDA;
+   --amber-100: #F5DFB5;
+   --amber-200: #EDD090;
+   --amber-300: #E8BE68;
+   --amber-400: #EF9F27;
+   --amber-500: #BA7517;
+   --amber-600: #854F0B;
+   --amber-700: #6E420A;
+   --amber-800: #633806;
+   --amber-900: #4A2804;
+
+   /* -----------------------------------------------------------
+     RAMP — Coral Suave (Error / Inactive)
+     Errores · Estado inactivo/deshabilitado
+     ----------------------------------------------------------- */
+   --coral-50: #FCEBEB;
+   --coral-100: #F9D7D7;
+   --coral-200: #F4BABA;
+   --coral-300: #F2A8A8;
+   --coral-400: #F09595;
+   --coral-500: #D06060;
+   --coral-600: #A32D2D;
+   --coral-700: #8A2424;
+   --coral-800: #791F1F;
+   --coral-900: #5C1414;
+
+   /* -----------------------------------------------------------
+     RAMP — Azul Info
+     Información neutral · Tooltips · Banners
+     ----------------------------------------------------------- */
+   --blue-50: #E6F1FB;
+   --blue-400: #378ADD;
+   --blue-600: #185FA5;
+   --blue-800: #0C447C;
+
+   /* -----------------------------------------------------------
+     RAMP — Verde Éxito
+     Confirmación de operaciones de alto impacto
+     ----------------------------------------------------------- */
+   --green-50: #EAF3DE;
+   --green-400: #639922;
+   --green-600: #3B6D11;
+   --green-800: #27500A;
+
+   /* -----------------------------------------------------------
+     ESCALA DE GRISES CÁLIDOS
+     Base arena — no grises fríos
+     ----------------------------------------------------------- */
+   --gray-50: #F1EFE8;
+   --gray-100: #E8E6DF;
+   --gray-200: #D3D1C7;
+   --gray-300: #BFBDB5;
+   --gray-400: #888780;
+   --gray-500: #706F69;
+   --gray-600: #5F5E5A;
+   --gray-700: #4A4A46;
+   --gray-800: #3D3C38;
+   --gray-900: #2C2C2A;
+
+   /* -----------------------------------------------------------
+     TOKENS SEMÁNTICOS — ACCIÓN PRIMARIA
+     ----------------------------------------------------------- */
+   --color-primary: var(--sage-400);
+   /* CTA, botón primario */
+   --color-primary-hover: var(--sage-500);
+   /* hover de primario */
+   --color-primary-dark: var(--sage-600);
+   /* borde, énfasis */
+   --color-primary-light: var(--sage-50);
+   /* fondo de éxito, badge */
+   --color-primary-text: #04342C;
+   /* texto sobre primario — contraste 6.2:1 ✓ */
+
+   /* -----------------------------------------------------------
+     TOKENS SEMÁNTICOS — ROLES DE USUARIO
+     ----------------------------------------------------------- */
+   --color-role-admin: var(--purple-600);
+   /* texto badge Admin */
+   --color-role-admin-bg: var(--purple-50);
+   /* fondo badge Admin */
+   --color-role-admin-border: var(--purple-600);
+   /* borde / ícono Admin */
+
+   --color-role-researcher: var(--sage-500);
+   /* texto badge Investigador */
+   --color-role-researcher-bg: var(--sage-50);
+   /* fondo badge Investigador */
+   --color-role-researcher-border: var(--sage-600);
+
+   --color-role-aplicador: var(--amber-500);
+   /* texto badge Prof. Aplicador */
+   --color-role-aplicador-bg: var(--amber-50);
+   /* fondo badge Prof. Aplicador */
+   --color-role-aplicador-border: var(--amber-600);
+
+   /* -----------------------------------------------------------
+     TOKENS SEMÁNTICOS — ESTADOS
+     ----------------------------------------------------------- */
+   --color-error: var(--coral-400);
+   --color-error-text: var(--coral-600);
+   --color-error-bg: var(--coral-50);
+
+   --color-warning: var(--amber-400);
+   --color-warning-text: var(--amber-600);
+   --color-warning-bg: var(--amber-50);
+
+   --color-success: var(--sage-400);
+   --color-success-text: var(--sage-600);
+   --color-success-bg: var(--sage-50);
+
+   --color-info: var(--blue-400);
+   --color-info-text: var(--blue-600);
+   --color-info-bg: var(--blue-50);
+
+   /* -----------------------------------------------------------
+     TOKENS SEMÁNTICOS — TEXTO
+     ----------------------------------------------------------- */
+   --color-text-primary: var(--gray-900);
+   /* contenido principal */
+   --color-text-secondary: var(--gray-600);
+   /* descripciones, metadatos */
+   --color-text-tertiary: var(--gray-400);
+   /* timestamps, notas */
+   --color-text-placeholder: #B4B2A9;
+   /* hint en inputs */
+   --color-text-disabled: var(--gray-400);
+   /* contenido no disponible */
+   --color-text-on-primary: #04342C;
+   /* texto sobre fondo primario */
+
+   /* -----------------------------------------------------------
+     TOKENS SEMÁNTICOS — SUPERFICIES
+     ----------------------------------------------------------- */
+   --color-surface: #FFFFFF;
+   /* cards, inputs, modales */
+   --color-bg-page: var(--gray-50);
+   /* fondo de página */
+   --color-bg-subtle: var(--gray-100);
+   /* hover de filas, fondo de código */
+   --color-bg-overlay: rgba(44, 44, 42, 0.5);
+   /* overlay de modal */
+
+   /* -----------------------------------------------------------
+     TOKENS SEMÁNTICOS — BORDES
+     ----------------------------------------------------------- */
+   --color-border: var(--gray-200);
+   /* bordes neutros */
+   --color-border-focus: var(--sage-400);
+   /* borde en focus */
+   --color-border-error: var(--coral-400);
+   /* borde en error */
+   --color-border-success: var(--sage-400);
+   /* borde en éxito */
+
+}
