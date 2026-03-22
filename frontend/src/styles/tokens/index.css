@@ -1,0 +1,12 @@
+/* =============================================================
+   TOKENS — ÍNDICE
+   Sistema de Perfiles Lingüísticos · Design System v1.0
+
+   Importar este archivo únicamente desde src/index.css.
+   No importar los archivos individuales directamente en componentes.
+   ============================================================= */
+
+@import './colors.css';
+@import './typography.css';
+@import './spacing.css';
+@import './motion.css';

@@ -1,0 +1,118 @@
+/* =============================================================
+   TOKENS — ANIMACIÓN Y MOVIMIENTO
+   Sistema de Perfiles Lingüísticos · Design System v1.0
+   Fuente: DESIGN_SYSTEM.md § 4.3
+   ============================================================= */
+
+/*
+   Regla de oro: si quitar la animación hace que el sistema sea
+   menos comprensible, es funcional. Si solo lo hace "más bonito",
+   es decorativa y debe eliminarse.
+*/
+
+:root {
+
+  /* -----------------------------------------------------------
+     DURACIONES
+     ----------------------------------------------------------- */
+  --duration-instant: 0ms;     /* cambios sin percepción visual (flags, booleans) */
+  --duration-fast:    100ms;   /* hover, focus rings, toggles */
+  --duration-normal:  200ms;   /* transiciones de color, tooltips, page transition */
+  --duration-medium:  300ms;   /* modales, sidebars, dropdowns, acordeones */
+  --duration-slow:    500ms;   /* animaciones de carga, skeleton shimmer referencia */
+
+  /* -----------------------------------------------------------
+     EASING
+     ----------------------------------------------------------- */
+  --ease-default: ease;                            /* movimientos generales */
+  --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);     /* elementos que entran a pantalla */
+  --ease-in:  cubic-bezier(0.4, 0.0, 1.0, 1.0);   /* elementos que salen de pantalla */
+
+  /* -----------------------------------------------------------
+     SOMBRAS
+     ----------------------------------------------------------- */
+
+  /* Focus ring — presente en TODOS los elementos interactivos.
+     Color teal siempre — nunca cambiar a otro color. */
+  --shadow-focus: 0 0 0 3px rgba(93, 202, 165, 0.2);
+
+  /* Elevación de superficie: cards sobre fondo de página */
+  --shadow-sm: 0 1px 2px rgba(44, 44, 42, 0.06),
+               0 1px 3px rgba(44, 44, 42, 0.10);
+
+  /* Elevación media: dropdowns, popovers, tooltips */
+  --shadow-md: 0 4px 6px rgba(44, 44, 42, 0.07),
+               0 2px 4px rgba(44, 44, 42, 0.06);
+
+  /* Elevación alta: modales, sidebars en mobile */
+  --shadow-lg: 0 10px 15px rgba(44, 44, 42, 0.08),
+               0 4px 6px  rgba(44, 44, 42, 0.05);
+
+}
+
+/* -----------------------------------------------------------
+   KEYFRAMES
+   ----------------------------------------------------------- */
+
+/* Skeleton loader — shimmer sobre grises cálidos */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* Spinner de carga — botones y estados loading */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Fade-in para page transitions y toasts */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Slide-up para modales y toasts */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slide-in desde la derecha — sidebar en mobile */
+@keyframes slide-in-x {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+/* -----------------------------------------------------------
+   CLASES DE UTILIDAD DE ANIMACIÓN
+   ----------------------------------------------------------- */
+
+.animate-spin {
+  animation: spin var(--duration-slow) linear infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--gray-200, #D3D1C7) 25%,
+    var(--gray-100, #E8E6DF) 50%,
+    var(--gray-200, #D3D1C7) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1400ms linear infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in var(--duration-normal) var(--ease-default);
+}
+
+.animate-slide-up {
+  animation: slide-up var(--duration-medium) var(--ease-out);
+}

@@ -1,0 +1,57 @@
+/* =============================================================
+   TOKENS — ESPACIADO, BORDES Y RADIOS
+   Sistema de Perfiles Lingüísticos · Design System v1.0
+   Fuente: DESIGN_SYSTEM.md § 2.3 · § 2.5
+   ============================================================= */
+
+:root {
+
+  /* -----------------------------------------------------------
+     ESCALA DE ESPACIADO — base 4px
+     Toda medida en el sistema debe usar uno de estos tokens.
+     No usar valores arbitrarios.
+     ----------------------------------------------------------- */
+  --space-0-5: 0.125rem;  /*  2px — micro gap, separador mínimo */
+  --space-1:   0.25rem;   /*  4px — gap mínimo ícono + texto inline */
+  --space-2:   0.5rem;    /*  8px — gap interno de componentes, badges */
+  --space-3:   0.75rem;   /* 12px — separación entre elementos relacionados */
+  --space-4:   1rem;      /* 16px — padding de sección, separación entre campos */
+  --space-5:   1.25rem;   /* 20px — padding interno de cards */
+  --space-6:   1.5rem;    /* 24px — padding de contenedores principales */
+  --space-8:   2rem;      /* 32px — separación entre secciones distintas */
+  --space-12:  3rem;      /* 48px — separación entre bloques de página */
+  --space-16:  4rem;      /* 64px — márgenes de página en pantallas grandes */
+
+  /* -----------------------------------------------------------
+     BORDER RADIUS
+     ----------------------------------------------------------- */
+  --radius-sm:    4px;    /* tags inline, checkboxes, chips pequeños */
+  --radius-md:    8px;    /* inputs, botones, cards pequeñas — uso más frecuente */
+  --radius-lg:    12px;   /* cards principales, modales, panels */
+  --radius-pill:  999px;  /* badges de rol, tags de estado */
+
+  /* -----------------------------------------------------------
+     BORDER WIDTH
+     ----------------------------------------------------------- */
+  --border-default:   0.5px;   /* inputs y campos en estado default */
+  --border-emphasis:  1px;     /* focus, error, success, bordes de card */
+
+  /* -----------------------------------------------------------
+     LAYOUT — SIDEBAR
+     ----------------------------------------------------------- */
+  --sidebar-width:       240px;
+  --topbar-height:       64px;
+  --content-max-width:   1400px;
+
+  /* -----------------------------------------------------------
+     LAYOUT — COMPONENTES
+     ----------------------------------------------------------- */
+  --input-height:        40px;
+  --button-height:       36px;
+  --button-height-sm: 28px;   /* Small button — matches Button.jsx sizeStyles.sm */
+  --button-height-lg: 44px;   /* Large button — matches Button.jsx sizeStyles.lg */
+  --modal-max-width:     560px;
+  --login-card-width:    420px;
+  --form-col-width:      480px;
+
+}
