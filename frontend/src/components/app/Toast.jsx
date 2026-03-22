@@ -72,7 +72,7 @@ function Toast({ id, type = 'info', title, message, onDismiss }) {
           background: 'none',
           border: 'none',
           cursor: 'pointer',
-          padding: '2px',
+          padding: 'var(--space-0-5)',
           color: 'inherit',
           opacity: 0.7,
           flexShrink: 0,

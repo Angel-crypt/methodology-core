@@ -11,7 +11,7 @@ import { Loader2 } from 'lucide-react'
 
 const sizeStyles = {
   sm: {
-    height: '28px',
+    height: 'var(--button-height-sm)',
     padding: '0 var(--space-3)',
     fontSize: 'var(--font-size-small)',
   },
@@ -21,7 +21,7 @@ const sizeStyles = {
     fontSize: 'var(--font-size-small)',
   },
   lg: {
-    height: '44px',
+    height: 'var(--button-height-lg)',
     padding: '0 var(--space-5)',
     fontSize: 'var(--font-size-body)',
   },
