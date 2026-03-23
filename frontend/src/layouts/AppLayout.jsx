@@ -1,14 +1,16 @@
-import { BookOpen } from 'lucide-react'
+import { BookOpen, ClipboardList, Users } from 'lucide-react'
 import { Sidebar, Button } from '@/components/app'
 
 const NAV_ITEMS = [
   { label: 'Instrumentos', icon: BookOpen, to: '/instruments' },
+  { label: 'Aplicadores', icon: ClipboardList, to: '/usuarios/aplicadores' },
+  { label: 'Investigadores', icon: Users, to: '/usuarios/investigadores' },
 ]
 
 /**
  * AppLayout
  * Layout raíz para páginas autenticadas.
- * Incluye Sidebar lateral y Topbar con opción de cerrar sesión.
+ * Incluye Sidebar lateral con navegación completa y Topbar con cerrar sesión.
  *
  * Props:
  *   children  ReactNode
