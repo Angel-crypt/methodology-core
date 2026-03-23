@@ -1,13 +1,29 @@
 /**
  * M1 – Autenticación y Control de Acceso
  * Contratos: RF-M1-01..06, RF-M1-LIST
+ *
+ * Cambios aplicados (GAP-M1-01..M1-09, GAP-SEG-05..10):
+ *   - Mensajes genéricos en español (GAP-SEG-05)
+ *   - Audit log: LOGIN, LOGIN_FALLIDO, RATE_LIMIT_ACTIVADO, LOGOUT,
+ *                CAMBIO_CONTRASENA, CONSULTA_USUARIOS (GAP-M1-03, RNF-SEC-12)
+ *   - JWT con pwd_changed_at en payload (GAP-SEG-07)
+ *   - Sesiones activas: creación en login, limpieza en logout (GAP-SEG-08)
+ *   - GET /users → array directo + paginación máx 50 (GAP-M1-02, GAP-SEG-09)
+ *   - POST /users → validación de email + campos estrictos (GAP-M1-06, GAP-SEG-04)
+ *   - PATCH /users/:id/status → protección contra autodesactivación (GAP-SEG-03)
+ *   - PATCH /users/:id/status → respuesta incluye email + updated_at (GAP-M1-01)
+ *   - GET /audit-log (nuevo endpoint, solo administrador)
+ *   - GET /users/me/sessions (nuevo endpoint) (GAP-SEG-08)
+ *   - DELETE /sessions/:jti (nuevo endpoint) (GAP-SEG-08)
+ *   - POST /auth/password-recovery + POST /auth/password-reset (GAP-SEG-11)
  */
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
-const { store } = require('../store');
+const { store, addAuditEvent } = require('../store');
 const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
+const { validateStrictInput } = require('../middleware/validateStrictInput');
 
 const router = express.Router();
 
@@ -19,21 +35,28 @@ const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;      // 60 segundos
 const RATE_LIMIT_BLOCK_MS = 5 * 60 * 1000;   // 5 minutos
 
+// Validación básica de formato email
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Tiempo de expiración de tokens de recuperación: 15 minutos
+const RECOVERY_TOKEN_TTL = 15 * 60; // segundos
+
 // ─── RF-M1-03 · POST /auth/login ────────────────────────────────────────────
 router.post('/auth/login', (req, res) => {
   const { email, password } = req.body || {};
 
   if (!email || !password) {
-    return res.status(401).json({ status: 'error', message: 'Invalid credentials', data: null });
+    return res.status(401).json({ status: 'error', message: 'Credenciales inválidas', data: null });
   }
 
   const clientKey = `${req.ip}::${email}`;
   const now = Date.now();
   const attempts = store.loginAttempts.get(clientKey) || { count: 0, firstAttemptAt: now, blockedUntil: 0 };
 
-  // Bloqueo activo → 401 genérico (no se revela razón – AD-08)
+  // Bloqueo activo → 401 genérico (anti-fingerprinting – AD-08)
   if (attempts.blockedUntil > now) {
-    return res.status(401).json({ status: 'error', message: 'Invalid credentials', data: null });
+    addAuditEvent('RATE_LIMIT_ACTIVADO', null, req.ip, `Email: ${email} | bloqueado hasta: ${new Date(attempts.blockedUntil).toISOString()}`);
+    return res.status(401).json({ status: 'error', message: 'Credenciales inválidas', data: null });
   }
 
   // Reset de ventana si expiró
@@ -51,9 +74,12 @@ router.post('/auth/login', (req, res) => {
     attempts.count += 1;
     if (attempts.count >= RATE_LIMIT_MAX) {
       attempts.blockedUntil = now + RATE_LIMIT_BLOCK_MS;
+      addAuditEvent('RATE_LIMIT_ACTIVADO', null, req.ip, `Email: ${email} | intentos: ${attempts.count}`);
+    } else {
+      addAuditEvent('LOGIN_FALLIDO', null, req.ip, `Email: ${email} | intento: ${attempts.count}`);
     }
     store.loginAttempts.set(clientKey, attempts);
-    return res.status(401).json({ status: 'error', message: 'Invalid credentials', data: null });
+    return res.status(401).json({ status: 'error', message: 'Credenciales inválidas', data: null });
   }
 
   // Login exitoso → resetear intentos
@@ -63,15 +89,32 @@ router.post('/auth/login', (req, res) => {
   const iat = Math.floor(Date.now() / 1000);
   const exp = iat + JWT_EXPIRES_IN;
 
+  // Incluir pwd_changed_at en payload para referencia del cliente (GAP-SEG-07)
+  const pwdChangedAt = user.password_changed_at
+    ? Math.floor(user.password_changed_at.getTime() / 1000)
+    : null;
+
   const token = jwt.sign(
-    { user_id: user.id, role: user.role, jti, iat, exp },
+    { user_id: user.id, role: user.role, jti, iat, exp, pwd_changed_at: pwdChangedAt },
     JWT_SECRET,
     { algorithm: 'HS256', noTimestamp: true }
   );
 
+  // Registrar sesión activa (GAP-SEG-08)
+  store.sessions.push({
+    jti,
+    user_id: user.id,
+    ip: req.ip,
+    user_agent: req.headers['user-agent'] || null,
+    created_at: new Date(),
+    expires_at: exp,
+  });
+
+  addAuditEvent('LOGIN', user.id, req.ip, `Email: ${email}`);
+
   return res.status(200).json({
     status: 'success',
-    message: 'Login successful',
+    message: 'Inicio de sesión exitoso',
     data: {
       access_token: token,
       token_type: 'Bearer',
@@ -83,51 +126,148 @@ router.post('/auth/login', (req, res) => {
 // ─── RF-M1-04 · POST /auth/logout ───────────────────────────────────────────
 router.post('/auth/logout', authMiddleware(), (req, res) => {
   store.revokedTokens.set(req.user.jti, req.user.exp);
-  return res.status(200).json({ status: 'success', message: 'Session closed', data: null });
+
+  // Eliminar sesión del store (GAP-SEG-08)
+  store.sessions = store.sessions.filter((s) => s.jti !== req.user.jti);
+
+  addAuditEvent('LOGOUT', req.user.id, req.ip, null);
+
+  return res.status(200).json({ status: 'success', message: 'Sesión cerrada correctamente', data: null });
 });
+
+// ─── POST /auth/password-recovery ─── Mock: devuelve token directamente (GAP-SEG-11)
+// NOTA DE SEGURIDAD: En producción, enviar token por email y NO exponerlo en la respuesta.
+router.post(
+  '/auth/password-recovery',
+  validateStrictInput(['email']),
+  (req, res) => {
+    const { email } = req.body || {};
+
+    if (!email) {
+      return res.status(400).json({ status: 'error', message: 'El campo email es obligatorio', data: null });
+    }
+
+    // Respuesta genérica (anti-enumeración de usuarios)
+    const user = store.users.find((u) => u.email === email && u.active);
+    if (user) {
+      const token = uuidv4();
+      const expiresAt = Math.floor(Date.now() / 1000) + RECOVERY_TOKEN_TTL;
+      store.passwordRecoveryTokens.set(token, { userId: user.id, expiresAt });
+
+      // SOLO EN MOCK: el token se devuelve en la respuesta para facilitar pruebas
+      console.log(`[RECOVERY] Token para ${email}: ${token} (expira en 15 min)`);
+      return res.status(200).json({
+        status: 'success',
+        message: 'Si el correo está registrado, recibirá instrucciones de recuperación',
+        data: {
+          _mock_recovery_token: token, // ELIMINAR en producción
+        },
+      });
+    }
+
+    // Misma respuesta si el email no existe (anti-enumeración)
+    return res.status(200).json({
+      status: 'success',
+      message: 'Si el correo está registrado, recibirá instrucciones de recuperación',
+      data: null,
+    });
+  }
+);
+
+// ─── POST /auth/password-reset ─── (GAP-SEG-11)
+router.post(
+  '/auth/password-reset',
+  validateStrictInput(['recovery_token', 'new_password']),
+  (req, res) => {
+    const { recovery_token, new_password } = req.body || {};
+
+    if (!recovery_token || !new_password) {
+      return res.status(400).json({ status: 'error', message: 'Campos obligatorios: recovery_token, new_password', data: null });
+    }
+
+    const tokenData = store.passwordRecoveryTokens.get(recovery_token);
+    if (!tokenData || tokenData.expiresAt < Math.floor(Date.now() / 1000)) {
+      store.passwordRecoveryTokens.delete(recovery_token);
+      return res.status(400).json({ status: 'error', message: 'Token de recuperación inválido o expirado', data: null });
+    }
+
+    const user = store.users.find((u) => u.id === tokenData.userId && u.active);
+    if (!user) {
+      return res.status(400).json({ status: 'error', message: 'Token de recuperación inválido o expirado', data: null });
+    }
+
+    user.password_hash = bcrypt.hashSync(new_password, 12);
+    user.password_changed_at = new Date();
+    store.passwordRecoveryTokens.delete(recovery_token);
+
+    addAuditEvent('CAMBIO_CONTRASENA', user.id, req.ip, 'Vía recuperación de contraseña');
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Contraseña restablecida correctamente. Todas las sesiones anteriores han sido invalidadas.',
+      data: null,
+    });
+  }
+);
 
 // ─── RF-M1-01 · POST /users ─────────────────────────────────────────────────
-router.post('/users', authMiddleware(['administrator']), (req, res) => {
-  const { full_name, email, password, role } = req.body || {};
+router.post(
+  '/users',
+  authMiddleware(['administrator']),
+  validateStrictInput(['full_name', 'email', 'password', 'role']),
+  (req, res) => {
+    const { full_name, email, password, role } = req.body || {};
 
-  if (!full_name || !email || !password || !role) {
-    return res.status(400).json({ status: 'error', message: 'Missing required fields: full_name, email, password, role', data: null });
-  }
-  if (!VALID_ROLES.includes(role)) {
-    return res.status(400).json({ status: 'error', message: `Invalid role. Accepted: ${VALID_ROLES.join(' | ')}`, data: null });
-  }
-  if (store.users.find((u) => u.email === email)) {
-    return res.status(409).json({ status: 'error', message: 'Email already registered', data: null });
-  }
+    if (!full_name || !email || !password || !role) {
+      return res.status(400).json({ status: 'error', message: 'Campos obligatorios: full_name, email, password, role', data: null });
+    }
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ status: 'error', message: 'Formato de email inválido', data: null });
+    }
+    if (!VALID_ROLES.includes(role)) {
+      return res.status(400).json({ status: 'error', message: `Rol inválido. Valores aceptados: ${VALID_ROLES.join(' | ')}`, data: null });
+    }
+    if (store.users.find((u) => u.email === email)) {
+      return res.status(409).json({ status: 'error', message: 'El email ya está registrado', data: null });
+    }
 
-  const user = {
-    id: uuidv4(),
-    full_name,
-    email,
-    password_hash: bcrypt.hashSync(password, 12),
-    role,
-    active: true,
-    created_at: new Date(),
-    password_changed_at: null,
-  };
-  store.users.push(user);
+    const user = {
+      id: uuidv4(),
+      full_name,
+      email,
+      password_hash: bcrypt.hashSync(password, 12),
+      role,
+      active: true,
+      created_at: new Date(),
+      updated_at: null,
+      password_changed_at: null,
+    };
+    store.users.push(user);
 
-  return res.status(201).json({
-    status: 'success',
-    message: 'User created successfully',
-    data: {
-      id: user.id,
-      full_name: user.full_name,
-      email: user.email,
-      role: user.role,
-      active: user.active,
-      created_at: user.created_at,
-    },
-  });
-});
+    return res.status(201).json({
+      status: 'success',
+      message: 'Usuario creado correctamente',
+      data: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        role: user.role,
+        active: user.active,
+        created_at: user.created_at,
+      },
+    });
+  }
+);
 
 // ─── RF-M1-LIST · GET /users ────────────────────────────────────────────────
+// GAP-M1-02: respuesta es array directo (no {users:[...]})
+// GAP-SEG-09: paginación máx 50, audit_log por acceso
 router.get('/users', authMiddleware(['administrator']), (req, res) => {
+  // Validación de filtros
+  if (req.query.role && !VALID_ROLES.includes(req.query.role)) {
+    return res.status(400).json({ status: 'error', message: `Rol de filtro inválido. Valores aceptados: ${VALID_ROLES.join(' | ')}`, data: null });
+  }
+
   let users = store.users;
 
   if (req.query.active !== undefined) {
@@ -138,19 +278,27 @@ router.get('/users', authMiddleware(['administrator']), (req, res) => {
     users = users.filter((u) => u.role === req.query.role);
   }
 
+  // Paginación (GAP-SEG-09): máximo 50 por página
+  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const offset = (page - 1) * limit;
+  const total = users.length;
+  const paginatedUsers = users.slice(offset, offset + limit);
+
+  addAuditEvent('CONSULTA_USUARIOS', req.user.id, req.ip, `page=${page}&limit=${limit}&total=${total}`);
+
   return res.status(200).json({
     status: 'success',
-    message: 'Users retrieved',
-    data: {
-      users: users.map((u) => ({
-        id: u.id,
-        full_name: u.full_name,
-        email: u.email,
-        role: u.role,
-        active: u.active,
-        created_at: u.created_at,
-      })),
-    },
+    message: 'Usuarios recuperados',
+    data: paginatedUsers.map((u) => ({
+      id: u.id,
+      full_name: u.full_name,
+      email: u.email,
+      role: u.role,
+      active: u.active,
+      created_at: u.created_at,
+    })),
+    meta: { total, page, limit, pages: Math.ceil(total / limit) },
   });
 });
 
@@ -160,24 +308,30 @@ router.patch('/users/me/password', authMiddleware(), (req, res) => {
   const { current_password, new_password } = req.body || {};
 
   if (!current_password || !new_password) {
-    return res.status(400).json({ status: 'error', message: 'Missing required fields: current_password, new_password', data: null });
+    return res.status(400).json({ status: 'error', message: 'Campos obligatorios: current_password, new_password', data: null });
   }
 
   const user = store.users.find((u) => u.id === req.user.id);
+  if (!user) {
+    // No debería ocurrir con JWT válido, pero defensivo
+    return res.status(500).json({ status: 'error', message: 'Error interno del servidor', data: null });
+  }
 
   if (!bcrypt.compareSync(current_password, user.password_hash)) {
-    return res.status(401).json({ status: 'error', message: 'Current password is incorrect', data: null });
+    return res.status(401).json({ status: 'error', message: 'La contraseña actual es incorrecta', data: null });
   }
   if (bcrypt.compareSync(new_password, user.password_hash)) {
-    return res.status(400).json({ status: 'error', message: 'New password must differ from the current one', data: null });
+    return res.status(400).json({ status: 'error', message: 'La nueva contraseña debe ser diferente a la actual', data: null });
   }
 
   user.password_hash = bcrypt.hashSync(new_password, 12);
   user.password_changed_at = new Date();
 
+  addAuditEvent('CAMBIO_CONTRASENA', user.id, req.ip, null);
+
   return res.status(200).json({
     status: 'success',
-    message: 'Password updated. All previous sessions have been invalidated.',
+    message: 'Contraseña actualizada. Todas las sesiones anteriores han sido invalidadas.',
     data: null,
   });
 });
@@ -187,12 +341,21 @@ router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) 
   const { active } = req.body || {};
 
   if (typeof active !== 'boolean') {
-    return res.status(400).json({ status: 'error', message: 'Field active must be a boolean', data: null });
+    return res.status(400).json({ status: 'error', message: 'El campo active debe ser un booleano', data: null });
+  }
+
+  // Protección contra autodesactivación (GAP-SEG-03)
+  if (!active && req.user.id === req.params.id) {
+    return res.status(403).json({
+      status: 'error',
+      message: 'Un administrador no puede desactivar su propia cuenta',
+      data: null,
+    });
   }
 
   const user = store.users.find((u) => u.id === req.params.id);
   if (!user) {
-    return res.status(404).json({ status: 'error', message: 'User not found', data: null });
+    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
   }
 
   // Protección: último administrador activo no puede ser desactivado (CA-HU2-05)
@@ -201,18 +364,100 @@ router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) 
     if (activeAdmins.length === 1 && activeAdmins[0].id === user.id) {
       return res.status(409).json({
         status: 'error',
-        message: 'Cannot deactivate the only active administrator',
+        message: 'No es posible desactivar al único administrador activo',
         data: null,
       });
     }
   }
 
   user.active = active;
+  user.updated_at = new Date();
+
+  // GAP-M1-01: respuesta incluye email y updated_at
+  return res.status(200).json({
+    status: 'success',
+    message: 'Estado del usuario actualizado',
+    data: { id: user.id, email: user.email, active: user.active, updated_at: user.updated_at },
+  });
+});
+
+// ─── GET /audit-log ─── Solo administrador (GAP-M1-03, RNF-SEC-12) ──────────
+router.get('/audit-log', authMiddleware(['administrator']), (req, res) => {
+  let entries = store.auditLog;
+
+  // Filtros opcionales
+  if (req.query.event) {
+    entries = entries.filter((e) => e.event === req.query.event);
+  }
+  if (req.query.user_id) {
+    entries = entries.filter((e) => e.user_id === req.query.user_id);
+  }
+  if (req.query.from) {
+    const from = new Date(req.query.from);
+    if (!isNaN(from)) entries = entries.filter((e) => e.timestamp >= from);
+  }
+  if (req.query.to) {
+    const to = new Date(req.query.to);
+    if (!isNaN(to)) entries = entries.filter((e) => e.timestamp <= to);
+  }
+
+  // Paginación
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 50);
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const offset = (page - 1) * limit;
+  const total = entries.length;
 
   return res.status(200).json({
     status: 'success',
-    message: 'User status updated',
-    data: { id: user.id, active: user.active },
+    message: 'Audit log recuperado',
+    data: entries.slice(offset, offset + limit),
+    meta: { total, page, limit, pages: Math.ceil(total / limit) },
+  });
+});
+
+// ─── GET /users/me/sessions ─── (GAP-SEG-08) ─────────────────────────────────
+router.get('/users/me/sessions', authMiddleware(), (req, res) => {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const sessions = store.sessions
+    .filter((s) => s.user_id === req.user.id && s.expires_at > nowSec)
+    .map((s) => ({
+      jti: s.jti,
+      ip: s.ip,
+      user_agent: s.user_agent,
+      created_at: s.created_at,
+      expires_at: new Date(s.expires_at * 1000),
+      current: s.jti === req.user.jti,
+    }));
+
+  return res.status(200).json({
+    status: 'success',
+    message: 'Sesiones activas recuperadas',
+    data: sessions,
+  });
+});
+
+// ─── DELETE /sessions/:jti ─── (GAP-SEG-08) ──────────────────────────────────
+router.delete('/sessions/:jti', authMiddleware(), (req, res) => {
+  const { jti } = req.params;
+
+  const session = store.sessions.find(
+    (s) => s.jti === jti && s.user_id === req.user.id
+  );
+
+  if (!session) {
+    return res.status(404).json({ status: 'error', message: 'Sesión no encontrada', data: null });
+  }
+
+  // Revocar token y eliminar sesión
+  store.revokedTokens.set(jti, session.expires_at);
+  store.sessions = store.sessions.filter((s) => s.jti !== jti);
+
+  addAuditEvent('LOGOUT', req.user.id, req.ip, `Sesión revocada: ${jti}`);
+
+  return res.status(200).json({
+    status: 'success',
+    message: 'Sesión cerrada correctamente',
+    data: null,
   });
 });
 
