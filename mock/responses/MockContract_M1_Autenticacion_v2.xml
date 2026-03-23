@@ -12,10 +12,12 @@
     <basePath>/api/v1</basePath>
     <jwtAlgorithm>HS256</jwtAlgorithm>
     <jwtExpiresSeconds>21600</jwtExpiresSeconds>
-    <jwtSecret>Docker Secret (nunca variable de entorno)</jwtSecret>
-    <jwtPayloadFields>user_id, role, iat, exp, jti</jwtPayloadFields>
+    <jwtSecret>Docker Secret (/run/secrets/jwt_secret) &gt; variable de entorno JWT_SECRET &gt; default desarrollo.
+      En producción: exit(1) si se detecta el secret por defecto (GAP-SEG-02).</jwtSecret>
+    <jwtPayloadFields>user_id, role, iat, exp, jti, pwd_changed_at</jwtPayloadFields>
     <passwordHash>bcrypt, factor mínimo 12</passwordHash>
-    <revokedTokensStorage>tabla PostgreSQL revoked_tokens(jti UUID, expires_at TIMESTAMP)</revokedTokensStorage>
+    <revokedTokensStorage>Mock: Map en memoria (se pierde al reiniciar – limitación del mock, GAP-SEG-02).
+      Producción: tabla PostgreSQL revoked_tokens(jti UUID, expires_at TIMESTAMP)</revokedTokensStorage>
     <rateLimiting>5 intentos fallidos en 60 s → bloqueo IP/cuenta 5 min</rateLimiting>
     <responseStructure>{ "status": "success|error", "message": "...", "data": {} }</responseStructure>
   </moduleInfo>
@@ -111,8 +113,11 @@
       <responses>
         <response status="200">
           <description>Estado actualizado (CA-HU2-01, CA-HU2-03)</description>
-          <field name="id"     type="UUID"/>
-          <field name="active" type="boolean"/>
+          <!-- GAP-M1-01: respuesta incluye email y updated_at -->
+          <field name="id"         type="UUID"/>
+          <field name="email"      type="string"/>
+          <field name="active"     type="boolean"/>
+          <field name="updated_at" type="timestamp"/>
         </response>
         <response status="400">
           <description>Valor de active inválido (no booleano)</description>
@@ -121,7 +126,10 @@
           <description>Token JWT ausente o inválido</description>
         </response>
         <response status="403">
-          <description>Rol sin permiso para esta acción</description>
+          <description>
+            Rol sin permiso para esta acción.
+            También: administrador intentando desactivar su propia cuenta (GAP-SEG-03).
+          </description>
         </response>
         <response status="404">
           <description>Usuario no encontrado</description>
@@ -269,16 +277,28 @@
         <param name="active" type="boolean" required="false" notes="Filtrar por estado active"/>
         <param name="role"   type="enum"    required="false" values="administrator | researcher | applicator"/>
       </queryParams>
+      <!-- GAP-SEG-09: paginación obligatoria, máximo 50 por página -->
+      <queryParams>
+        <param name="page"   type="integer" required="false" notes="Página (default: 1)"/>
+        <param name="limit"  type="integer" required="false" notes="Resultados por página, máximo 50 (default: 20)"/>
+      </queryParams>
       <responses>
         <response status="200">
-          <description>Listado de usuarios</description>
-          <field name="users" type="array">
+          <!-- GAP-M1-02: data es array directo (no objeto {users:[...]}) -->
+          <description>Listado de usuarios (paginado)</description>
+          <field name="data" type="array">
             <field name="id"         type="UUID"/>
             <field name="full_name"  type="string"/>
             <field name="email"      type="string"/>
             <field name="role"       type="enum"/>
             <field name="active"     type="boolean"/>
             <field name="created_at" type="timestamp"/>
+          </field>
+          <field name="meta" type="object">
+            <field name="total" type="integer"/>
+            <field name="page"  type="integer"/>
+            <field name="limit" type="integer"/>
+            <field name="pages" type="integer"/>
           </field>
         </response>
         <response status="401">
@@ -322,6 +342,105 @@
         <response status="401">
           <description>Token ausente/inválido, o contraseña actual incorrecta (CA-HU6b-03, CA-HU6b-05)</description>
         </response>
+      </responses>
+    </endpoint>
+
+    <!-- ──────────────────────────────────────────────────────
+         GET /audit-log – Solo administrador (GAP-M1-03, RNF-SEC-12)
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-AUDIT" risk="Crítico">
+      <method>GET</method>
+      <path>/audit-log</path>
+      <auth>Bearer token – rol: administrator</auth>
+      <description>
+        Devuelve el registro de auditoría. Soporta filtros: event, user_id, from, to.
+        Paginado, máximo 50 entradas por página.
+        Eventos registrados: LOGIN, LOGIN_FALLIDO, LOGOUT, CAMBIO_CONTRASENA,
+          RATE_LIMIT_ACTIVADO, ACCESO_DENEGADO, CONSULTA_USUARIOS.
+        Mock: almacenamiento en memoria (se pierde al reiniciar).
+      </description>
+      <responses>
+        <response status="200">
+          <field name="data" type="array">
+            <field name="id"       type="UUID"/>
+            <field name="event"    type="string"/>
+            <field name="user_id"  type="UUID"   notes="null si no autenticado"/>
+            <field name="ip"       type="string"/>
+            <field name="timestamp" type="datetime"/>
+            <field name="details"  type="string" notes="null o string interno"/>
+          </field>
+          <field name="meta" type="object" notes="total, page, limit, pages"/>
+        </response>
+      </responses>
+    </endpoint>
+
+    <!-- ──────────────────────────────────────────────────────
+         GAP-SEG-08 – Gestión de sesiones activas
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-SESSIONS" risk="Alto">
+      <method>GET</method>
+      <path>/users/me/sessions</path>
+      <auth>Bearer token – cualquier rol autenticado</auth>
+      <description>Lista las sesiones activas del usuario autenticado.</description>
+      <responses>
+        <response status="200">
+          <field name="data" type="array">
+            <field name="jti"        type="UUID"/>
+            <field name="ip"         type="string"/>
+            <field name="user_agent" type="string"/>
+            <field name="created_at" type="datetime"/>
+            <field name="expires_at" type="datetime"/>
+            <field name="current"    type="boolean" notes="true si es la sesión activa actual"/>
+          </field>
+        </response>
+      </responses>
+    </endpoint>
+
+    <endpoint id="RF-M1-SESSION-DELETE" risk="Alto">
+      <method>DELETE</method>
+      <path>/sessions/{jti}</path>
+      <auth>Bearer token – cualquier rol autenticado (solo sus propias sesiones)</auth>
+      <description>Revoca una sesión específica del usuario autenticado por JTI.</description>
+      <responses>
+        <response status="200"><description>Sesión revocada correctamente</description></response>
+        <response status="404"><description>Sesión no encontrada o no pertenece al usuario</description></response>
+      </responses>
+    </endpoint>
+
+    <!-- ──────────────────────────────────────────────────────
+         GAP-SEG-11 – Recuperación de contraseña (mock)
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-PWD-RECOVERY" risk="Alto">
+      <method>POST</method>
+      <path>/auth/password-recovery</path>
+      <auth>Ninguna (endpoint público)</auth>
+      <description>
+        Inicia el proceso de recuperación de contraseña.
+        NOTA MOCK: el token de recuperación se devuelve en la respuesta directamente
+        (campo _mock_recovery_token). En producción se enviaría por email y nunca
+        se expondría en la respuesta.
+        Respuesta siempre genérica (anti-enumeración).
+      </description>
+      <request>
+        <field name="email" type="string" required="true"/>
+      </request>
+      <responses>
+        <response status="200"><description>Mensaje genérico independiente de si el email existe</description></response>
+      </responses>
+    </endpoint>
+
+    <endpoint id="RF-M1-PWD-RESET" risk="Alto">
+      <method>POST</method>
+      <path>/auth/password-reset</path>
+      <auth>Ninguna (endpoint público)</auth>
+      <description>Restablece la contraseña usando el token de recuperación (TTL: 15 min).</description>
+      <request>
+        <field name="recovery_token" type="string" required="true"/>
+        <field name="new_password"   type="string" required="true"/>
+      </request>
+      <responses>
+        <response status="200"><description>Contraseña restablecida. Sesiones anteriores invalidadas.</description></response>
+        <response status="400"><description>Token inválido o expirado</description></response>
       </responses>
     </endpoint>
 

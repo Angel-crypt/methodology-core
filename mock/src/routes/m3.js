@@ -1,6 +1,12 @@
 /**
  * M3 – Métricas
  * Contratos: RF-M3-01_RF-M3-02_RF-M3-04, RF-M3-02b_RF-M3-03_RF-M3-04b, RF-M3-LIST
+ *
+ * Cambios aplicados (GAP-M3-01..M3-03):
+ *   - GET /metrics: valida formato UUID de instrument_id (GAP-M3-01)
+ *   - GET /metrics: retorna 404 si el instrumento no existe (GAP-M3-01)
+ *   - GET /metrics: retorna 200 con array vacío solo si instrumento existe sin métricas (GAP-M3-01)
+ *   - Mensajes genéricos en español (GAP-SEG-05)
  */
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
@@ -11,29 +17,32 @@ const router = express.Router();
 
 const VALID_METRIC_TYPES = ['numeric', 'categorical', 'boolean', 'short_text'];
 
+// Regex para validar formato UUID v4 (GAP-M3-01)
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 /**
  * Valida la coherencia entre metric_type y sus campos dependientes.
- * @returns {string|null} Mensaje de error, o null si todo es válido.
+ * @returns {string|null} Mensaje de error en español, o null si todo es válido.
  */
 function validateMetricTypeFields(metric_type, min_value, max_value, options) {
   if (!VALID_METRIC_TYPES.includes(metric_type)) {
-    return `metric_type must be one of: ${VALID_METRIC_TYPES.join(' | ')}`;
+    return `metric_type debe ser uno de: ${VALID_METRIC_TYPES.join(' | ')}`;
   }
   if (metric_type !== 'numeric' && (min_value !== undefined && min_value !== null)) {
-    return 'min_value is only allowed for metric_type: numeric';
+    return 'min_value solo está permitido para metric_type: numeric';
   }
   if (metric_type !== 'numeric' && (max_value !== undefined && max_value !== null)) {
-    return 'max_value is only allowed for metric_type: numeric';
+    return 'max_value solo está permitido para metric_type: numeric';
   }
   if (metric_type === 'numeric' && min_value !== undefined && max_value !== undefined
       && min_value !== null && max_value !== null && min_value >= max_value) {
-    return 'min_value must be less than max_value';
+    return 'min_value debe ser menor que max_value';
   }
   if (metric_type !== 'categorical' && (options !== undefined && options !== null)) {
-    return 'options is only allowed for metric_type: categorical';
+    return 'options solo está permitido para metric_type: categorical';
   }
   if (metric_type === 'categorical' && (!options || !Array.isArray(options) || options.length === 0)) {
-    return 'options is required for metric_type: categorical (must be a non-empty array)';
+    return 'options es obligatorio para metric_type: categorical (debe ser un array no vacío)';
   }
   return null;
 }
@@ -45,14 +54,14 @@ router.post('/metrics', authMiddleware(['administrator']), (req, res) => {
   if (!instrument_id || !name || !metric_type || required === undefined) {
     return res.status(400).json({
       status: 'error',
-      message: 'Missing required fields: instrument_id, name, metric_type, required',
+      message: 'Campos obligatorios: instrument_id, name, metric_type, required',
       data: null,
     });
   }
 
   const instrument = store.instruments.find((i) => i.id === instrument_id);
   if (!instrument) {
-    return res.status(404).json({ status: 'error', message: 'Instrument not found', data: null });
+    return res.status(404).json({ status: 'error', message: 'Instrumento no encontrado', data: null });
   }
 
   const typeError = validateMetricTypeFields(metric_type, min_value, max_value, options);
@@ -63,7 +72,7 @@ router.post('/metrics', authMiddleware(['administrator']), (req, res) => {
   if (store.metrics.find((m) => m.instrument_id === instrument_id && m.name === name)) {
     return res.status(409).json({
       status: 'error',
-      message: 'Metric name already exists for this instrument',
+      message: 'Ya existe una métrica con ese nombre para este instrumento',
       data: null,
     });
   }
@@ -86,24 +95,39 @@ router.post('/metrics', authMiddleware(['administrator']), (req, res) => {
 
   return res.status(201).json({
     status: 'success',
-    message: 'Metric created successfully',
+    message: 'Métrica creada correctamente',
     data: metric,
   });
 });
 
 // ─── RF-M3-LIST · GET /metrics?instrument_id=... ─────────────────────────────
+// GAP-M3-01: triple distinción de respuesta:
+//   - 400: instrument_id con formato UUID inválido
+//   - 404: instrumento no existe en el store
+//   - 200 + array vacío: instrumento existe pero sin métricas
 router.get('/metrics', authMiddleware(), (req, res) => {
   const { instrument_id } = req.query;
 
   if (!instrument_id) {
-    return res.status(400).json({ status: 'error', message: 'instrument_id is required', data: null });
+    return res.status(400).json({ status: 'error', message: 'El parámetro instrument_id es obligatorio', data: null });
+  }
+
+  // Validar formato UUID
+  if (!UUID_REGEX.test(instrument_id)) {
+    return res.status(400).json({ status: 'error', message: 'El parámetro instrument_id no tiene un formato UUID válido', data: null });
+  }
+
+  // Verificar que el instrumento existe
+  const instrument = store.instruments.find((i) => i.id === instrument_id);
+  if (!instrument) {
+    return res.status(404).json({ status: 'error', message: 'Instrumento no encontrado', data: null });
   }
 
   const metrics = store.metrics.filter((m) => m.instrument_id === instrument_id);
 
   return res.status(200).json({
     status: 'success',
-    message: 'Metrics retrieved',
+    message: 'Métricas recuperadas',
     data: metrics.map((m) => ({
       id: m.id,
       instrument_id: m.instrument_id,
@@ -124,7 +148,7 @@ router.patch('/metrics/:id', authMiddleware(['administrator']), (req, res) => {
 
   const metric = store.metrics.find((m) => m.id === req.params.id);
   if (!metric) {
-    return res.status(404).json({ status: 'error', message: 'Metric not found', data: null });
+    return res.status(404).json({ status: 'error', message: 'Métrica no encontrada', data: null });
   }
 
   const effectiveType = metric_type !== undefined ? metric_type : metric.metric_type;
@@ -150,7 +174,7 @@ router.patch('/metrics/:id', authMiddleware(['administrator']), (req, res) => {
 
   return res.status(200).json({
     status: 'success',
-    message: 'Metric updated successfully',
+    message: 'Métrica actualizada correctamente',
     data: metric,
   });
 });
