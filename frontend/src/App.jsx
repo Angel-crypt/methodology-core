@@ -6,17 +6,19 @@ import LoginPage from './pages/LoginPage'
 import GestionAplicadores from './pages/GestionAplicadores'
 import GestionInvestigadores from './pages/GestionInvestigadores'
 import GalleryPage from './pages/GalleryPage'
+import GestionInstrumentos from './pages/GestionInstrumentos'
+import AppLayout from './layouts/AppLayout'
 
-const NAV_ITEMS = [
+const USUARIOS_NAV = [
   { label: 'Aplicadores', icon: ClipboardList, to: '/usuarios/aplicadores' },
   { label: 'Investigadores', icon: Search, to: '/usuarios/investigadores' },
 ]
 
-function AppLayout({ onLogout, children }) {
+function UsuariosLayout({ onLogout, children }) {
   return (
     <div className="app-layout">
       <Sidebar
-        items={NAV_ITEMS}
+        items={USUARIOS_NAV}
         header={
           <span
             style={{
@@ -70,8 +72,10 @@ function App() {
       }}
     >
       <Routes>
+        {/* Galería del DS — sin autenticación */}
         <Route path="/gallery" element={<GalleryPage />} />
 
+        {/* Login */}
         <Route
           path="/login"
           element={
@@ -83,13 +87,14 @@ function App() {
           }
         />
 
+        {/* Módulo 1 — Gestión de usuarios */}
         <Route
           path="/usuarios/aplicadores"
           element={
             token ? (
-              <AppLayout onLogout={handleLogout}>
+              <UsuariosLayout onLogout={handleLogout}>
                 <GestionAplicadores token={token} />
-              </AppLayout>
+              </UsuariosLayout>
             ) : (
               <Navigate to="/login" replace />
             )
@@ -100,8 +105,22 @@ function App() {
           path="/usuarios/investigadores"
           element={
             token ? (
-              <AppLayout onLogout={handleLogout}>
+              <UsuariosLayout onLogout={handleLogout}>
                 <GestionInvestigadores token={token} />
+              </UsuariosLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        {/* Módulo 2 — Gestión de Instrumentos */}
+        <Route
+          path="/instruments"
+          element={
+            token ? (
+              <AppLayout onLogout={handleLogout}>
+                <GestionInstrumentos token={token} />
               </AppLayout>
             ) : (
               <Navigate to="/login" replace />
@@ -109,6 +128,7 @@ function App() {
           }
         />
 
+        {/* Redirect raíz */}
         <Route
           path="*"
           element={<Navigate to={token ? defaultAuthed : '/login'} replace />}

@@ -58,47 +58,81 @@ function LoginPage({ onLogin }) {
   return (
     <div className="login-layout">
       <div className="login-card">
-        <div style={{ marginBottom: 'var(--space-8)', textAlign: 'center' }}>
-          <h1
+
+        {/* Ícono + título */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 'var(--space-3)',
+            marginBottom: 'var(--space-8)',
+          }}
+        >
+          <div
             style={{
-              fontSize: 'var(--font-size-display)',
-              fontWeight: 'var(--font-weight-medium)',
-              color: 'var(--color-text-primary)',
-              lineHeight: 'var(--line-height-tight)',
-              marginBottom: 'var(--space-2)',
+              width: 48,
+              height: 48,
+              borderRadius: 'var(--radius-lg)',
+              backgroundColor: 'var(--color-primary-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--color-primary-dark)',
             }}
           >
-            Iniciar sesión
-          </h1>
-          <p
-            style={{
-              fontSize: 'var(--font-size-small)',
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            Sistema de Registro de Métricas Lingüísticas
-          </p>
+            <LogIn size={24} aria-hidden="true" />
+          </div>
+
+          <div style={{ textAlign: 'center' }}>
+            <h1
+              style={{
+                fontSize: 'var(--font-size-h2)',
+                fontWeight: 'var(--font-weight-medium)',
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              Sistema de Perfiles Lingüísticos
+            </h1>
+            <p
+              style={{
+                fontSize: 'var(--font-size-small)',
+                color: 'var(--color-text-secondary)',
+                marginTop: 'var(--space-1)',
+              }}
+            >
+              Inicia sesión para continuar
+            </p>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          {error && <Alert variant="error">{error}</Alert>}
+        {/* Error */}
+        {error && (
+          <div style={{ marginBottom: 'var(--space-4)' }}>
+            <Alert variant="error">{error}</Alert>
+          </div>
+        )}
 
+        {/* Formulario */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <FormField
             id="login-email"
             label="Correo electrónico"
             type="email"
-            placeholder="usuario@institución.edu"
+            placeholder="usuario@dominio.com"
             required
             value={form.email}
             onChange={handleChange('email')}
             onKeyDown={handleKeyDown}
             autoComplete="email"
+            autoFocus
           />
 
           <FormField
             id="login-password"
             label="Contraseña"
             type="password"
+            placeholder="••••••••"
             required
             value={form.password}
             onChange={handleChange('password')}
@@ -107,15 +141,16 @@ function LoginPage({ onLogin }) {
           />
 
           <Button
-            onClick={handleSubmit}
-            loading={cargando}
             icon={LogIn}
             iconPosition="right"
-            style={{ width: '100%', marginTop: 'var(--space-2)' }}
+            onClick={handleSubmit}
+            loading={cargando}
+            style={{ width: '100%' }}
           >
             Ingresar
           </Button>
         </div>
+
       </div>
     </div>
   )
