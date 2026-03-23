@@ -1,5 +1,5 @@
 import { BookOpen } from 'lucide-react'
-import { Sidebar } from '@/components/app'
+import { Sidebar, Button } from '@/components/app'
 
 const NAV_ITEMS = [
   { label: 'Instrumentos', icon: BookOpen, to: '/instruments' },
@@ -33,9 +33,9 @@ function AppLayout({ children, onLogout }) {
             </p>
             <p
               style={{
-                fontSize: '0.65rem',
+                fontSize: 'var(--font-size-label)',
                 color: 'var(--color-text-tertiary)',
-                marginTop: 2,
+                marginTop: 'var(--space-0-5)',
               }}
             >
               Sistema de Perfiles Lingüísticos
@@ -49,20 +49,9 @@ function AppLayout({ children, onLogout }) {
         {/* Topbar */}
         <header className="topbar">
           <div style={{ flex: 1 }} />
-          <button
-            onClick={onLogout}
-            style={{
-              fontSize: 'var(--font-size-small)',
-              color: 'var(--color-text-secondary)',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 'var(--space-1) var(--space-2)',
-              borderRadius: 'var(--radius-md)',
-            }}
-          >
+          <Button variant="ghost" size="sm" onClick={onLogout}>
             Cerrar sesión
-          </button>
+          </Button>
         </header>
 
         {children}
