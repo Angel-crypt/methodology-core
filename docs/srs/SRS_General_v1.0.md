@@ -494,4 +494,57 @@ Estrategia **Blue/Green**: el entorno activo continúa operando mientras el ento
 
 ---
 
-*Fin del documento — SRS General del Sistema v1.0 · 2026-03-12*
+---
+
+## 12. Privacidad, Protección de Datos y Cumplimiento (GAP-SEG-01)
+
+> **Adicionado en revisión 2026-03-22** · Referencia: `mock/SECURITY_REPORT.md §SEG-01`, GAP-SEG-01
+
+### 12.1 Contexto de Riesgo
+
+El sistema captura datos de **sujetos menores de edad** (potencialmente) en contextos educativos. Aunque los sujetos se registran sin PII directa (sin nombre, CURP, dirección), la combinación de atributos contextuales (`age_cohort`, `gender`, `education_level`, `school_type`, `socioeconomic_level`) puede constituir **datos cuasi-identificables** según el considerando 26 del RGPD y el artículo 3° de la LFPDPPP (México).
+
+**Estado actual del Mock:** El sistema de desarrollo (Mock) no implementa cumplimiento GDPR/LOPD completo. Implementa las bases indispensables (ver §12.3). El cumplimiento pleno es requisito antes de la puesta en producción con datos reales.
+
+### 12.2 Clasificación de Datos
+
+| Capa | Tipo de dato | PII | Riesgo de reidentificación |
+|---|---|---|---|
+| `Subject.id` | UUID autogenerado | No | Nulo (sin contexto) |
+| `ContextData` (5 campos estándar) | Cuasi-identificables | Indirecto | Bajo-Medio (combinación de 4+ campos) |
+| `ContextData.additional_attributes` | Variable | Potencial | Variable según contenido |
+| `MetricValue.value` | Datos lingüísticos | No | Bajo |
+| `users.*` | Datos internos del equipo | Sí (correo, nombre) | N/A (personal del equipo, no sujetos) |
+
+### 12.3 Medidas de Privacidad Implementadas (DPIA Básico)
+
+| Medida | Descripción | Implementación |
+|---|---|---|
+| **Anonimización por diseño** | Sujetos identificados solo por UUID | `POST /subjects` rechaza body con datos |
+| **Minimización de datos** | Solo campos metodológicamente necesarios en ContextData | validateStrictInput en endpoints M4 |
+| **Restricción de additional_attributes** | Máx 5 claves, sin campos de PII conocidos, límites de tamaño | `mock/src/routes/m4.js` + lista negra |
+| **Validación de age_cohort** | Solo rangos (`N-N`), no edades exactas | Regex `^\d+-\d+$`, max 20 chars |
+| **Separación de identidad** | Ninguna tabla vincula UUID de sujeto con PII real | Diseño de BD |
+| **Control de acceso** | Solo Aplicador/Administrador acceden a datos de sujetos | RBAC en todos los endpoints M4 |
+| **Audit log** | Registro de accesos a datos de usuarios para compliance | `store.auditLog` + `GET /audit-log` |
+
+### 12.4 Restricciones de Producción (Pendientes)
+
+Antes de procesar datos reales, el equipo debe:
+
+1. **Realizar DPIA formal** (Evaluación de Impacto en Protección de Datos) completa.
+2. **Obtener consentimiento informado** de participantes o sus tutores (menores).
+3. **Documentar base legal** para el tratamiento (interés legítimo de investigación, art. 9 RGPD).
+4. **Implementar derecho al olvido**: mecanismo para eliminar todos los datos de un sujeto por UUID.
+5. **Cifrado en reposo**: cifrar `ContextData` y `MetricValue` en la base de datos.
+6. **Política de retención**: definir TTL para datos y eliminación automática.
+7. **Registro de tratamiento**: documentar como responsable del tratamiento.
+
+### 12.5 Riesgo Combinatorio (K-Anonimato)
+
+El sistema **no implementa k-anonimato** en esta versión. Para datasets con pocos sujetos por combinación de atributos, existe riesgo de reidentificación por combinación de `age_cohort + gender + education_level + school_type`. El equipo de investigación debe considerar:
+- Agregar `unknown` en todos los enums cuando la precisión no sea metodológicamente necesaria.
+- Revisar si `additional_attributes` puede crear combinaciones únicas.
+- Aplicar generalización de atributos en la exportación (M6, Fase 2).
+
+*Fin del documento — SRS General del Sistema v1.0 · 2026-03-22 (actualizado)*
