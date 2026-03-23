@@ -26,6 +26,16 @@ import {
  *   token string — JWT para autenticar llamadas a la API
  */
 function GestionInstrumentos({ token }) {
+  // ─── Rol del usuario desde el JWT ─────────────────────────────
+  const esAdmin = (() => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      return payload.role === 'administrator'
+    } catch {
+      return false
+    }
+  })()
+
   // ─── Estado principal ──────────────────────────────────────────
   const [instrumentos, setInstrumentos] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -79,7 +89,7 @@ function GestionInstrumentos({ token }) {
     } finally {
       setCargando(false)
     }
-  }, [token, filtroEstado]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, filtroEstado, toast])
 
   useEffect(() => {
     cargarInstrumentos()
@@ -161,6 +171,9 @@ function GestionInstrumentos({ token }) {
 
   function validarEditar() {
     const errs = {}
+    if (!formEditar.methodological_description.trim()) {
+      errs.methodological_description = 'La descripción no puede estar vacía.'
+    }
     if (formEditar.start_date && formEditar.end_date && formEditar.end_date <= formEditar.start_date) {
       errs.end_date = 'La fecha de fin debe ser posterior a la de inicio.'
     }
@@ -299,7 +312,8 @@ function GestionInstrumentos({ token }) {
       label: 'Estado',
       render: (valor) => <StatusBadge status={valor} />,
     },
-    {
+    // Columna de acciones solo visible para administrador (FUNC-02)
+    ...(esAdmin ? [{
       key: 'id',
       label: 'Acciones',
       render: (_, fila) => (
@@ -323,7 +337,7 @@ function GestionInstrumentos({ token }) {
           />
         </div>
       ),
-    },
+    }] : []),
   ]
 
   // ─── Opciones de filtro ────────────────────────────────────────
@@ -374,9 +388,12 @@ function GestionInstrumentos({ token }) {
           </p>
         </div>
 
-        <Button icon={Plus} iconPosition="left" onClick={() => setModalCrear(true)}>
-          Nuevo instrumento
-        </Button>
+        {/* Botón nuevo solo para admin (FUNC-02) */}
+        {esAdmin && (
+          <Button icon={Plus} iconPosition="left" onClick={() => setModalCrear(true)}>
+            Nuevo instrumento
+          </Button>
+        )}
       </div>
 
       {/* Barra de filtros */}
@@ -392,7 +409,8 @@ function GestionInstrumentos({ token }) {
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
           {filtros.map(({ valor, etiqueta }) => (
             <button
-              key={valor}
+              key={valor || 'all'}
+              aria-pressed={filtroEstado === valor}
               onClick={() => setFiltroEstado(valor)}
               style={{
                 padding: 'var(--space-1) var(--space-3)',
@@ -429,11 +447,11 @@ function GestionInstrumentos({ token }) {
           title="No hay instrumentos registrados"
           message={
             filtroEstado
-              ? `No se encontraron instrumentos con estado "${filtroEstado}".`
+              ? `No se encontraron instrumentos con estado "${filtros.find(f => f.valor === filtroEstado)?.etiqueta}".`
               : 'Crea el primer instrumento para comenzar.'
           }
           action={
-            !filtroEstado && (
+            esAdmin && !filtroEstado && (
               <Button size="sm" icon={Plus} iconPosition="left" onClick={() => setModalCrear(true)}>
                 Nuevo instrumento
               </Button>
@@ -544,7 +562,13 @@ function GestionInstrumentos({ token }) {
               value={formEditar.methodological_description}
               onChange={cambiarEditar('methodological_description')}
               style={{ height: 'auto', padding: 'var(--space-2) var(--space-3)', resize: 'vertical' }}
+              aria-invalid={erroresEditar.methodological_description ? 'true' : undefined}
             />
+            {erroresEditar.methodological_description && (
+              <p className="field-error" role="alert">
+                {erroresEditar.methodological_description}
+              </p>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
