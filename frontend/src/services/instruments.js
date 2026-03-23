@@ -16,6 +16,18 @@ function headers(token) {
   }
 }
 
+async function parseResponse(res) {
+  try {
+    return await res.json()
+  } catch {
+    return {
+      status: 'error',
+      message: `Error del servidor (HTTP ${res.status})`,
+      data: null,
+    }
+  }
+}
+
 /**
  * RF-M2-LIST — GET /instruments
  * Accesible por todos los roles autenticados.
@@ -25,7 +37,7 @@ function headers(token) {
 export async function listarInstrumentos(token, statusFilter = '') {
   const url = statusFilter ? `${BASE}?status=${statusFilter}` : BASE
   const res = await fetch(url, { headers: headers(token) })
-  return res.json()
+  return parseResponse(res)
 }
 
 /**
@@ -40,7 +52,7 @@ export async function crearInstrumento(token, body) {
     headers: headers(token),
     body: JSON.stringify(body),
   })
-  return res.json()
+  return parseResponse(res)
 }
 
 /**
@@ -57,7 +69,7 @@ export async function editarInstrumento(token, id, body) {
     headers: headers(token),
     body: JSON.stringify(body),
   })
-  return res.json()
+  return parseResponse(res)
 }
 
 /**
@@ -74,5 +86,5 @@ export async function cambiarEstadoInstrumento(token, id, status) {
     headers: headers(token),
     body: JSON.stringify({ status }),
   })
-  return res.json()
+  return parseResponse(res)
 }
