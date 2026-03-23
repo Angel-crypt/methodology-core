@@ -5,7 +5,8 @@
   Versión: 2.0  |  Fecha: 2026-03-12  |  Estado: En revisión
 -->
 
-<mockModuleContract module="Instruments" version="1.0">
+<!-- GAP-XML-01 [v1]: versión corregida de 1.0 a 2.0 para coincidir con nombre del archivo y referencias SRS -->
+<mockModuleContract module="Instruments" version="2.0">
 
     <moduleInfo>
         <n>Instrument Management</n>
@@ -210,10 +211,11 @@
                     <body>
                         <field name="status"  type="string" description="success"/>
                         <field name="message" type="string" description="Instrument status updated"/>
+                        <!-- GAP-M2-01: respuesta corregida — {id, name, status} (sin updated_at) -->
                         <field name="data"    type="object">
-                            <field name="id"         type="string"/>
-                            <field name="status"     type="string" description="active | inactive"/>
-                            <field name="updated_at" type="datetime"/>
+                            <field name="id"     type="string"/>
+                            <field name="name"   type="string"/>
+                            <field name="status" type="string" description="active | inactive"/>
                         </field>
                     </body>
                 </response>
