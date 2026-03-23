@@ -8,6 +8,7 @@ import {
   FormField,
   Alert,
   EmptyState,
+  PillToggle,
   ToastContainer,
   useToast,
 } from '@/components/app'
@@ -408,25 +409,13 @@ function GestionInstrumentos({ token }) {
       >
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
           {filtros.map(({ valor, etiqueta }) => (
-            <button
+            <PillToggle
               key={valor || 'all'}
-              aria-pressed={filtroEstado === valor}
+              selected={filtroEstado === valor}
               onClick={() => setFiltroEstado(valor)}
-              style={{
-                padding: 'var(--space-1) var(--space-3)',
-                borderRadius: 'var(--radius-pill)',
-                border: '1px solid',
-                fontSize: 'var(--font-size-small)',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-                borderColor: filtroEstado === valor ? 'var(--color-primary)' : 'var(--color-border)',
-                backgroundColor: filtroEstado === valor ? 'var(--color-primary-light)' : 'var(--color-surface)',
-                color: filtroEstado === valor ? 'var(--color-primary-dark)' : 'var(--color-text-secondary)',
-                fontWeight: filtroEstado === valor ? 'var(--font-weight-medium)' : 'var(--font-weight-regular)',
-              }}
             >
               {etiqueta}
-            </button>
+            </PillToggle>
           ))}
         </div>
 
