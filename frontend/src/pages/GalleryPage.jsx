@@ -24,16 +24,13 @@ import {
   Spinner,
   Sidebar,
   Typography,
-<<<<<<< Updated upstream
   useToast,
-=======
   PillToggle,
->>>>>>> Stashed changes
 } from '../components/app'
 
 /* ─────────────────────────────────────────────────────────────
-   INTERNAL: ComponentSection
-   ───────────────────────────────────────────────────────────── */
+  INTERNAL: ComponentSection
+───────────────────────────────────────────────────────────── */
 
 function ComponentSection({ id, title, description, children, props: propsDef = [], code }) {
   const [copied, setCopied] = useState(false)
