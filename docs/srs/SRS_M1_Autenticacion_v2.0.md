@@ -494,6 +494,61 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | HU5 – RBAC | CA-HU5-01 a 06 | Middleware transversal | JWT payload (stateless) | Crítico |
 | RF-M1-06 | Cambiar contraseña | CA-HU6b-01 a 05 | `PATCH /api/v1/users/me/password` | tabla `users` + `AuditLog` | Alto |
 | RF-M1-LIST | — | `GET /api/v1/users` | tabla `users` | Bajo |
+| RF-M1-07 | Audit log | — | `GET /api/v1/audit-log` | tabla `AuditLog` | Crítico |
+| RF-M1-08 | Sesiones activas | — | `GET /api/v1/users/me/sessions` · `DELETE /api/v1/sessions/{jti}` | tabla `sessions` | Alto |
+| RF-M1-09 | Recuperación de contraseña | — | `POST /api/v1/auth/password-recovery` · `POST /api/v1/auth/password-reset` | tabla `users` + `AuditLog` | Alto |
+
+---
+
+## 11. Nuevos Requisitos Funcionales (Revisión 2026-03-22)
+
+> **Adicionado en revisión 2026-03-22** · Referencia: GAP-M1-03, GAP-SEG-08, GAP-SEG-11
+
+### RF-M1-07 – Consultar Audit Log
+
+**Descripción:** El Administrador puede consultar el registro de auditoría de eventos de seguridad y acceso.
+
+**Endpoint:** `GET /api/v1/audit-log`
+
+**Acceso:** Solo `administrator`.
+
+**Parámetros opcionales:** `event`, `user_id`, `from`, `to`, `page`, `limit` (máx 50).
+
+**Eventos registrados obligatoriamente (RNF-SEC-12):**
+
+| Evento | Cuándo se registra |
+|---|---|
+| `LOGIN` | Login exitoso |
+| `LOGIN_FALLIDO` | Credenciales incorrectas (antes del bloqueo) |
+| `LOGOUT` | Cierre de sesión o revocación de sesión |
+| `CAMBIO_CONTRASENA` | Cambio o restablecimiento de contraseña |
+| `RATE_LIMIT_ACTIVADO` | IP/cuenta bloqueada por exceso de intentos |
+| `ACCESO_DENEGADO` | Token válido pero rol insuficiente (RBAC) |
+| `CONSULTA_USUARIOS` | Acceso al endpoint `GET /users` |
+
+**Nota de implementación (Mock):** El audit log se almacena en memoria (`store.auditLog`). Los eventos se pierden al reiniciar. En producción debe persistirse en PostgreSQL.
+
+### RF-M1-08 – Gestión de Sesiones Activas
+
+**Descripción:** Un usuario autenticado puede ver sus sesiones activas y revocar sesiones individuales.
+
+**Endpoints:**
+- `GET /api/v1/users/me/sessions` — Lista sesiones activas del usuario autenticado.
+- `DELETE /api/v1/sessions/{jti}` — Revoca una sesión específica por JTI.
+
+**Reglas:** Solo se pueden revocar sesiones propias. Un administrador no puede revocar sesiones de otros usuarios desde este endpoint.
+
+### RF-M1-09 – Recuperación de Contraseña
+
+**Descripción:** Permite restablecer la contraseña mediante token temporal.
+
+**Endpoints:**
+- `POST /api/v1/auth/password-recovery` — Solicita recuperación (acepta `email`). Respuesta siempre genérica (anti-enumeración).
+- `POST /api/v1/auth/password-reset` — Restablece contraseña con `{recovery_token, new_password}`.
+
+**TTL del token:** 15 minutos.
+
+**Nota de implementación (Mock):** El token se devuelve directamente en la respuesta (`_mock_recovery_token`). **En producción se debe enviar por email y NUNCA exponer en la respuesta API.**
 
 ---
 

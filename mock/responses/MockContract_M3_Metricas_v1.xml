@@ -273,10 +273,24 @@
                     </body>
                 </response>
                 <response status="400">
-                    <description>Parámetro instrument_id ausente o con formato inválido (no es UUID)</description>
+                    <!-- GAP-M3-01: distinguir 400 (UUID inválido) vs 404 (instrumento no existe) vs 200 vacío -->
+                    <description>
+                        instrument_id ausente o con formato UUID inválido.
+                        Nota: si el UUID tiene formato válido pero el instrumento no existe → HTTP 404.
+                        Si el instrumento existe pero no tiene métricas → HTTP 200 con array vacío.
+                    </description>
                     <body>
                         <field name="status"  type="string" description="error"/>
-                        <field name="message" type="string" description="instrument_id is required"/>
+                        <field name="message" type="string" description="El parámetro instrument_id es obligatorio / no tiene formato UUID válido"/>
+                        <field name="data"    type="null"/>
+                    </body>
+                </response>
+                <response status="404">
+                    <!-- GAP-M3-01: nuevo — instrumento no existe -->
+                    <description>El instrumento referenciado no existe en el sistema</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="Instrumento no encontrado"/>
                         <field name="data"    type="null"/>
                     </body>
                 </response>

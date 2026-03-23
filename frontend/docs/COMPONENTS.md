@@ -17,6 +17,7 @@ import { Button, FormField } from '../components/app'
 ## Índice
 
 - [Button](#button)
+- [PillToggle](#pilltoggle)
 - [FormField](#formfield)
 - [Modal](#modal)
 - [DataTable](#datatable)
@@ -69,6 +70,58 @@ import { Plus } from 'lucide-react'
 | `...props` | `HTMLButtonElement` | — | Props nativas del botón |
 
 Ver en galería: `/gallery#button`
+
+---
+
+## PillToggle
+
+Botón de selección tipo pill para grupos de filtros mutuamente excluyentes.
+Comunica el estado activo visualmente y mediante `aria-pressed` para accesibilidad.
+
+```jsx
+import { PillToggle } from '@/components/app'
+import { useState } from 'react'
+
+const OPTIONS = [
+  { value: '',         label: 'Todos' },
+  { value: 'active',  label: 'Activos' },
+  { value: 'inactive', label: 'Inactivos' },
+]
+
+function FilterBar() {
+  const [selected, setSelected] = useState('')
+
+  return (
+    <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+      {OPTIONS.map(({ value, label }) => (
+        <PillToggle
+          key={label}
+          selected={selected === value}
+          onClick={() => setSelected(value)}
+        >
+          {label}
+        </PillToggle>
+      ))}
+    </div>
+  )
+}
+```
+
+**Props:**
+
+| Prop | Tipo | Default | Descripción |
+|------|------|---------|-------------|
+| `selected` | `boolean` | `false` | Marca el pill como activo (color primario + `aria-pressed`) |
+| `disabled` | `boolean` | `false` | Deshabilita el botón |
+| `children` | `ReactNode` | — | Etiqueta visible del pill |
+| `className` | `string` | `''` | Clases adicionales |
+| `...props` | `HTMLButtonElement` | — | Props nativas del botón (`onClick`, etc.) |
+
+**Cuándo usarlo:** En barras de filtro donde las opciones son mutuamente excluyentes
+y el espacio visual requiere una presentación compacta y pill-shaped.
+No usar para acciones — usar `Button` para eso.
+
+Ver en galería: `/gallery#pill-toggle`
 
 ---
 
@@ -344,12 +397,13 @@ Ver en galería: `/gallery#toast`
 
 ## Sidebar
 
-Barra de navegación lateral con `NavLink` de react-router-dom. Aplica clase `is-active` al ítem de la ruta activa.
+Barra de navegación lateral con `NavLink` de react-router-dom. Aplica clase `is-active` al ítem de la ruta activa. Soporta `renderItem` para reemplazar el render por defecto (útil para hash anchors en lugar de rutas de React Router).
 
 ```jsx
 import { Sidebar } from '@/components/app'
 import { Users, BookOpen, BarChart2 } from 'lucide-react'
 
+// Uso estándar con NavLink
 const navItems = [
   { label: 'Usuarios', icon: Users, to: '/users', end: true },
   { label: 'Instrumentos', icon: BookOpen, to: '/instruments' },
@@ -359,6 +413,17 @@ const navItems = [
 <Sidebar
   items={navItems}
   header={<span>Sistema de Perfiles</span>}
+  footer={<span style={{ fontSize: 'var(--font-size-caption)' }}>v1.0</span>}
+/>
+
+// Con renderItem personalizado (hash anchors, sin React Router)
+<Sidebar
+  items={sections}
+  renderItem={(item) => (
+    <a href={`#${item.id}`} className={`sidebar-item${active === item.id ? ' is-active' : ''}`}>
+      {item.label}
+    </a>
+  )}
 />
 ```
 
@@ -366,8 +431,10 @@ const navItems = [
 
 | Prop | Tipo | Default | Descripción |
 |------|------|---------|-------------|
-| `items` | `Array<{ label: string, icon?: LucideComponent, to: string, end?: boolean }>` | `[]` | Ítems de navegación. `end` se pasa a `NavLink` para match exacto |
-| `header` | `ReactNode` | `undefined` | Contenido del encabezado del sidebar (logo, nombre de app) |
+| `items` | `Array<{ id?: string, label: string, icon?: LucideComponent, to?: string, end?: boolean }>` | `[]` | Ítems de navegación |
+| `header` | `ReactNode` | `undefined` | Slot de encabezado — renderizado como está, sin wrapper adicional |
+| `renderItem` | `(item) => ReactNode` | `undefined` | Función de render por ítem. Si se omite, usa `NavLink` con `item.to` |
+| `footer` | `ReactNode` | `undefined` | Slot de pie, pinned al fondo con borde superior |
 
 Ver en galería: `/gallery#sidebar`
 
@@ -404,7 +471,7 @@ Ver en galería: `/gallery#emptystate`
 
 ## Spinner
 
-Indicador de carga animado (ícono `Loader2` de lucide-react con `animate-spin`).
+Indicador de carga animado accesible (`role="status"` + `aria-label`). Usa el ícono `Loader2` de lucide-react con `animate-spin`.
 
 ```jsx
 import { Spinner } from '@/components/app'
@@ -414,6 +481,9 @@ import { Spinner } from '@/components/app'
 
 // Spinner que hereda el color del contexto
 <Spinner color="current" size={20} />
+
+// Spinner con label personalizado
+<Spinner label="Guardando cambios..." />
 ```
 
 **Props:**
@@ -421,7 +491,8 @@ import { Spinner } from '@/components/app'
 | Prop | Tipo | Default | Descripción |
 |------|------|---------|-------------|
 | `size` | `number` | `16` | Tamaño del ícono en píxeles |
-| `color` | `'primary' \| 'current'` | `'primary'` | `'primary'` usa `var(--color-primary)`; `'current'` hereda el color del elemento padre |
+| `color` | `'primary' \| 'current'` | `'primary'` | `'primary'` usa `var(--color-primary)`; `'current'` hereda el color del padre |
+| `label` | `string` | `'Cargando...'` | Texto accesible leído por lectores de pantalla (`aria-label` + `.sr-only`) |
 
 Ver en galería: `/gallery#spinner`
 

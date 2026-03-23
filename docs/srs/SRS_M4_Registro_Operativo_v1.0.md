@@ -88,7 +88,51 @@ El Módulo 4 es el componente operativo del sistema: donde los datos del estudio
 
 Sin este módulo no existen datos en el sistema. Los módulos M2 y M3 definen la estructura; M4 la popula con datos reales. Adicionalmente, garantiza que los datos capturados sean consistentes, estructurados y anonimizados, condiciones indispensables para que el dataset resultante sea utilizable científicamente.
 
-### 2.3 Relación con Otros Módulos
+### 2.3 Cuasi-Identificabilidad y Privacidad de ContextData (GAP-SEG-01, 2026-03-22)
+
+> **Adicionado en revisión 2026-03-22** · Referencia: `mock/SECURITY_REPORT.md §SEG-01`, `SRS_General §12`
+
+#### 2.3.1 Naturaleza de los Datos de Contexto
+
+Aunque el sistema no almacena PII directa, los atributos de `ContextData` son **cuasi-identificables**: ninguno identifica individualmente a un sujeto, pero la combinación de 4 o más atributos puede permitir reidentificación en datasets pequeños. El considerando 26 del RGPD (y equivalente LFPDPPP Art. 3°) reconoce este riesgo.
+
+**Nivel de riesgo por campo:**
+
+| Campo | Tipo | Riesgo individual | Riesgo combinado |
+|---|---|---|---|
+| `age_cohort` | Cuasi-identificable | Bajo (rango de edad, no edad exacta) | Medio |
+| `gender` | Cuasi-identificable | Bajo (4 valores) | Medio |
+| `education_level` | Cuasi-identificable | Bajo (5 valores) | Medio |
+| `school_type` | Cuasi-identificable | Muy bajo (3 valores) | Bajo |
+| `socioeconomic_level` | Cuasi-identificable | Bajo (4 valores) | Bajo |
+| `additional_attributes` | Variable | Variable | Alto si contiene datos únicos |
+
+#### 2.3.2 Restricciones sobre `additional_attributes`
+
+Para mitigar el riesgo de introducción accidental de PII a través del campo libre `additional_attributes`, el sistema **impone las siguientes restricciones** (GAP-SEG-04):
+
+| Restricción | Valor | Razón |
+|---|---|---|
+| Máximo de claves | 5 | Limitar superficie de datos |
+| Longitud de clave | ≤ 50 caracteres | Evitar encodings de datos largos |
+| Longitud de valor (string) | ≤ 200 caracteres | Evitar textos identificables |
+| Lista negra de nombres de campo | nombre, apellido, dni, rut, email, telefono, direccion, birthdate, foto, curp, ssn, etc. | Prevenir carga de PII directa |
+
+El servidor retorna HTTP 400 ante cualquier violación de estas restricciones.
+
+#### 2.3.3 Restricción sobre `age_cohort`
+
+El campo `age_cohort` debe expresarse **exclusivamente como rango** (formato `N-N`, ej: `"6-8"`), nunca como edad exacta. El sistema valida este formato mediante regex `^\d+-\d+$` con longitud máxima de 20 caracteres.
+
+**Razón:** Una edad exacta combinada con los demás atributos aumenta significativamente el riesgo de reidentificación. Un rango de 2-3 años reduce este riesgo de forma efectiva.
+
+#### 2.3.4 Implicaciones para el Equipo de Investigación
+
+- Al diseñar los atributos de `additional_attributes`, el equipo debe verificar que no permitan identificar al sujeto individualmente.
+- El equipo debe documentar la justificación metodológica de cada atributo adicional antes de incluirlo.
+- En la exportación (M6, Fase 2), considerar generalización adicional de atributos para el dataset público.
+
+### 2.4 Relación con Otros Módulos
 
 ```
 M1 – Autenticación

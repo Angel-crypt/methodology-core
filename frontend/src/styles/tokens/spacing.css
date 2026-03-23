@@ -14,6 +14,7 @@
   --space-0-5: 0.125rem;  /*  2px — micro gap, separador mínimo */
   --space-1:   0.25rem;   /*  4px — gap mínimo ícono + texto inline */
   --space-2:   0.5rem;    /*  8px — gap interno de componentes, badges */
+  --space-2-5: 0.625rem;  /* 10px — padding asimétrico, copy button */
   --space-3:   0.75rem;   /* 12px — separación entre elementos relacionados */
   --space-4:   1rem;      /* 16px — padding de sección, separación entre campos */
   --space-5:   1.25rem;   /* 20px — padding interno de cards */
@@ -47,6 +48,7 @@
      LAYOUT — COMPONENTES
      ----------------------------------------------------------- */
   --input-height:        40px;
+  --input-height-sm:     34px;   /* Small/compact input — search fields in sidebars */
   --button-height:       36px;
   --button-height-sm: 28px;   /* Small button — matches Button.jsx sizeStyles.sm */
   --button-height-lg: 44px;   /* Large button — matches Button.jsx sizeStyles.lg */

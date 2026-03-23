@@ -62,9 +62,9 @@
                     <body>
                         <field name="status"  type="string" description="success"/>
                         <field name="message" type="string" description="Subject registered successfully"/>
+                        <!-- Privacy by Design: solo se expone el UUID generado (GAP-M4-03) -->
                         <field name="data"    type="object">
-                            <field name="id"         type="string"   description="UUID generado automáticamente para el sujeto"/>
-                            <field name="created_at" type="datetime"/>
+                            <field name="id" type="string" description="UUID generado automáticamente para el sujeto"/>
                         </field>
                     </body>
                 </response>
@@ -143,21 +143,28 @@
             </request>
             <responses>
                 <response status="201">
+                    <!-- GAP-M4-03: respuesta filtrada — solo 6 campos lógicos (sin id, subject_id, created_at) -->
                     <description>Contexto registrado y vinculado al UUID del sujeto</description>
                     <body>
                         <field name="status"  type="string" description="success"/>
-                        <field name="message" type="string" description="Context registered successfully"/>
+                        <field name="message" type="string" description="Contexto registrado correctamente"/>
                         <field name="data"    type="object">
-                            <field name="id"                     type="string"   description="UUID del registro de contexto"/>
-                            <field name="subject_id"             type="string"   description="UUID del sujeto asociado"/>
                             <field name="school_type"            type="string"/>
                             <field name="education_level"        type="string"/>
-                            <field name="age_cohort"             type="string"/>
+                            <field name="age_cohort"             type="string"   description="Formato N-N, máximo 20 chars (GAP-M4-05)"/>
                             <field name="gender"                 type="string"/>
                             <field name="socioeconomic_level"    type="string"/>
-                            <field name="additional_attributes"  type="object"   description="null si no se proporcionó"/>
-                            <field name="created_at"             type="datetime"/>
+                            <field name="additional_attributes"  type="object"   description="null si no se proporcionó. Máx 5 claves (GAP-SEG-04)"/>
                         </field>
+                    </body>
+                </response>
+                <response status="409">
+                    <!-- GAP-M4-04: nuevo — contexto ya existe -->
+                    <description>El sujeto ya tiene un contexto registrado</description>
+                    <body>
+                        <field name="status"  type="string" description="error"/>
+                        <field name="message" type="string" description="El sujeto ya tiene un contexto registrado"/>
+                        <field name="data"    type="null"/>
                     </body>
                 </response>
                 <response status="400">
@@ -335,9 +342,10 @@
                         <field name="status"  type="string" description="success"/>
                         <field name="message" type="string" description="Metric values submitted successfully"/>
                         <field name="data"    type="object">
-                            <field name="application_id"   type="string"/>
-                            <field name="values_recorded"  type="integer" description="Número de valores persistidos"/>
-                            <field name="values"           type="array">
+                            <!-- GAP-M4-01: values_recorded → values_count -->
+                            <field name="application_id" type="string"/>
+                            <field name="values_count"   type="integer" description="Número de valores persistidos"/>
+                            <field name="values"         type="array">
                                 <field name="id"        type="string"   description="UUID del registro MetricValue"/>
                                 <field name="metric_id" type="string"/>
                                 <field name="value"     type="any"/>
@@ -358,9 +366,11 @@
                         <field name="status"  type="string" description="error"/>
                         <field name="message" type="string" description="Descripción clara del error de validación"/>
                         <field name="data"    type="object" description="Detalle opcional de errores por métrica">
+                            <!-- GAP-M4-01: reason → error + metric_name añadido -->
                             <field name="errors" type="array">
-                                <field name="metric_id" type="string" description="UUID de la métrica que falló validación"/>
-                                <field name="reason"    type="string" description="Descripción del error específico"/>
+                                <field name="metric_id"   type="string" description="UUID de la métrica que falló validación"/>
+                                <field name="metric_name" type="string" description="Nombre de la métrica (null si no existe en el instrumento)"/>
+                                <field name="error"       type="string" description="Descripción del error específico"/>
                             </field>
                         </field>
                     </body>
@@ -420,10 +430,10 @@
                     <body>
                         <field name="status"  type="string" description="success"/>
                         <field name="message" type="string" description="Subject retrieved"/>
+                        <!-- GAP-M4-03: exponer solo id + context (sin created_at del sujeto) -->
                         <field name="data"    type="object">
-                            <field name="id"         type="string"   description="UUID del sujeto"/>
-                            <field name="created_at" type="datetime"/>
-                            <field name="context"    type="object"   description="null si no se registró contexto">
+                            <field name="id"      type="string" description="UUID del sujeto"/>
+                            <field name="context" type="object" description="null si no se registró contexto">
                                 <field name="school_type"           type="string"/>
                                 <field name="education_level"       type="string"/>
                                 <field name="age_cohort"            type="string"/>
@@ -462,12 +472,16 @@
         <attribute name="school_type"         values="public | private | unknown"/>
         <attribute name="education_level"     values="preschool | primary_lower | primary_upper | secondary | unknown"
                                               notes="primary_lower = 1°-3°, primary_upper = 4°-6°"/>
-        <attribute name="age_cohort"          values="string de rango libre, ej: '6-8' | '9-11' | '12-14' | '15-17'"
-                                              notes="Se recomienda usar rangos de 2-3 años para anonimización efectiva"/>
+        <!-- GAP-M4-05: age_cohort ahora requiere formato N-N (ej: "6-8") y máximo 20 caracteres -->
+        <attribute name="age_cohort"          values="string formato N-N, ej: '6-8' | '9-11' | '12-14' | '15-17'"
+                                              notes="Formato obligatorio: N-N (regex: ^\d+-\d+$). Máximo 20 caracteres. Rangos de 2-3 años para anonimización efectiva."/>
         <attribute name="gender"              values="male | female | non_binary | prefer_not_to_say"/>
         <attribute name="socioeconomic_level" values="low | medium | high | unknown"/>
-        <attribute name="additional_attributes" values="objeto JSON libre para atributos futuros no definidos aún"
-                                              notes="Permite extensibilidad sin migración de esquema"/>
+        <!-- GAP-SEG-04: additional_attributes restringido por Privacy by Design -->
+        <attribute name="additional_attributes" values="objeto JSON clave-valor para atributos metodológicos adicionales"
+                                              notes="Restricciones (GAP-SEG-04): máx 5 claves, clave máx 50 chars, valor string máx 200 chars.
+                                                     No se permiten campos que sugieran datos directamente identificables (nombre, dni, email, etc.).
+                                                     No se almacenan datos personales en este campo."/>
     </contextAttributes>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
