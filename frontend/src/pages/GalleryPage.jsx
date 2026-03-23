@@ -24,7 +24,11 @@ import {
   Spinner,
   Sidebar,
   Typography,
+<<<<<<< Updated upstream
   useToast,
+=======
+  PillToggle,
+>>>>>>> Stashed changes
 } from '../components/app'
 
 /* ─────────────────────────────────────────────────────────────
@@ -215,6 +219,7 @@ const CATEGORIES = [
     label: 'Primitivos',
     items: [
       { id: 'button', label: 'Button' },
+      { id: 'pill-toggle', label: 'PillToggle' },
       { id: 'typography', label: 'Typography' },
       { id: 'spinner', label: 'Spinner' },
       { id: 'role-badge', label: 'RoleBadge' },
@@ -383,6 +388,7 @@ export default function GalleryPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [formValues, setFormValues] = useState({ username: '', email: '', password: '' })
   const [formError, setFormError] = useState('')
+  const [activePill, setActivePill] = useState('todos')
   const { toasts, toast, dismiss } = useToast()
 
   function handleFormChange(field) {
@@ -474,6 +480,80 @@ export default function GalleryPage() {
                   <Button variant="primary" disabled>Deshabilitado</Button>
                   <Button variant="primary" icon={Plus}>Con ícono</Button>
                   <Button variant="primary" icon={Plus} iconPosition="right">Ícono derecha</Button>
+                </div>
+              </div>
+            </div>
+          </ComponentSection>
+
+          {/* ── SECTION: PillToggle ── */}
+          <ComponentSection
+            id="pill-toggle"
+            title="PillToggle"
+            description="Botón de selección tipo pill para grupos de filtros mutuamente excluyentes. Comunica el estado activo con aria-pressed."
+            props={[
+              { name: 'selected', type: 'boolean', default: 'false', desc: 'Marca el pill como activo (cambia color y aria-pressed)' },
+              { name: 'disabled', type: 'boolean', default: 'false', desc: 'Deshabilita el botón' },
+              { name: 'children', type: 'ReactNode', default: '—', desc: 'Etiqueta visible del pill' },
+              { name: '...props', type: 'HTMLButtonElement', default: '—', desc: 'Props nativas del botón (onClick, etc.)' },
+            ]}
+            code={`import { PillToggle } from '@/components/app'
+import { useState } from 'react'
+
+const OPTIONS = [
+  { value: '',         label: 'Todos' },
+  { value: 'active',  label: 'Activos' },
+  { value: 'inactive', label: 'Inactivos' },
+]
+
+function FilterBar() {
+  const [selected, setSelected] = useState('')
+
+  return (
+    <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+      {OPTIONS.map(({ value, label }) => (
+        <PillToggle
+          key={label}
+          selected={selected === value}
+          onClick={() => setSelected(value)}
+        >
+          {label}
+        </PillToggle>
+      ))}
+    </div>
+  )
+}`}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+              {/* Interactive demo */}
+              <div>
+                <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)', marginBottom: 'var(--space-2)' }}>
+                  Demo interactivo — haz clic para cambiar la selección
+                </p>
+                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                  {[
+                    { value: 'todos', label: 'Todos' },
+                    { value: 'active', label: 'Activos' },
+                    { value: 'inactive', label: 'Inactivos' },
+                  ].map(({ value, label }) => (
+                    <PillToggle
+                      key={label}
+                      selected={activePill === value}
+                      onClick={() => setActivePill(value)}
+                    >
+                      {label}
+                    </PillToggle>
+                  ))}
+                </div>
+              </div>
+              {/* States */}
+              <div>
+                <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)', marginBottom: 'var(--space-2)' }}>
+                  Estados
+                </p>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                  <PillToggle selected={false}>Sin selección</PillToggle>
+                  <PillToggle selected>Seleccionado</PillToggle>
+                  <PillToggle disabled>Deshabilitado</PillToggle>
                 </div>
               </div>
             </div>
