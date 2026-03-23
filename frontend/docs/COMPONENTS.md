@@ -17,6 +17,7 @@ import { Button, FormField } from '../components/app'
 ## Índice
 
 - [Button](#button)
+- [PillToggle](#pilltoggle)
 - [FormField](#formfield)
 - [Modal](#modal)
 - [DataTable](#datatable)
@@ -69,6 +70,58 @@ import { Plus } from 'lucide-react'
 | `...props` | `HTMLButtonElement` | — | Props nativas del botón |
 
 Ver en galería: `/gallery#button`
+
+---
+
+## PillToggle
+
+Botón de selección tipo pill para grupos de filtros mutuamente excluyentes.
+Comunica el estado activo visualmente y mediante `aria-pressed` para accesibilidad.
+
+```jsx
+import { PillToggle } from '@/components/app'
+import { useState } from 'react'
+
+const OPTIONS = [
+  { value: '',         label: 'Todos' },
+  { value: 'active',  label: 'Activos' },
+  { value: 'inactive', label: 'Inactivos' },
+]
+
+function FilterBar() {
+  const [selected, setSelected] = useState('')
+
+  return (
+    <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+      {OPTIONS.map(({ value, label }) => (
+        <PillToggle
+          key={label}
+          selected={selected === value}
+          onClick={() => setSelected(value)}
+        >
+          {label}
+        </PillToggle>
+      ))}
+    </div>
+  )
+}
+```
+
+**Props:**
+
+| Prop | Tipo | Default | Descripción |
+|------|------|---------|-------------|
+| `selected` | `boolean` | `false` | Marca el pill como activo (color primario + `aria-pressed`) |
+| `disabled` | `boolean` | `false` | Deshabilita el botón |
+| `children` | `ReactNode` | — | Etiqueta visible del pill |
+| `className` | `string` | `''` | Clases adicionales |
+| `...props` | `HTMLButtonElement` | — | Props nativas del botón (`onClick`, etc.) |
+
+**Cuándo usarlo:** En barras de filtro donde las opciones son mutuamente excluyentes
+y el espacio visual requiere una presentación compacta y pill-shaped.
+No usar para acciones — usar `Button` para eso.
+
+Ver en galería: `/gallery#pill-toggle`
 
 ---
 

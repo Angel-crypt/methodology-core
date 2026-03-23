@@ -138,3 +138,31 @@ Seguido de consolidación, deduplicación, asignación de IDs y prioridades.
 **Archivos producidos:**
 - `BITACORA.md` (este archivo)
 - `mock/gap_analysis.md`
+
+---
+
+## 7. Generación del README General — 2026-03-22
+
+**Proceso ejecutado:** Generación del README principal del repositorio a partir de los PDFs del proyecto.
+
+**Documentos leídos:**
+- `docs/BACKLOG.pdf`
+- `docs/CONTEXTO.pdf`
+- `frontend/README.md`
+- `mock/README.md`
+- `BITACORA.md`
+- `docs/srs/SRS_General_v1.0.md`
+
+**Nombre del proyecto:** Sistema de Registro de Métricas Lingüísticas
+
+**Descripción en una línea:** Herramienta académica para registrar métricas lingüísticas de manera estructurada, trazable y anónima, facilitando la creación de conjuntos de datos científicos confiables.
+
+**Módulos identificados:** M1 Autenticación, M2 Gestión de Instrumentos, M3 Definición de Métricas, M4 Registro Operativo Anonimizado, M5 Consulta Interna Básica, M6 Exportación Estructurada.
+
+**Estado de `frontend/README.md`:** COMPLETO (616 líneas)
+
+**Estado de `mock/README.md`:** COMPLETO (151 líneas)
+
+**Archivos producidos:**
+- `README.md` — README general del repositorio, orientado a cualquier lector
+- `README_STATUS.md` — Estado de READMEs internos con auditoría de ítems
