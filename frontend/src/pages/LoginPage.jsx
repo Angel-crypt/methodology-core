@@ -124,6 +124,7 @@ function LoginPage({ onLogin }) {
             value={form.email}
             onChange={handleChange('email')}
             onKeyDown={handleKeyDown}
+            autoComplete="email"
             autoFocus
           />
 
@@ -136,6 +137,7 @@ function LoginPage({ onLogin }) {
             value={form.password}
             onChange={handleChange('password')}
             onKeyDown={handleKeyDown}
+            autoComplete="current-password"
           />
 
           <Button
