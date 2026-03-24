@@ -74,8 +74,8 @@ function LoginPage({ onLogin }) {
         >
           <div
             style={{
-              width: 48,
-              height: 48,
+              width: 'var(--input-height)',
+              height: 'var(--input-height)',
               borderRadius: 'var(--radius-lg)',
               backgroundColor: 'var(--color-primary-light)',
               display: 'flex',
