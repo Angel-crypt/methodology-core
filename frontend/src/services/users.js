@@ -9,6 +9,14 @@
 
 const BASE = '/api/v1/users'
 
+async function parseResponse(res) {
+  try {
+    return await res.json()
+  } catch {
+    return { status: 'error', message: `Error del servidor (HTTP ${res.status})` }
+  }
+}
+
 function headers(token) {
   return {
     'Content-Type': 'application/json',
@@ -27,7 +35,7 @@ export async function listarUsuarios(token, role, activeFilter = '') {
   const params = new URLSearchParams({ role })
   if (activeFilter !== '') params.set('active', activeFilter)
   const res = await fetch(`${BASE}?${params}`, { headers: headers(token) })
-  return res.json()
+  return parseResponse(res)
 }
 
 /**
@@ -42,7 +50,7 @@ export async function crearUsuario(token, body) {
     headers: headers(token),
     body: JSON.stringify(body),
   })
-  return res.json()
+  return parseResponse(res)
 }
 
 /**
@@ -59,5 +67,5 @@ export async function cambiarEstadoUsuario(token, id, active) {
     headers: headers(token),
     body: JSON.stringify({ active }),
   })
-  return res.json()
+  return parseResponse(res)
 }
