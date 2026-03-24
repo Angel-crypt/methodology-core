@@ -17,6 +17,7 @@
  *   - DELETE /sessions/:jti (nuevo endpoint) (GAP-SEG-08)
  *   - POST /auth/password-recovery + POST /auth/password-reset (GAP-SEG-11)
  */
+const crypto = require('crypto');
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -40,6 +41,22 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Tiempo de expiración de tokens de recuperación: 15 minutos
 const RECOVERY_TOKEN_TTL = 15 * 60; // segundos
+
+// ─── Setup tokens — acceso inicial de cuenta ────────────────────────────────
+// El admin entrega un URL de único uso con TTL 24h.
+// El usuario establece su propia contraseña al hacer clic.
+// El admin nunca conoce la contraseña del usuario.
+
+const SETUP_TOKEN_TTL = 24 * 60 * 60; // 24 horas (segundos)
+
+/**
+ * Genera un token de setup CSPRNG: 32 bytes → 64 hex chars → 256 bits de entropía.
+ * Fuente: crypto.randomBytes() (OS entropy). Prohibido Math.random().
+ * @returns {string}
+ */
+function generateSetupToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
 
 // ─── RF-M1-03 · POST /auth/login ────────────────────────────────────────────
 router.post('/auth/login', (req, res) => {
@@ -119,6 +136,7 @@ router.post('/auth/login', (req, res) => {
       access_token: token,
       token_type: 'Bearer',
       expires_in: JWT_EXPIRES_IN,
+      must_change_password: user.must_change_password === true,
     },
   });
 });
@@ -211,15 +229,17 @@ router.post(
 );
 
 // ─── RF-M1-01 · POST /users ─────────────────────────────────────────────────
+// El admin NO provee contraseña en el cuerpo — el servidor genera el setup token.
+// En producción: _mock_setup_token no se expone; se entrega por canal seguro.
 router.post(
   '/users',
   authMiddleware(['administrator']),
-  validateStrictInput(['full_name', 'email', 'password', 'role']),
+  validateStrictInput(['full_name', 'email', 'role']),
   (req, res) => {
-    const { full_name, email, password, role } = req.body || {};
+    const { full_name, email, role } = req.body || {};
 
-    if (!full_name || !email || !password || !role) {
-      return res.status(400).json({ status: 'error', message: 'Campos obligatorios: full_name, email, password, role', data: null });
+    if (!full_name || !email || !role) {
+      return res.status(400).json({ status: 'error', message: 'Campos obligatorios: full_name, email, role', data: null });
     }
     if (!EMAIL_REGEX.test(email)) {
       return res.status(400).json({ status: 'error', message: 'Formato de email inválido', data: null });
@@ -231,18 +251,29 @@ router.post(
       return res.status(409).json({ status: 'error', message: 'El email ya está registrado', data: null });
     }
 
+    // password_hash contiene un placeholder aleatorio que nunca se expone; el usuario
+    // no puede autenticarse con él y lo sobreescribe al completar el setup.
+    const placeholderPwd = crypto.randomBytes(32).toString('hex');
     const user = {
       id: uuidv4(),
       full_name,
       email,
-      password_hash: bcrypt.hashSync(password, 12),
+      password_hash: bcrypt.hashSync(placeholderPwd, 12),
       role,
       active: true,
+      must_change_password: true,
       created_at: new Date(),
       updated_at: null,
       password_changed_at: null,
     };
     store.users.push(user);
+
+    // Generar setup token (single-use, TTL 24h)
+    const setupToken = generateSetupToken();
+    store.setupTokens.set(setupToken, {
+      userId: user.id,
+      expiresAt: Math.floor(Date.now() / 1000) + SETUP_TOKEN_TTL,
+    });
 
     return res.status(201).json({
       status: 'success',
@@ -253,7 +284,9 @@ router.post(
         email: user.email,
         role: user.role,
         active: user.active,
+        must_change_password: user.must_change_password,
         created_at: user.created_at,
+        _mock_setup_token: setupToken, // ELIMINAR en producción — en prod enviar por email
       },
     });
   }
@@ -296,6 +329,7 @@ router.get('/users', authMiddleware(['administrator']), (req, res) => {
       email: u.email,
       role: u.role,
       active: u.active,
+      must_change_password: u.must_change_password === true,
       created_at: u.created_at,
     })),
     meta: { total, page, limit, pages: Math.ceil(total / limit) },
@@ -304,7 +338,8 @@ router.get('/users', authMiddleware(['administrator']), (req, res) => {
 
 // ─── RF-M1-06 · PATCH /users/me/password ────────────────────────────────────
 // NOTA: debe ir ANTES de /users/:id/status para que "me" no sea capturado por :id
-router.patch('/users/me/password', authMiddleware(), (req, res) => {
+// allowPending=true: el usuario en estado "pending" PUEDE cambiar su contraseña (es el flujo forzado)
+router.patch('/users/me/password', authMiddleware([], { allowPending: true }), (req, res) => {
   const { current_password, new_password } = req.body || {};
 
   if (!current_password || !new_password) {
@@ -324,10 +359,18 @@ router.patch('/users/me/password', authMiddleware(), (req, res) => {
     return res.status(400).json({ status: 'error', message: 'La nueva contraseña debe ser diferente a la actual', data: null });
   }
 
+  const eraPendiente = user.must_change_password === true;
+
   user.password_hash = bcrypt.hashSync(new_password, 12);
   user.password_changed_at = new Date();
+  user.must_change_password = false;
 
-  addAuditEvent('CAMBIO_CONTRASENA', user.id, req.ip, null);
+  addAuditEvent(
+    'CAMBIO_CONTRASENA',
+    user.id,
+    req.ip,
+    eraPendiente ? 'Cambio forzado en primer acceso' : null
+  );
 
   return res.status(200).json({
     status: 'success',
@@ -380,6 +423,142 @@ router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) 
     data: { id: user.id, email: user.email, active: user.active, updated_at: user.updated_at },
   });
 });
+
+// ─── RF-M1-RESET · POST /users/:id/reset-password ────────────────────────────
+// Funciona en estado "pending" (regenerar) y "active" (restablecer → vuelve a pending).
+// NOTA DE SEGURIDAD: Solo en mock se devuelve la contraseña en texto plano.
+// En producción: nunca exponer en API; entregar por canal seguro fuera de banda.
+router.post('/users/:id/reset-password', authMiddleware(['administrator']), (req, res) => {
+  const user = store.users.find((u) => u.id === req.params.id);
+  if (!user) {
+    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
+  }
+  if (!user.active) {
+    return res.status(409).json({
+      status: 'error',
+      message: 'No se puede restablecer la contraseña de un usuario inactivo. Actívalo primero.',
+      data: null,
+    });
+  }
+
+  // Se genera un setup link de un solo uso (TTL 24h).
+  // password_hash no se modifica: el usuario puede seguir autenticándose con su contraseña anterior,
+  // pero el middleware lo bloquea (must_change_password=true) hasta que complete el setup.
+  user.must_change_password = true;
+  user.password_changed_at = new Date(); // invalida tokens activos del usuario
+  user.updated_at = new Date();
+
+  const setupToken = generateSetupToken();
+  store.setupTokens.set(setupToken, {
+    userId: user.id,
+    expiresAt: Math.floor(Date.now() / 1000) + SETUP_TOKEN_TTL,
+  });
+
+  addAuditEvent(
+    'RESET_CONTRASENA',
+    req.user.id,
+    req.ip,
+    `Admin ${req.user.id} restableció contraseña de usuario ${user.id}`
+  );
+
+  return res.status(200).json({
+    status: 'success',
+    message: 'Enlace de configuración generado. El usuario deberá crear su nueva contraseña antes de 24 horas.',
+    data: {
+      id: user.id,
+      email: user.email,
+      must_change_password: true,
+      _mock_setup_token: setupToken, // ELIMINAR en producción — en prod enviar por email
+    },
+  });
+});
+
+// ─── RF-M1-SETUP · GET /auth/setup/:token ────────────────────────────────────
+// Valida un setup token y devuelve los datos públicos del usuario (sin secretos).
+// Endpoint público — no requiere JWT. El frontend lo usa para mostrar nombre y email
+// en la pantalla de configuración de contraseña.
+router.get('/auth/setup/:token', (req, res) => {
+  const now = Math.floor(Date.now() / 1000);
+  const tokenData = store.setupTokens.get(req.params.token);
+
+  if (!tokenData || tokenData.expiresAt < now) {
+    store.setupTokens.delete(req.params.token);
+    return res.status(404).json({
+      status: 'error',
+      message: 'El enlace de configuración es inválido o ha expirado.',
+      data: null,
+    });
+  }
+
+  const user = store.users.find((u) => u.id === tokenData.userId);
+  if (!user) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'El enlace de configuración es inválido o ha expirado.',
+      data: null,
+    });
+  }
+
+  return res.status(200).json({
+    status: 'success',
+    message: 'Enlace válido',
+    data: { email: user.email, full_name: user.full_name },
+  });
+});
+
+// ─── RF-M1-SETUP · POST /auth/setup ──────────────────────────────────────────
+// El usuario establece su contraseña usando el setup token.
+// Endpoint público — no requiere JWT (el token actúa como credencial temporal).
+// Token single-use: se invalida inmediatamente tras su uso.
+router.post(
+  '/auth/setup',
+  validateStrictInput(['token', 'password']),
+  (req, res) => {
+    const { token, password } = req.body || {};
+
+    if (!token || !password) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Campos obligatorios: token, password',
+        data: null,
+      });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const tokenData = store.setupTokens.get(token);
+
+    if (!tokenData || tokenData.expiresAt < now) {
+      store.setupTokens.delete(token);
+      return res.status(400).json({
+        status: 'error',
+        message: 'El enlace de configuración es inválido o ha expirado.',
+        data: null,
+      });
+    }
+
+    const user = store.users.find((u) => u.id === tokenData.userId);
+    if (!user) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'El enlace de configuración es inválido o ha expirado.',
+        data: null,
+      });
+    }
+
+    user.password_hash = bcrypt.hashSync(password, 12);
+    user.must_change_password = false;
+    user.password_changed_at = new Date();
+    store.setupTokens.delete(token); // single-use: invalidar inmediatamente
+
+    addAuditEvent('CAMBIO_CONTRASENA', user.id, req.ip, 'Configuración de contraseña vía setup link');
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Contraseña configurada correctamente. Ya puedes iniciar sesión.',
+      data: null,
+    });
+  }
+);
 
 // ─── GET /audit-log ─── Solo administrador (GAP-M1-03, RNF-SEC-12) ──────────
 router.get('/audit-log', authMiddleware(['administrator']), (req, res) => {

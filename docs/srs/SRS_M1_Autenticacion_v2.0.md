@@ -1,6 +1,6 @@
 # SRS – Módulo 1: Autenticación y Control de Acceso
 **Sistema de Registro Metodológico de Métricas Lingüísticas**
-**Versión:** 2.0 · **Fecha:** 2026-03-12 · **Estado:** En revisión
+**Versión:** 2.2 · **Fecha:** 2026-03-23 · **Estado:** En revisión
 
 ---
 
@@ -53,6 +53,8 @@ Quedan **fuera del alcance**: recuperación de contraseña, registro público de
 |---|---|
 | **Token JWT** | Token único de sesión, firmado con HS256. Expira en 6 horas (`exp = iat + 21600`). Incluye `user_id`, `role`, `iat`, `exp`, `jti`. Sin datos personales. |
 | **password_changed_at** | Timestamp registrado en la tabla `users` al cambiar la contraseña. El middleware rechaza con HTTP 401 todo token cuyo `iat` sea anterior a este valor, invalidando automáticamente todas las sesiones previas sin necesidad de revocar cada `jti` individualmente. |
+| **must_change_password** | Campo booleano en `users`, `TRUE` por defecto al crear un usuario. Indica que el usuario tiene una contraseña temporal y debe cambiarla antes de poder usar el sistema. El middleware rechaza con HTTP 403 toda petición de un usuario con `must_change_password=TRUE`, excepto `PATCH /users/me/password`. Se establece en `FALSE` tras el primer cambio exitoso de contraseña, o en `TRUE` cuando el Administrador restablece la contraseña del usuario. |
+| **Estado pending** | Estado derivado de un usuario cuando `active=TRUE` y `must_change_password=TRUE`. El usuario puede autenticarse pero no acceder a ningún endpoint hasta cambiar su contraseña. |
 | **jti** | JWT ID. Identificador único del token incluido en el payload. Permite revocación individual en `revoked_tokens`. |
 | **HS256** | Algoritmo de firma simétrica HMAC-SHA256. La clave se gestiona exclusivamente como Docker Secret. |
 | **Docker Secret** | Mecanismo de gestión de secretos de Docker Swarm. Nunca en texto plano en archivos de configuración. |
@@ -67,7 +69,7 @@ Quedan **fuera del alcance**: recuperación de contraseña, registro público de
 ### 1.4 Referencias
 
 - `SRS_General_v1.0.md` — Especificación general del sistema.
-- `MockContract_M1_Autenticacion_v2.xml` — Contrato de mock server del módulo (v2.0).
+- `MockContract_M1_Autenticacion_v2.xml` — Contrato de mock server del módulo (v2.2).
 - `Módulos_del_Sistema_y_Tareas_Asociadas.docx` — Backlog con HU1–HU5.
 - `M1_Autenticacion.docx` — Documento original de scope del módulo.
 
@@ -127,18 +129,62 @@ La validación de tokens es stateless: el rol se extrae del JWT firmado sin cons
 POST /auth/login (email + password)
   └─ Valida credenciales + active=TRUE
        └─ Éxito → JWT(user_id, role, iat, exp=6h, jti)
+            └─ Respuesta incluye must_change_password (boolean)
 
 Cada petición protegida
   └─ Authorization: Bearer {token}
        └─ Middleware: valida firma HS256
             └─ Verifica jti no está en revoked_tokens
                  └─ Verifica active=TRUE en users
-                      └─ Verifica rol vs. endpoint → concede o deniega
+                      └─ Verifica must_change_password=FALSE (excepción: PATCH /users/me/password)
+                           └─ Verifica rol vs. endpoint → concede o deniega
 
 POST /auth/logout
   └─ Registra jti en revoked_tokens (expires_at = exp del token)
   └─ Cron elimina entradas cuyo expires_at < ahora
 ```
+
+### 2.6 Máquina de Estados de Usuario
+
+Los usuarios tienen tres estados derivados de los campos `active` y `must_change_password`:
+
+```
+  [CREACIÓN]
+      │ POST /users → active=TRUE, must_change_password=TRUE
+      ▼
+  ┌─────────────────────────────────────────────────┐
+  │  PENDING  (active=TRUE, must_change_password=TRUE) │
+  │  - Puede autenticarse (login exitoso)            │
+  │  - Solo puede usar PATCH /users/me/password      │
+  │  - Administrador puede: regenerar contraseña     │
+  │                          desactivar              │
+  └─────────────┬───────────────────────────────────┘
+                │ PATCH /users/me/password exitoso
+                │ → must_change_password=FALSE
+                ▼
+  ┌─────────────────────────────────────────────────┐
+  │  ACTIVE   (active=TRUE, must_change_password=FALSE)│
+  │  - Acceso completo según su rol                  │
+  │  - Administrador puede: desactivar               │
+  │                          restablecer contraseña  │
+  └─────────────┬──────────────┬────────────────────┘
+                │ PATCH        │ PATCH /users/:id/status
+                │ /users/:id/  │ { active: false }
+                │ reset-pass.  ▼
+                │   ┌──────────────────────────────────────────┐
+                │   │  INACTIVE  (active=FALSE)                 │
+                │   │  - No puede autenticarse                  │
+                │   │  - Administrador puede: activar           │
+                │   └──────────────┬───────────────────────────┘
+                │                  │ PATCH /users/:id/status
+                │                  │ { active: true }
+                │                  └─► vuelve al estado anterior
+                │                      (PENDING o ACTIVE)
+                │
+                └─► vuelve a PENDING (must_change_password=TRUE)
+```
+
+**Regla de reactivación:** al activar un usuario inactivo, `active` vuelve a `TRUE` pero `must_change_password` conserva su valor previo. Un usuario que fue desactivado en estado PENDING volverá a PENDING al reactivarse.
 
 ---
 
@@ -179,13 +225,15 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | 4 | Cierre de sesión con invalidación del token en `revoked_tokens` | HU4 |
 | 5 | Restricción de acciones por rol mediante middleware stateless | HU5 |
 | 6 | Cambio de contraseña autenticado con invalidación automática de sesiones previas | HU6b |
+| 7 | Contraseña temporal en creación con cambio forzado en primer acceso (estado pending) | IT-1 |
+| 8 | Restablecimiento de contraseña temporal por el Administrador | IT-1 |
 
 ### 4.3 Fuera del Alcance
 
 | Funcionalidad excluida | Módulo o decisión responsable |
 |---|---|
 | Registro autónomo de usuarios | No contemplado. Solo el Administrador crea cuentas. |
-| Recuperación o restablecimiento de contraseña | Fuera del MVP; se delega a canal externo o decisión futura. |
+| Recuperación de contraseña vía email | Fuera del MVP; se delega a canal externo o decisión futura. |
 | Autenticación multifactor (MFA) | Puede incorporarse en iteraciones futuras. |
 | Federación de identidad (OAuth2, SAML, LDAP) | No requerido; credenciales propias en PostgreSQL. |
 | Auditoría de acciones de negocio | Responsabilidad de cada módulo funcional (M2–M6). |
@@ -207,9 +255,9 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | **Actor** | Administrador |
 | **Entidades** | `User`, `Role` |
 | **Endpoint** | `POST /users` |
-| **Entrada** | `full_name` (string, obligatorio), `email` (string, obligatorio, único), `password` (string, obligatorio), `role` (enum: `administrator` · `researcher` · `applicator`) |
-| **Descripción** | El sistema debe permitir al Administrador registrar un nuevo usuario con rol asignado. El correo debe ser único. La contraseña se hashea con bcrypt (factor mínimo 12) antes de persistirse; nunca en texto plano. El usuario se crea en estado `active = TRUE` por defecto. |
-| **Resultado** | Usuario creado en PostgreSQL con UUID, `password_hash`, `role`, `active=TRUE`, `created_at`. HTTP 201 con datos del usuario sin contraseña. |
+| **Entrada** | `full_name` (string, obligatorio), `email` (string, obligatorio, único), `role` (enum: `administrator` · `researcher` · `applicator`) |
+| **Descripción** | El sistema debe permitir al Administrador registrar un nuevo usuario con rol asignado. El correo debe ser único. **Fix 2 (Security by Design, 2026-03-23):** el Administrador no provee la contraseña — el servidor la genera internamente con `generateTempPassword()` (CSPRNG basado en `crypto.randomBytes()`). Esto garantiza que ni el admin ni el canal de transmisión conocen la contraseña antes de que el usuario la reciba. La contraseña se hashea con bcrypt (factor mínimo 12); nunca en texto plano. El usuario se crea en estado **pending** (`active=TRUE`, `must_change_password=TRUE`): puede autenticarse pero el middleware bloquea todos los endpoints hasta que cambie su contraseña. La respuesta incluye `_mock_temp_password` (solo en mock) para que el frontend muestre el modal de credenciales al Administrador una sola vez. |
+| **Resultado** | Usuario creado en PostgreSQL con UUID, `password_hash`, `role`, `active=TRUE`, `must_change_password=TRUE`, `created_at`. HTTP 201 con datos del usuario sin contraseña, incluyendo `must_change_password` y `_mock_temp_password` (solo mock). |
 
 **Esquema de tabla `users`:**
 
@@ -221,7 +269,9 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | `password_hash` | VARCHAR | bcrypt factor ≥ 12 |
 | `role` | ENUM | `administrator` · `researcher` · `applicator` |
 | `active` | BOOLEAN | `TRUE` por defecto |
+| `must_change_password` | BOOLEAN | `TRUE` por defecto. Indica estado **pending**. Se establece `FALSE` al cambiar contraseña; `TRUE` al restablecer por admin. |
 | `created_at` | TIMESTAMP | UTC |
+| `updated_at` | TIMESTAMP | `NULL` por defecto. Se actualiza en `PATCH /users/:id/status` y `POST /users/:id/reset-password`. |
 | `password_changed_at` | TIMESTAMP | `NULL` por defecto. Se actualiza al cambiar la contraseña. El middleware rechaza tokens con `iat` anterior a este valor. |
 
 ---
@@ -246,8 +296,8 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | **Actor** | Cualquier usuario registrado y activo |
 | **Endpoint** | `POST /auth/login` |
 | **Entrada** | `email` (string), `password` (string) |
-| **Descripción** | El sistema valida credenciales verificando el hash bcrypt y el estado `active = TRUE`. Si la autenticación es exitosa emite un token JWT firmado con HS256 usando el Docker Secret. El token incluye `user_id`, `role`, `iat`, `exp` (iat + 21600 s) y `jti` (UUID único para soporte de revocación). Todos los fallos de autenticación —credenciales incorrectas, usuario inexistente, cuenta desactivada— retornan **HTTP 401 con mensaje genérico idéntico**, sin revelar causa. El sistema implementa rate limiting: 5 intentos fallidos en 60 s bloquean temporalmente el IP/cuenta durante 5 minutos; durante el bloqueo el sistema retorna HTTP 401 con el mismo mensaje genérico (no HTTP 429). El token es stateless y válido entre reinicios del servicio, ya que la clave reside en el Docker Secret compartido entre nodos. |
-| **Resultado** | `{ access_token, token_type: "Bearer", expires_in: 21600 }`. HTTP 200. |
+| **Descripción** | El sistema valida credenciales verificando el hash bcrypt y el estado `active = TRUE`. Si la autenticación es exitosa emite un token JWT firmado con HS256 usando el Docker Secret. El token incluye `user_id`, `role`, `iat`, `exp` (iat + 21600 s) y `jti` (UUID único para soporte de revocación). Todos los fallos de autenticación —credenciales incorrectas, usuario inexistente, cuenta desactivada— retornan **HTTP 401 con mensaje genérico idéntico**, sin revelar causa. El sistema implementa rate limiting: 5 intentos fallidos en 60 s bloquean temporalmente el IP/cuenta durante 5 minutos; durante el bloqueo el sistema retorna HTTP 401 con el mismo mensaje genérico (no HTTP 429). El token es stateless y válido entre reinicios del servicio, ya que la clave reside en el Docker Secret compartido entre nodos. La respuesta incluye el campo `must_change_password` para que el cliente pueda mostrar el modal de cambio forzado si el usuario está en estado **pending**. Un usuario en estado **pending** sí puede autenticarse, pero el middleware bloqueará sus peticiones hasta que cambie la contraseña. |
+| **Resultado** | `{ access_token, token_type: "Bearer", expires_in: 21600, must_change_password: boolean }`. HTTP 200. |
 
 ---
 
@@ -276,8 +326,8 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 |---|---|
 | **Actor** | Sistema (middleware compartido) |
 | **Aplica a** | Todos los endpoints protegidos bajo `/api/v1/*` |
-| **Descripción** | El middleware se implementa como función compartida importada por todos los servicios del stack. Para cada petición evalúa en orden: (1) Validación de firma HS256 del token. Si falla → 401 (antes de evaluar rol). (2) Verificación de `jti` en `revoked_tokens`. Si está → 401. (3) Verificación de `active=TRUE` en `users`. Si está inactivo → 401. (4) Verificación de rol del token contra la matriz de permisos centralizada → si no tiene permiso → 403. La verificación es stateless respecto al rol: se extrae del JWT sin consultar BD. Las rutas públicas (ej. `/health`) se declaran en una whitelist explícita y son excluidas de la verificación. |
-| **Resultado** | HTTP 401 ante firma inválida, token revocado o usuario inactivo. HTTP 403 ante rol sin permiso. |
+| **Descripción** | El middleware se implementa como función compartida importada por todos los servicios del stack. Para cada petición evalúa en orden: (1) Validación de firma HS256 del token. Si falla → 401 (antes de evaluar rol). (2) Verificación de `jti` en `revoked_tokens`. Si está → 401. (3) Verificación de `active=TRUE` en `users`. Si está inactivo → 401. (4) Verificación de `password_changed_at`: si el token fue emitido antes del último cambio de contraseña → 401. **(4b) Verificación de `must_change_password`**: si `TRUE`, todas las peticiones retornan HTTP 403 con `{ must_change_password: true }`, excepto `PATCH /users/me/password` que siempre está permitida para usuarios autenticados (flag `allowPending`). (5) Verificación de rol del token contra la matriz de permisos centralizada → si no tiene permiso → 403. La verificación es stateless respecto al rol: se extrae del JWT sin consultar BD. Las rutas públicas (ej. `/health`) se declaran en una whitelist explícita y son excluidas de la verificación. |
+| **Resultado** | HTTP 401 ante firma inválida, token revocado o usuario inactivo. HTTP 403 con `must_change_password: true` si el usuario está en estado pending. HTTP 403 ante rol sin permiso. |
 
 **Matriz de permisos (constante centralizada, nunca hardcodeada por endpoint):**
 
@@ -302,8 +352,8 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | **Actor** | Administrador |
 | **Endpoint** | `GET /users` |
 | **Entrada** | Query params opcionales: `active` (boolean), `role` (enum) |
-| **Descripción** | El sistema debe devolver el listado de usuarios registrados. La respuesta nunca incluye `password_hash`. Solo accesible por el Administrador. |
-| **Resultado** | Lista de usuarios con id, full_name, email, role, active, created_at. HTTP 200. |
+| **Descripción** | El sistema debe devolver el listado de usuarios registrados. La respuesta nunca incluye `password_hash`. Solo accesible por el Administrador. Incluye el campo `must_change_password` para que el frontend pueda derivar el estado (pending / active / inactive) de cada usuario. |
+| **Resultado** | Lista de usuarios con id, full_name, email, role, active, `must_change_password`, created_at. HTTP 200. |
 
 ---
 
@@ -315,8 +365,21 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | **Entidades** | `User` (campos `password_hash`, `password_changed_at`), `AuditLog` |
 | **Endpoint** | `PATCH /users/me/password` |
 | **Entrada** | `current_password` (string, obligatorio), `new_password` (string, obligatorio) |
-| **Descripción** | El sistema permite al usuario autenticado cambiar su propia contraseña. Valida en orden: (1) `bcrypt.verify(current_password, password_hash)` — si falla, HTTP 401. (2) `bcrypt.verify(new_password, password_hash)` — si la nueva contraseña es idéntica a la actual, HTTP 400. Superadas las validaciones, hashea la nueva contraseña con bcrypt (factor ≥ 12), actualiza `password_hash` y registra `password_changed_at = NOW()`. El middleware rechaza con HTTP 401 todo token cuyo `iat < password_changed_at`, invalidando automáticamente todas las sesiones anteriores. El evento se registra en `AuditLog`. |
-| **Resultado** | `password_hash` y `password_changed_at` actualizados. Todas las sesiones anteriores invalidadas. HTTP 200. |
+| **Descripción** | El sistema permite al usuario autenticado cambiar su propia contraseña. Este endpoint **siempre está permitido** independientemente del estado `must_change_password` (flag `allowPending` en el middleware). Valida en orden: (1) `bcrypt.verify(current_password, password_hash)` — si falla, HTTP 401. (2) `bcrypt.verify(new_password, password_hash)` — si la nueva contraseña es idéntica a la actual, HTTP 400. Superadas las validaciones, hashea la nueva contraseña con bcrypt (factor ≥ 12), actualiza `password_hash`, registra `password_changed_at = NOW()` y establece `must_change_password = FALSE` (transición PENDING → ACTIVE o mantenimiento en ACTIVE). El evento se registra en `AuditLog` con detalle diferenciado si el cambio fue forzado. |
+| **Resultado** | `password_hash`, `password_changed_at` y `must_change_password=FALSE` actualizados. Todas las sesiones anteriores invalidadas. HTTP 200. |
+
+---
+
+### RF-M1-RESET – Restablecer contraseña temporal *(IT-1)*
+
+| Campo | Detalle |
+|---|---|
+| **Actor** | Administrador |
+| **Entidades** | `User` (campos `password_hash`, `must_change_password`, `password_changed_at`) |
+| **Endpoint** | `POST /users/{id}/reset-password` |
+| **Entrada** | `id` (UUID, path param) |
+| **Descripción** | El sistema permite al Administrador generar una nueva contraseña temporal para un usuario activo (en estado **pending** o **active**). **Fix 1 (CSPRNG, 2026-03-23):** la contraseña se genera con `generateTempPassword()` usando `crypto.randomBytes()` (entropía del SO; prohibido `Math.random()`). Algoritmo: charset 61 caracteres sin ambiguos (sin I/L/O/i/l/o/0/1), longitud 16, ~95.8 bits de entropía (`log₂(61^16)`), rejection sampling para eliminar sesgo de módulo, Fisher-Yates shuffle con CSPRNG. Sin formato fijo, sin timestamp, sin patrones predecibles. El sistema la hashea con bcrypt (factor ≥ 12), y establece `must_change_password=TRUE` y `password_changed_at=NOW()` (esto invalida los tokens activos del usuario). El usuario vuelve al estado **pending** y deberá cambiar la contraseña en su próximo acceso. **Solo en el mock de desarrollo:** la contraseña temporal se devuelve en el campo `_mock_temp_password`; en producción nunca se expone en la respuesta — se entrega por canal seguro fuera de banda. Si el usuario está en estado **inactive** (`active=FALSE`), la operación es rechazada con HTTP 409 (debe activarse primero). |
+| **Resultado** | `password_hash`, `must_change_password=TRUE` y `password_changed_at` actualizados. Todas las sesiones activas del usuario quedan invalidadas. HTTP 200. |
 
 ---
 
@@ -338,6 +401,8 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | RNF-M1-10 | Integridad | El único Administrador activo no puede desactivarse. | Intento de desactivar el último admin activo → 409. |
 | RNF-M1-11 | Mantenibilidad | Matriz de permisos como constante centralizada. | No existen permisos hardcodeados en endpoints individuales. |
 | RNF-M1-12 | Consistencia API | Todas las respuestas siguen `{ "status", "message", "data" }`. | 100% de endpoints retornan estructura estándar. |
+| RNF-M1-15 | Seguridad (Fix 1) | Las contraseñas temporales se generan exclusivamente con CSPRNG (`crypto.randomBytes()`). Prohibido `Math.random()` (Xorshift128+, predecible), UUIDs (charset hex limitado, ~64 bits), timestamps (patrón temporal). | `generateTempPassword()` usa `crypto.randomBytes(4)` por índice. Entropía mínima: ~95.8 bits (`log₂(61^16)`). Sin formato fijo o terminador predecible. Rejection sampling elimina sesgo de módulo. Fisher-Yates shuffle con CSPRNG. |
+| RNF-M1-16 | Seguridad (Fix 2) | El Administrador no provee contraseña al crear un usuario. El servidor la genera internamente. | `POST /users` rechaza el campo `password` en el body. La contraseña se genera con `generateTempPassword()` en el servidor. |
 
 ---
 
@@ -353,7 +418,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 - Formulario de inicio de sesión con email y contraseña.
 - Panel de administración: listado de usuarios con filtros por rol y estado (`active`), acciones de activar/desactivar.
-- Formulario de creación de usuario: nombre completo, email, contraseña, rol.
+- Formulario de creación de usuario: nombre completo, email, rol. (La contraseña la genera el servidor.)
 
 ### 7.3 Interfaces de Software
 
@@ -411,7 +476,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | ID | Criterio | Resultado esperado |
 |---|---|---|
-| CA-HU1-01 | El Administrador envía nombre, correo, contraseña y rol válido. | Usuario creado en PostgreSQL con `password_hash` bcrypt y `active=TRUE`. HTTP 201. |
+| CA-HU1-01 | El Administrador envía nombre, correo y rol válido (sin contraseña). | Usuario creado en PostgreSQL con `password_hash` bcrypt (generado por servidor con CSPRNG) y `active=TRUE`. HTTP 201 con `_mock_temp_password`. |
 | CA-HU1-02 | Se intenta crear un usuario con correo ya registrado. | HTTP 409 Conflict. No se crea duplicado. |
 | CA-HU1-03 | Se intenta crear un usuario con rol no definido en el sistema. | HTTP 400 Bad Request con mensaje descriptivo. |
 | CA-HU1-04 | Se intenta crear usuario sin estar autenticado como Administrador. | HTTP 403 Forbidden. |
@@ -497,6 +562,9 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | RF-M1-07 | Audit log | — | `GET /api/v1/audit-log` | tabla `AuditLog` | Crítico |
 | RF-M1-08 | Sesiones activas | — | `GET /api/v1/users/me/sessions` · `DELETE /api/v1/sessions/{jti}` | tabla `sessions` | Alto |
 | RF-M1-09 | Recuperación de contraseña | — | `POST /api/v1/auth/password-recovery` · `POST /api/v1/auth/password-reset` | tabla `users` + `AuditLog` | Alto |
+| RF-M1-RESET (IT-1) | Regenerar contraseña temporal | — | `POST /api/v1/users/{id}/reset-password` | tabla `users` | Alto |
+| RNF-M1-15 (Fix-Sec-01) | CSPRNG contraseñas temporales | — | `POST /users` · `POST /users/:id/reset-password` | — | Crítico |
+| RNF-M1-16 (Fix-Sec-02) | POST /users sin password del admin | — | `POST /users` | — | Alto |
 
 ---
 

@@ -44,7 +44,7 @@ function LoginPage({ onLogin }) {
       const data = await res.json()
 
       if (data.status === 'success') {
-        onLogin(data.data.access_token)
+        onLogin(data.data.access_token, data.data.must_change_password === true)
       } else {
         setError(data.message || 'Credenciales incorrectas.')
       }

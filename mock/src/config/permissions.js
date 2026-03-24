@@ -1,6 +1,5 @@
 /**
  * Centralización RBAC: roles y grupos de acceso por recurso.
- * Referencia: RF-M1-05, SRS_General §5.3 Control de Acceso
  *
  * Uso:
  *   const { ADMIN_ONLY, APPLICATOR_ROLES } = require('../config/permissions');

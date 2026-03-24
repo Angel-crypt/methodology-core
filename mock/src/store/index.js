@@ -5,7 +5,6 @@
  *
  * NOTA DE SEGURIDAD: Este store es efímero e in-memory. En producción usar
  * PostgreSQL + Redis para persistencia y sesiones distribuidas.
- * Referencia: mock/SECURITY_REPORT.md §SEG-01
  */
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
@@ -22,6 +21,7 @@ const store = {
       password_hash: bcrypt.hashSync('Admin123!', 12),
       role: 'administrator',
       active: true,
+      must_change_password: false,
       created_at: new Date(),
       updated_at: null,
       password_changed_at: null,
@@ -44,7 +44,6 @@ const store = {
   /**
    * Sesiones activas: [{ jti, user_id, ip, user_agent, created_at, expires_at }]
    * Permite gestión de sesiones (GET /users/me/sessions, DELETE /sessions/:jti).
-   * Referencia: GAP-SEG-08
    */
   sessions: [],
 
@@ -52,7 +51,6 @@ const store = {
    * Audit log compliance: [{ id, event, user_id, ip, timestamp, details }]
    * Eventos: LOGIN, LOGIN_FALLIDO, LOGOUT, CAMBIO_CONTRASENA,
    *          RATE_LIMIT_ACTIVADO, ACCESO_DENEGADO, CONSULTA_USUARIOS
-   * Referencia: RF-M1-03, RNF-SEC-12, GAP-M1-03
    */
   auditLog: [],
 
@@ -61,6 +59,14 @@ const store = {
    * NOTA: Solo para mock. En producción, enviar por email y no exponer en API.
    */
   passwordRecoveryTokens: new Map(),
+
+  /**
+   * Tokens de configuración inicial de cuenta: Map<token, { userId, expiresAt (Unix sec) }>
+   * Generados por el admin al crear un usuario o restablecer su contraseña.
+   * TTL: 24 horas. Single-use: se invalidan tras completar el setup.
+   * En producción: el token se envía por email y no se expone en la API.
+   */
+  setupTokens: new Map(),
 
   // M2 – Instrumentos
   instruments: [],

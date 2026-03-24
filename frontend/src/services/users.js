@@ -41,8 +41,10 @@ export async function listarUsuarios(token, role, activeFilter = '') {
 /**
  * RF-M1-01 — POST /users
  * Solo Administrador. El role viene fijo desde la página que lo llama.
+ * El servidor genera la contraseña temporal internamente (CSPRNG).
+ * La respuesta incluye _mock_temp_password solo en el mock.
  * @param {string} token
- * @param {{ full_name: string, email: string, password: string, role: string }} body
+ * @param {{ full_name: string, email: string, role: string }} body
  */
 export async function crearUsuario(token, body) {
   const res = await fetch(BASE, {
@@ -66,6 +68,22 @@ export async function cambiarEstadoUsuario(token, id, active) {
     method: 'PATCH',
     headers: headers(token),
     body: JSON.stringify({ active }),
+  })
+  return parseResponse(res)
+}
+
+/**
+ * RF-M1-RESET — POST /users/:id/reset-password
+ * Genera una nueva contraseña temporal para el usuario (pending o active).
+ * Solo Administrador.
+ * Respuesta incluye _mock_temp_password (solo en mock).
+ * @param {string} token
+ * @param {string} id UUID del usuario
+ */
+export async function resetearPassword(token, id) {
+  const res = await fetch(`${BASE}/${id}/reset-password`, {
+    method: 'POST',
+    headers: headers(token),
   })
   return parseResponse(res)
 }

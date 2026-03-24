@@ -2,7 +2,6 @@
  * Middleware Privacy by Design: validateStrictInput(allowedKeys)
  * Rechaza cualquier campo no declarado en la lista de campos permitidos.
  * Usado en endpoints sensibles (M4 y otros con datos personales).
- * Referencia: GAP-SEG-04, SRS_General §5.8 Privacidad y Cumplimiento
  *
  * @param {string[]} allowedKeys - Lista blanca de campos permitidos en req.body
  */
