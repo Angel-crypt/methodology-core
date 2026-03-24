@@ -2,10 +2,17 @@
 <!--
   MockContract – Módulo 1: Autenticación y Control de Acceso
   Sistema de Registro Metodológico de Métricas Lingüísticas
-  Versión: 2.0  |  Fecha: 2026-03-12  |  Estado: En revisión
+  Versión: 2.2  |  Fecha: 2026-03-23  |  Estado: En revisión
+
+  Changelog:
+    v2.1 (2026-03-23): must_change_password, 3-state model (pending/active/inactive),
+         RF-M1-RESET, PATCH /users/me/password allowPending, modal credenciales único.
+    v2.2 (2026-03-23): CSPRNG obligatorio para contraseñas temporales, POST /users ya no
+         acepta password del admin. Actualizado RF-M1-01, RF-M1-03, RF-M1-05, RF-M1-06,
+         RF-M1-LIST, databaseSchema.
 -->
 
-<mockContract module="M1-Autenticacion" version="2.0">
+<mockContract module="M1-Autenticacion" version="2.2">
 
   <moduleInfo>
     <name>Módulo 1 – Autenticación y Control de Acceso</name>
@@ -32,9 +39,11 @@
       <column name="email"         type="VARCHAR"   notes="Único, índice"/>
       <column name="password_hash" type="VARCHAR"   notes="bcrypt factor >= 12"/>
       <column name="role"          type="ENUM"      notes="administrator | researcher | applicator"/>
-      <column name="active"              type="BOOLEAN"   notes="TRUE por defecto"/>
-      <column name="created_at"          type="TIMESTAMP" notes="UTC"/>
-      <column name="password_changed_at" type="TIMESTAMP" notes="NULL por defecto. Se actualiza en cada cambio de contraseña. Middleware rechaza tokens con iat anterior a este valor."/>
+      <column name="active"               type="BOOLEAN"   notes="TRUE por defecto"/>
+      <column name="must_change_password" type="BOOLEAN"   notes="DEFAULT TRUE. TRUE = estado pending (usuario debe cambiar contraseña en primer acceso). Se pone FALSE al completar PATCH /users/me/password. Se pone TRUE nuevamente al ejecutar POST /users/:id/reset-password."/>
+      <column name="created_at"           type="TIMESTAMP" notes="UTC"/>
+      <column name="updated_at"           type="TIMESTAMP" notes="NULL por defecto. Se actualiza en PATCH /users/:id/status y POST /users/:id/reset-password."/>
+      <column name="password_changed_at"  type="TIMESTAMP" notes="NULL por defecto. Se actualiza en cada cambio de contraseña. Middleware rechaza tokens con iat anterior a este valor."/>
     </table>
     <table name="revoked_tokens">
       <column name="jti"           type="UUID"      notes="PK, extraído del payload JWT"/>
@@ -56,25 +65,30 @@
       <auth>Bearer token – rol: administrator</auth>
       <description>
         Registra un nuevo usuario con rol asignado.
-        El correo debe ser único. La contraseña se hashea con bcrypt (factor >= 12).
-        El usuario se crea con active=TRUE por defecto.
-        Solo accesible por el rol administrator.
+        El correo debe ser único.
+        El usuario se crea con active=TRUE y must_change_password=TRUE (estado "pending").
+
+        El admin NO incluye password en el body. El servidor genera un setup token (CSPRNG)
+        y lo devuelve en _mock_setup_token. En producción se entrega por canal seguro externo.
+        El usuario establece su propia contraseña al visitar el enlace de configuración.
       </description>
       <request>
         <field name="full_name" type="string"  required="true"/>
         <field name="email"     type="string"  required="true" notes="Único en el sistema"/>
-        <field name="password"  type="string"  required="true" notes="Nunca se almacena en texto plano"/>
         <field name="role"      type="enum"    required="true" values="administrator | researcher | applicator"/>
+        <!-- password NO se acepta: el servidor genera el setup token internamente -->
       </request>
       <responses>
         <response status="201">
           <description>Usuario creado exitosamente</description>
-          <field name="id"         type="UUID"/>
-          <field name="full_name"  type="string"/>
-          <field name="email"      type="string"/>
-          <field name="role"       type="enum"/>
-          <field name="active"     type="boolean" value="true"/>
-          <field name="created_at" type="timestamp"/>
+          <field name="id"                   type="UUID"/>
+          <field name="full_name"            type="string"/>
+          <field name="email"                type="string"/>
+          <field name="role"                 type="enum"/>
+          <field name="active"               type="boolean"   value="true"/>
+          <field name="must_change_password" type="boolean"   value="true" notes="Siempre true al crear"/>
+          <field name="created_at"           type="timestamp"/>
+          <field name="[mock-only] _mock_temp_password" type="string" notes="Contraseña temporal generada por CSPRNG. ELIMINAR en producción. Mostrar al admin una sola vez en modal."/>
           <!-- password_hash NUNCA incluido en la respuesta -->
         </response>
         <response status="400">
@@ -179,9 +193,10 @@
       <responses>
         <response status="200">
           <description>Login exitoso (CA-HU3-01)</description>
-          <field name="access_token"  type="string"  notes="JWT firmado HS256"/>
-          <field name="token_type"    type="string"  value="Bearer"/>
-          <field name="expires_in"    type="integer" value="21600"/>
+          <field name="access_token"          type="string"  notes="JWT firmado HS256"/>
+          <field name="token_type"            type="string"  value="Bearer"/>
+          <field name="expires_in"            type="integer" value="21600"/>
+          <field name="must_change_password"  type="boolean" notes="true si el usuario está en estado pending. El frontend debe bloquear la navegación y mostrar CambiarPasswordModal (forced=true)."/>
         </response>
         <response status="401">
           <description>
@@ -242,6 +257,11 @@
           (2) jti en revoked_tokens → 401.
           (3) active=TRUE en users → 401 si FALSE.
           (4) Rol del token vs. matriz de permisos → 403 si sin permiso.
+          (4b) IT-1: si must_change_password=TRUE y el endpoint no tiene flag allowPending=true → 403
+               con { must_change_password: true }. Solo PATCH /users/me/password lleva allowPending.
+               Esto implementa el gate de Zero Trust: el usuario pending no puede operar
+               hasta completar el cambio de contraseña forzado.
+          (5) RBAC: roles requeridos vs rol del token → 403.
 
         Verificación del rol es stateless: extraído del JWT sin consulta a BD (CA-HU5-05).
 
@@ -255,7 +275,9 @@
         </response>
         <response status="403">
           <description>
-            Rol sin permiso para el endpoint solicitado (CA-HU5-01, CA-HU5-02)
+            Rol sin permiso para el endpoint solicitado (CA-HU5-01, CA-HU5-02).
+            También: usuario en estado pending intentando acceder a cualquier endpoint
+            excepto PATCH /users/me/password. Respuesta incluye { must_change_password: true }.
           </description>
         </response>
       </responses>
@@ -287,12 +309,13 @@
           <!-- GAP-M1-02: data es array directo (no objeto {users:[...]}) -->
           <description>Listado de usuarios (paginado)</description>
           <field name="data" type="array">
-            <field name="id"         type="UUID"/>
-            <field name="full_name"  type="string"/>
-            <field name="email"      type="string"/>
-            <field name="role"       type="enum"/>
-            <field name="active"     type="boolean"/>
-            <field name="created_at" type="timestamp"/>
+            <field name="id"                   type="UUID"/>
+            <field name="full_name"            type="string"/>
+            <field name="email"                type="string"/>
+            <field name="role"                 type="enum"/>
+            <field name="active"               type="boolean"/>
+            <field name="must_change_password" type="boolean" notes="true = pending, false = active (cuando active=true). Siempre false cuando active=false."/>
+            <field name="created_at"           type="timestamp"/>
           </field>
           <field name="meta" type="object">
             <field name="total" type="integer"/>
@@ -319,14 +342,17 @@
       <auth>Bearer token – cualquier rol autenticado</auth>
       <description>
         Permite al usuario autenticado cambiar su propia contraseña.
+        Este endpoint lleva flag allowPending=true en el middleware: es el único accesible
+        por usuarios en estado "pending" (must_change_password=true).
         Validaciones en orden:
           (1) bcrypt.verify(current_password, password_hash). Si falla → 401.
           (2) bcrypt.verify(new_password, password_hash). Si igual a la actual → 400.
         Tras validación exitosa:
           - Actualiza password_hash con bcrypt (factor >= 12).
           - Registra password_changed_at = NOW() en tabla users.
+          - Establece must_change_password = FALSE (usuario pasa de pending → active).
           - El middleware rechazará con 401 todos los tokens con iat anterior a este timestamp.
-          - Registra evento en AuditLog.
+          - Registra evento en AuditLog. Si era cambio forzado (eraPendiente=true), se anota.
       </description>
       <request>
         <field name="current_password" type="string" required="true" notes="Contraseña actual del usuario"/>
@@ -444,6 +470,57 @@
       </responses>
     </endpoint>
 
+    <!-- ──────────────────────────────────────────────────────
+         RF-M1-RESET · IT-1 – Regenerar / restablecer contraseña temporal
+    ────────────────────────────────────────────────────────── -->
+    <endpoint id="RF-M1-RESET" risk="Alto">
+      <method>POST</method>
+      <path>/users/{id}/reset-password</path>
+      <auth>Bearer token – rol: administrator</auth>
+      <description>
+        El administrador genera una nueva contraseña temporal para un usuario.
+        Aplica en dos escenarios:
+          - Usuario "pending": regenera contraseña (el anterior intento de entrega falló).
+          - Usuario "active": restablece contraseña (vuelve a estado "pending").
+        No aplica a usuarios "inactive" → 409.
+
+        El setup token se genera con CSPRNG (crypto.randomBytes, 256 bits).
+        El usuario establece su propia contraseña al visitar el enlace de configuración (TTL 24h).
+
+        Tras la operación:
+          - must_change_password = TRUE
+          - password_changed_at = NOW() (invalida tokens activos del usuario)
+          - updated_at = NOW()
+
+        En producción: _mock_temp_password se ELIMINA de la respuesta.
+        La contraseña se entrega por canal seguro fuera de banda.
+      </description>
+      <request>
+        <!-- Sin body -->
+      </request>
+      <responses>
+        <response status="200">
+          <description>Contraseña temporal generada. Usuario vuelve a estado pending.</description>
+          <field name="id"                   type="UUID"/>
+          <field name="email"                type="string"/>
+          <field name="must_change_password" type="boolean" value="true"/>
+          <field name="[mock-only] _mock_temp_password" type="string" notes="CSPRNG, ~95.8 bits. ELIMINAR en producción."/>
+        </response>
+        <response status="401">
+          <description>Token ausente o inválido</description>
+        </response>
+        <response status="403">
+          <description>Rol sin permiso (solo administrator)</description>
+        </response>
+        <response status="404">
+          <description>Usuario no encontrado</description>
+        </response>
+        <response status="409">
+          <description>El usuario está inactivo. Activarlo primero antes de regenerar contraseña.</description>
+        </response>
+      </responses>
+    </endpoint>
+
   </endpoints>
 
   <!-- ═══════════════════════════════════════════════════════════
@@ -459,6 +536,11 @@
     <rule>El último Administrador activo no puede ser desactivado (→ 409).</rule>
     <rule>Al cambiar contraseña, password_changed_at se actualiza a NOW(). El middleware rechaza tokens con iat anterior a ese timestamp (→ 401). Todas las sesiones previas quedan invalidadas.</rule>
     <rule>Todos los fallos de autenticación en login retornan HTTP 401 con mensaje genérico idéntico. La causa real se registra en audit_log.</rule>
+    <rule>must_change_password=TRUE + active=TRUE = estado "pending". El middleware bloquea con 403 cualquier endpoint excepto PATCH /users/me/password hasta que el usuario cambie su contraseña.</rule>
+    <rule>Al completar PATCH /users/me/password, must_change_password se establece en FALSE (estado "active").</rule>
+    <rule>POST /users/:id/reset-password vuelve a establecer must_change_password=TRUE ("pending") y genera un nuevo setup token.</rule>
+    <rule>POST /users NO acepta campo password del admin. El servidor genera el setup token internamente con CSPRNG (crypto.randomBytes). El admin nunca conoce la contraseña del usuario.</rule>
+    <rule>Los setup tokens se generan exclusivamente con crypto.randomBytes() (OS entropy). Prohibido Math.random(). TTL: 24 horas. Single-use: se invalidan al completar el setup.</rule>
   </authorizationRules>
 
   <!-- ═══════════════════════════════════════════════════════════
@@ -471,6 +553,11 @@
     <entry hu="HU4" ca="CA-HU4-01 a 05" endpoint="POST /api/v1/auth/logout"           db="revoked_tokens"  risk="Alto"/>
     <entry hu="HU5"  ca="CA-HU5-01 a 06"  endpoint="Middleware /api/v1/*"                    db="JWT stateless"              risk="Crítico"/>
     <entry hu="HU6b" ca="CA-HU6b-01 a 05" endpoint="PATCH /api/v1/users/me/password"         db="users+AuditLog"             risk="Alto"/>
+    <entry desc="3-state model pending/active/inactive" endpoint="POST /api/v1/users + GET /api/v1/users + POST /api/v1/auth/login" db="users.must_change_password" risk="Alto"/>
+    <entry desc="Gate must_change_password en middleware" endpoint="Middleware /api/v1/* (flag allowPending)" db="users.must_change_password" risk="Crítico"/>
+    <entry desc="RF-M1-RESET — setup token (TTL 24h, single-use)" endpoint="POST /api/v1/users/{id}/reset-password" db="users" risk="Alto"/>
+    <entry desc="CSPRNG setup tokens (crypto.randomBytes)" endpoint="POST /api/v1/users + POST /api/v1/users/{id}/reset-password" db="users.password_hash" risk="Crítico"/>
+    <entry desc="POST /users no acepta password del admin — servidor genera setup token" endpoint="POST /api/v1/users" db="—" risk="Alto"/>
   </traceability>
 
 </mockContract>
