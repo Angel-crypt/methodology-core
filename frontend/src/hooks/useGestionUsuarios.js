@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useToast } from '@/components/app'
-import { listarUsuarios, crearUsuario, cambiarEstadoUsuario, resetearPassword } from '@/services/users'
+import { listarUsuarios, crearUsuario, cambiarEstadoUsuario, resetearPassword, listarTodasLasSesiones } from '@/services/users'
 
 export const FILTROS_ESTADO = [
   { value: '', label: 'Todos' },
@@ -54,6 +54,7 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
   const [usuarios, setUsuarios] = useState([])
   const [cargando, setCargando] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState('')
+  const [usuariosConSesion, setUsuariosConSesion] = useState(new Set())
 
   // ─── Estado modales ────────────────────────────────────────────
   const [modalCrear, setModalCrear] = useState(false)
@@ -77,6 +78,19 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
   // ─── Estado reset contraseña ───────────────────────────────────
   const [guardandoReset, setGuardandoReset] = useState(false)
 
+  // ─── Búsqueda por página ───────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const usuariosFiltrados = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return usuarios
+    return usuarios.filter(
+      (u) =>
+        u.full_name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q)
+    )
+  }, [usuarios, searchQuery])
+
   // ─── Estado drawer detalle ─────────────────────────────────────
   const [drawerUsuario, setDrawerUsuario] = useState(null)
 
@@ -98,7 +112,11 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
         : filtroEstado === 'false' ? 'false'
         : ''
 
-      const data = await listarUsuarios(token, role, apiActiveFilter)
+      const [data, sesionesData] = await Promise.all([
+        listarUsuarios(token, role, apiActiveFilter),
+        listarTodasLasSesiones(token),
+      ])
+
       if (data.status === 'success') {
         let lista = data.data
         // Filtrado cliente-side para distinguir pending de active
@@ -110,6 +128,10 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
         setUsuarios(lista)
       } else {
         toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo cargar la lista.' })
+      }
+
+      if (sesionesData.status === 'success') {
+        setUsuariosConSesion(new Set(sesionesData.data.map((s) => s.user_id)))
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -279,5 +301,9 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     drawerUsuario,
     abrirDetalle,
     cerrarDetalle,
+    searchQuery,
+    setSearchQuery,
+    usuariosFiltrados,
+    usuariosConSesion,
   }
 }
