@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import PropTypes from 'prop-types'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Power, RotateCcw, Search } from 'lucide-react'
 import {
   Button,
@@ -62,7 +64,24 @@ function GestionInvestigadores({ token }) {
     drawerUsuario,
     abrirDetalle,
     cerrarDetalle,
+    searchQuery,
+    setSearchQuery,
+    usuariosFiltrados,
+    usuariosConSesion,
   } = useGestionUsuarios({ token, role: 'researcher', labelSingular: 'investigador' })
+
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // Navegación desde GlobalSearch: abrir drawer o modal de creación
+  useEffect(() => {
+    const s = location.state
+    if (!s) return
+    if (s.openDrawer) abrirDetalle(s.openDrawer)
+    if (s.openCrear) abrirModalCrear()
+    navigate(location.pathname, { replace: true, state: null })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
 
   // ─── Columnas de tabla ─────────────────────────────────────────
   const columnas = [
@@ -88,6 +107,13 @@ function GestionInvestigadores({ token }) {
           {formatFecha(value)}
         </span>
       ),
+    },
+    {
+      key: '_session',
+      label: 'Sesión',
+      render: (_, row) => usuariosConSesion.has(row.id)
+        ? <span className="session-dot session-dot--active" title="Sesión activa" aria-label="Sesión activa" />
+        : <span className="session-dot session-dot--inactive" title="Sin sesión" aria-label="Sin sesión activa" />,
     },
     ...(esAdmin ? [{
       key: 'id',
@@ -143,41 +169,47 @@ function GestionInvestigadores({ token }) {
   return (
     <main className="page-container">
       {/* Encabezado */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: 'var(--space-6)',
-        }}
-      >
-        <div>
-          <Typography as="h1">Investigadores</Typography>
-          <Typography
-            as="small"
-            style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)' }}
-          >
-            Cuentas con permisos de consulta y exportación del dataset.
-          </Typography>
-        </div>
-        {esAdmin && (
-          <Button icon={Plus} onClick={abrirModalCrear}>
-            Nuevo investigador
-          </Button>
-        )}
+      <div style={{ marginBottom: 'var(--space-6)' }}>
+        <Typography as="h1">Investigadores</Typography>
+        <Typography
+          as="small"
+          style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)' }}
+        >
+          Cuentas con permisos de consulta y exportación del dataset.
+        </Typography>
       </div>
 
-      {/* Filtros de estado */}
-      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
-        {FILTROS_ESTADO.map(({ value, label }) => (
-          <PillToggle
-            key={value}
-            selected={filtroEstado === value}
-            onClick={() => setFiltroEstado(value)}
-          >
-            {label}
-          </PillToggle>
-        ))}
+      {/* Búsqueda y filtros */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+        <div className="page-search-wrapper">
+          <Search size={14} className="page-search-icon" aria-hidden="true" />
+          <input
+            className="page-search-input"
+            placeholder="Buscar por nombre o correo..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          {FILTROS_ESTADO.map(({ value, label }) => (
+            <PillToggle
+              key={value}
+              selected={filtroEstado === value}
+              onClick={() => setFiltroEstado(value)}
+            >
+              {label}
+            </PillToggle>
+          ))}
+          {esAdmin && (
+            <Button
+              icon={Plus}
+              onClick={abrirModalCrear}
+              style={{ marginLeft: 'auto' }}
+            >
+              Nuevo investigador
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tabla / Empty state */}
@@ -199,7 +231,7 @@ function GestionInvestigadores({ token }) {
       ) : (
         <DataTable
           columns={columnas}
-          data={usuarios}
+          data={usuariosFiltrados}
           loading={false}
           emptyMessage="No hay investigadores que coincidan con el filtro."
           onRowClick={abrirDetalle}
@@ -302,6 +334,8 @@ function GestionInvestigadores({ token }) {
         onClose={cerrarDetalle}
         usuario={drawerUsuario}
         formatFecha={formatFecha}
+        token={token}
+        esAdmin={esAdmin}
       />
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />

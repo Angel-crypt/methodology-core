@@ -73,6 +73,40 @@ export async function cambiarEstadoUsuario(token, id, active) {
 }
 
 /**
+ * GET /users — sin filtro de rol, devuelve todos los usuarios.
+ * Usado por la búsqueda global (todos los roles).
+ * Solo Administrador.
+ * @param {string} token
+ */
+export async function listarTodosUsuarios(token) {
+  const res = await fetch(`${BASE}?limit=50`, { headers: headers(token) })
+  return parseResponse(res)
+}
+
+/**
+ * GET /users/sessions
+ * Lista todas las sesiones activas de todos los usuarios.
+ * Solo Administrador.
+ * @param {string} token
+ */
+export async function listarTodasLasSesiones(token) {
+  const res = await fetch(`${BASE}/sessions`, { headers: headers(token) })
+  return parseResponse(res)
+}
+
+/**
+ * GET /users/:id/sessions
+ * Lista las sesiones activas de un usuario.
+ * Solo Administrador.
+ * @param {string} token
+ * @param {string} id UUID del usuario
+ */
+export async function listarSesionesUsuario(token, id) {
+  const res = await fetch(`${BASE}/${id}/sessions`, { headers: headers(token) })
+  return parseResponse(res)
+}
+
+/**
  * GET /users/:id
  * Devuelve los datos completos de un usuario (sin password_hash).
  * Solo Administrador.

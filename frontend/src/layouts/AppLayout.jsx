@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { BookOpen, ClipboardList, Users } from 'lucide-react'
-import { Sidebar, Button } from '@/components/app'
+import { Sidebar, Button, GlobalSearch } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
 
 const NAV_ITEMS_BASE = [
@@ -70,6 +70,7 @@ function AppLayout({ children, onLogout, token }) {
 
         {/* Topbar */}
         <header className="topbar">
+          {esAdmin && <GlobalSearch token={token} />}
           <div style={{ flex: 1 }} />
           <Button variant="ghost" size="sm" onClick={() => setModalOpen(true)}>
             Cambiar contraseña

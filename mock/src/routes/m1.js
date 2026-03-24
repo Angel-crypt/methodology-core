@@ -594,6 +594,23 @@ router.get('/audit-log', authMiddleware(['administrator']), (req, res) => {
   });
 });
 
+// ─── GET /users/sessions ─── todas las sesiones activas ─────────────────────
+// IMPORTANTE: debe ir ANTES de /users/:id para que "sessions" no sea capturado por :id
+router.get('/users/sessions', authMiddleware(['administrator']), (req, res) => {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const sessions = store.sessions
+    .filter((s) => s.expires_at > nowSec)
+    .map((s) => ({
+      jti: s.jti,
+      user_id: s.user_id,
+      ip: s.ip,
+      user_agent: s.user_agent,
+      created_at: s.created_at,
+      expires_at: new Date(s.expires_at * 1000),
+    }));
+  return res.json({ status: 'success', data: sessions });
+});
+
 // ─── GET /users/:id ──────────────────────────────────────────────────────────
 router.get('/users/:id', authMiddleware(['administrator']), (req, res) => {
   const user = store.users.find((u) => u.id === req.params.id);
@@ -605,6 +622,7 @@ router.get('/users/:id', authMiddleware(['administrator']), (req, res) => {
 });
 
 // ─── GET /users/me/sessions ─── (GAP-SEG-08) ─────────────────────────────────
+// IMPORTANTE: debe ir ANTES de /users/:id/sessions para que "me" no sea capturado por :id
 router.get('/users/me/sessions', authMiddleware(), (req, res) => {
   const nowSec = Math.floor(Date.now() / 1000);
   const sessions = store.sessions
@@ -623,6 +641,21 @@ router.get('/users/me/sessions', authMiddleware(), (req, res) => {
     message: 'Sesiones activas recuperadas',
     data: sessions,
   });
+});
+
+// ─── GET /users/:id/sessions ─────────────────────────────────────────────────
+router.get('/users/:id/sessions', authMiddleware(['administrator']), (req, res) => {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const sessions = store.sessions
+    .filter((s) => s.user_id === req.params.id && s.expires_at > nowSec)
+    .map((s) => ({
+      jti: s.jti,
+      ip: s.ip,
+      user_agent: s.user_agent,
+      created_at: s.created_at,
+      expires_at: new Date(s.expires_at * 1000),
+    }));
+  return res.json({ status: 'success', data: sessions });
 });
 
 // ─── DELETE /sessions/:jti ─── (GAP-SEG-08) ──────────────────────────────────
