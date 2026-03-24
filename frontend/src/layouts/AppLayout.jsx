@@ -1,69 +1,87 @@
 import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { BookOpen, ClipboardList, Users } from 'lucide-react'
-import { Sidebar, Button, GlobalSearch } from '@/components/app'
+import { Sidebar, GlobalSearch, ProfileDropdown } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
 
-const NAV_ITEMS_BASE = [
-  { label: 'Instrumentos', icon: BookOpen, to: '/instruments' },
-]
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
-const NAV_ITEMS_ADMIN = [
-  { label: 'Aplicadores', icon: ClipboardList, to: '/usuarios/aplicadores' },
-  { label: 'Investigadores', icon: Users, to: '/usuarios/investigadores' },
-]
-
-function getRoleFromToken(token) {
+function decodeToken(token) {
   try {
-    return JSON.parse(atob(token.split('.')[1])).role
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return {
+      role:     payload.role     ?? null,
+      fullName: payload.full_name ?? '',
+      email:    payload.email    ?? '',
+    }
   } catch {
-    return null
+    return { role: null, fullName: '', email: '' }
   }
 }
+
+function getNavSections(role) {
+  const sections = [
+    {
+      id:    'gestion',
+      label: role === 'administrator' ? 'GESTIÓN' : null,
+      items: [
+        { label: 'Instrumentos', icon: BookOpen, to: '/instruments' },
+      ],
+    },
+  ]
+
+  if (role === 'administrator') {
+    sections.push({
+      id:    'usuarios',
+      label: 'USUARIOS',
+      items: [
+        { label: 'Aplicadores',    icon: ClipboardList, to: '/usuarios/aplicadores'   },
+        { label: 'Investigadores', icon: Users,         to: '/usuarios/investigadores' },
+      ],
+    })
+  }
+
+  return sections
+}
+
+// ── Componente ───────────────────────────────────────────────────────────────
 
 /**
  * AppLayout
  * Layout raíz para páginas autenticadas.
- * Incluye Sidebar lateral con navegación completa y Topbar con cerrar sesión.
+ * Compone Sidebar lateral colapsable + Topbar con búsqueda y perfil.
  *
  * Props:
  *   children  ReactNode
- *   onLogout  () => void — limpia el token y regresa al login
- *   token     string    — JWT activo para derivar el rol del usuario
+ *   onLogout  () => void
+ *   token     string — JWT activo
  */
 function AppLayout({ children, onLogout, token }) {
+  const { role, fullName, email } = decodeToken(token)
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('sidebar-collapsed') === 'true'
+  )
   const [modalOpen, setModalOpen] = useState(false)
 
-  const esAdmin = getRoleFromToken(token) === 'administrator'
-  const navItems = esAdmin ? [...NAV_ITEMS_BASE, ...NAV_ITEMS_ADMIN] : NAV_ITEMS_BASE
+  function handleToggleSidebar() {
+    const next = !sidebarCollapsed
+    setSidebarCollapsed(next)
+    localStorage.setItem('sidebar-collapsed', String(next))
+  }
+
+  const sections = getNavSections(role)
+  const esAdmin  = role === 'administrator'
 
   return (
     <div className="app-layout">
 
       <Sidebar
-        items={navItems}
-        header={
-          <div>
-            <p
-              style={{
-                fontSize: 'var(--font-size-small)',
-                fontWeight: 'var(--font-weight-medium)',
-                color: 'var(--color-text-primary)',
-              }}
-            >
-              SPL
-            </p>
-            <p
-              style={{
-                fontSize: 'var(--font-size-label)',
-                color: 'var(--color-text-tertiary)',
-                marginTop: 'var(--space-0-5)',
-              }}
-            >
-              Sistema de Perfiles Lingüísticos
-            </p>
-          </div>
-        }
+        sections={sections}
+        isCollapsed={sidebarCollapsed}
+        onToggle={handleToggleSidebar}
+        user={{ fullName, role }}
+        onLogout={onLogout}
       />
 
       <div className="app-content">
@@ -72,12 +90,12 @@ function AppLayout({ children, onLogout, token }) {
         <header className="topbar">
           {esAdmin && <GlobalSearch token={token} />}
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" onClick={() => setModalOpen(true)}>
-            Cambiar contraseña
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onLogout}>
-            Cerrar sesión
-          </Button>
+          <ProfileDropdown
+            fullName={fullName}
+            role={role}
+            email={email}
+            onChangePassword={() => setModalOpen(true)}
+          />
         </header>
 
         {children}
@@ -97,7 +115,7 @@ function AppLayout({ children, onLogout, token }) {
 AppLayout.propTypes = {
   children: PropTypes.node.isRequired,
   onLogout: PropTypes.func.isRequired,
-  token: PropTypes.string.isRequired,
+  token:    PropTypes.string.isRequired,
 }
 
 export default AppLayout
