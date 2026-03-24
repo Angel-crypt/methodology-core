@@ -15,14 +15,24 @@ function App() {
     setToken(tk)
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    if (token) {
+      try {
+        await fetch('/api/v1/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      } catch {
+        // best effort — cerrar sesión local aunque falle la revocación
+      }
+    }
     localStorage.removeItem('access_token')
     setToken('')
   }
 
   const authedLayout = (page) =>
     token ? (
-      <AppLayout onLogout={handleLogout}>{page}</AppLayout>
+      <AppLayout onLogout={handleLogout} token={token}>{page}</AppLayout>
     ) : (
       <Navigate to="/login" replace />
     )
