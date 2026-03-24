@@ -1,13 +1,25 @@
 import { useState } from 'react'
+import PropTypes from 'prop-types'
 import { BookOpen, ClipboardList, Users } from 'lucide-react'
 import { Sidebar, Button } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
 
-const NAV_ITEMS = [
+const NAV_ITEMS_BASE = [
   { label: 'Instrumentos', icon: BookOpen, to: '/instruments' },
+]
+
+const NAV_ITEMS_ADMIN = [
   { label: 'Aplicadores', icon: ClipboardList, to: '/usuarios/aplicadores' },
   { label: 'Investigadores', icon: Users, to: '/usuarios/investigadores' },
 ]
+
+function getRoleFromToken(token) {
+  try {
+    return JSON.parse(atob(token.split('.')[1])).role
+  } catch {
+    return null
+  }
+}
 
 /**
  * AppLayout
@@ -17,15 +29,19 @@ const NAV_ITEMS = [
  * Props:
  *   children  ReactNode
  *   onLogout  () => void — limpia el token y regresa al login
+ *   token     string    — JWT activo para derivar el rol del usuario
  */
 function AppLayout({ children, onLogout, token }) {
   const [modalOpen, setModalOpen] = useState(false)
+
+  const esAdmin = getRoleFromToken(token) === 'administrator'
+  const navItems = esAdmin ? [...NAV_ITEMS_BASE, ...NAV_ITEMS_ADMIN] : NAV_ITEMS_BASE
 
   return (
     <div className="app-layout">
 
       <Sidebar
-        items={NAV_ITEMS}
+        items={navItems}
         header={
           <div>
             <p
@@ -75,6 +91,12 @@ function AppLayout({ children, onLogout, token }) {
       </div>
     </div>
   )
+}
+
+AppLayout.propTypes = {
+  children: PropTypes.node.isRequired,
+  onLogout: PropTypes.func.isRequired,
+  token: PropTypes.string.isRequired,
 }
 
 export default AppLayout
