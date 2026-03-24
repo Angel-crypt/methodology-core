@@ -7,6 +7,7 @@ import GestionInvestigadores from './pages/GestionInvestigadores'
 import GestionInstrumentos from './pages/GestionInstrumentos'
 import CambiarPasswordModal from './pages/CambiarPasswordModal'
 import SetupPage from './pages/SetupPage'
+import RegistroOperativoWizardPage from './pages/RegistroOperativoWizardPage'
 import AppLayout from './layouts/AppLayout'
 
 function App() {
@@ -96,6 +97,12 @@ function App() {
 
         {/* Módulo 2 — Gestión de Instrumentos */}
         <Route path="/instruments" element={authedLayout(<GestionInstrumentos token={token} />)} />
+
+        {/* Módulo 4 — Registro Operativo Anonimizado */}
+        <Route
+          path="/registro-operativo"
+          element={authedLayout(<RegistroOperativoWizardPage token={token} />)}
+        />
 
         {/* Módulo 1 — Gestión de usuarios (solo Administrador) */}
         <Route path="/usuarios/aplicadores" element={adminLayout(<GestionAplicadores token={token} />)} />

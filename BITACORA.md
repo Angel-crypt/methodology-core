@@ -217,3 +217,24 @@ App.jsx es el único punto de verdad para el estado de autenticación.
 - **Archivos producidos:** `MODULE_REVIEW_M1_Login.md`
 
 **Pendiente (no implementado aún en ninguna rama):** RF-M1-06 (cambio de contraseña).
+
+---
+
+## 9. Decisiones M4 MVP Frontend — 2026-03-24
+
+**Módulo:** M4 — Registro Operativo Anonimizado  
+**Ruta frontend:** `/registro-operativo`
+
+### Decisiones aprobadas
+
+1. **Wizard en una sola página**
+   - Se implementa HU14-HU17 como flujo secuencial de 4 pasos en una sola ruta.
+   - Motivo: UX continua, menor complejidad de routing y entrega rápida del MVP.
+
+2. **Exclusión de `additional_attributes` en contexto**
+   - El paso de contexto envía body parcial y no incluye UI de `additional_attributes`.
+   - Motivo: reducir complejidad del MVP sin bloquear el flujo principal de captura.
+
+3. **Exclusión de `GET /subjects/:id` en MVP frontend**
+   - RF-M4-GET-SUBJECT queda fuera del alcance inicial.
+   - Motivo: priorizar flujo de captura HU14-HU17; consulta se difiere a iteración futura.
