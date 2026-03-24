@@ -73,6 +73,18 @@ export async function cambiarEstadoUsuario(token, id, active) {
 }
 
 /**
+ * GET /users/:id
+ * Devuelve los datos completos de un usuario (sin password_hash).
+ * Solo Administrador.
+ * @param {string} token
+ * @param {string} id UUID del usuario
+ */
+export async function obtenerUsuario(token, id) {
+  const res = await fetch(`${BASE}/${id}`, { headers: headers(token) })
+  return parseResponse(res)
+}
+
+/**
  * RF-M1-RESET — POST /users/:id/reset-password
  * Genera una nueva contraseña temporal para el usuario (pending o active).
  * Solo Administrador.
