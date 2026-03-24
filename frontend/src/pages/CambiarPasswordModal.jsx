@@ -11,11 +11,13 @@ import { Modal, FormField, Button, Alert } from '@/components/app'
  *
  * Props:
  *   open      boolean
- *   onClose   () => void
+ *   onClose   () => void  — ignorado si forced=true
  *   token     string — JWT activo para Authorization header
  *   onSuccess () => void — llamado tras 200 OK
+ *   forced    boolean (opcional) — si true, el modal no puede cerrarse
+ *             y muestra un mensaje de cambio obligatorio
  */
-function CambiarPasswordModal({ open, onClose, token, onSuccess }) {
+function CambiarPasswordModal({ open, onClose, token, onSuccess, forced = false }) {
   const [form, setForm] = useState({ current_password: '', new_password: '', confirm: '' })
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
@@ -28,6 +30,7 @@ function CambiarPasswordModal({ open, onClose, token, onSuccess }) {
   }
 
   function handleClose() {
+    if (forced) return  // no cancelable en modo forzado
     setForm({ current_password: '', new_password: '', confirm: '' })
     setError('')
     onClose()
@@ -80,13 +83,15 @@ function CambiarPasswordModal({ open, onClose, token, onSuccess }) {
     <Modal
       open={open}
       onClose={handleClose}
-      title="Cambiar contraseña"
+      title={forced ? 'Cambia tu contraseña para continuar' : 'Cambiar contraseña'}
       size="sm"
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)' }}>
-          <Button variant="ghost" onClick={handleClose} disabled={cargando}>
-            Cancelar
-          </Button>
+          {!forced && (
+            <Button variant="ghost" onClick={handleClose} disabled={cargando}>
+              Cancelar
+            </Button>
+          )}
           <Button onClick={handleSubmit} loading={cargando}>
             Confirmar
           </Button>
@@ -94,6 +99,11 @@ function CambiarPasswordModal({ open, onClose, token, onSuccess }) {
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        {forced && (
+          <Alert variant="info">
+            Tu cuenta tiene una contraseña temporal. Debes cambiarla antes de usar el sistema.
+          </Alert>
+        )}
         {error && (
           <div style={{ marginBottom: 'var(--space-2)' }}>
             <Alert variant="error">{error}</Alert>
@@ -140,6 +150,7 @@ CambiarPasswordModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   token: PropTypes.string.isRequired,
   onSuccess: PropTypes.func.isRequired,
+  forced: PropTypes.bool,
 }
 
 export default CambiarPasswordModal

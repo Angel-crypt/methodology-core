@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types'
-import { Plus, Power, Search } from 'lucide-react'
+import { Plus, Power, RotateCcw, Search } from 'lucide-react'
 import {
   Button,
   DataTable,
@@ -16,11 +16,13 @@ import {
   useGestionUsuarios,
   FILTROS_ESTADO,
   formatFecha,
+  getUserStatus,
 } from '@/hooks/useGestionUsuarios'
+import CredencialesModal from '@/pages/CredencialesModal'
 
 /**
  * GestionInvestigadores — Gestión de Usuarios
- * Cubre: RF-M1-LIST, RF-M1-01, RF-M1-02 para role=researcher
+ * Cubre: RF-M1-LIST, RF-M1-01, RF-M1-02, RF-M1-RESET para role=researcher
  *
  * Props:
  *   token string — JWT para autenticar llamadas a la API
@@ -37,12 +39,16 @@ function GestionInvestigadores({ token }) {
     modalEstado,
     setModalEstado,
     usuarioSeleccionado,
+    modalCredenciales,
+    credencialesNuevas,
+    cerrarModalCredenciales,
     formCrear,
     erroresCrear,
     errorApiCrear,
     guardandoCrear,
     errorApiEstado,
     guardandoEstado,
+    guardandoReset,
     toasts,
     dismiss,
     abrirModalCrear,
@@ -50,6 +56,7 @@ function GestionInvestigadores({ token }) {
     handleGuardarCrear,
     abrirModalEstado,
     handleConfirmarEstado,
+    handleResetearPassword,
   } = useGestionUsuarios({ token, role: 'researcher', labelSingular: 'investigador' })
 
   // ─── Columnas de tabla ─────────────────────────────────────────
@@ -59,7 +66,7 @@ function GestionInvestigadores({ token }) {
     {
       key: 'active',
       label: 'Estado',
-      render: (value) => <StatusBadge status={value ? 'active' : 'inactive'} />,
+      render: (_, row) => <StatusBadge status={getUserStatus(row)} />,
     },
     {
       key: 'created_at',
@@ -73,17 +80,48 @@ function GestionInvestigadores({ token }) {
     ...(esAdmin ? [{
       key: 'id',
       label: 'Acciones',
-      render: (_, row) => (
-        <Button
-          variant={row.active ? 'danger' : 'secondary'}
-          size="sm"
-          icon={Power}
-          onClick={() => abrirModalEstado(row)}
-          aria-label={`${row.active ? 'Desactivar' : 'Activar'} a ${row.full_name}`}
-        >
-          {row.active ? 'Desactivar' : 'Activar'}
-        </Button>
-      ),
+      render: (_, row) => {
+        const status = getUserStatus(row)
+
+        if (status === 'inactive') {
+          return (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Power}
+              onClick={() => abrirModalEstado(row)}
+              aria-label={`Activar a ${row.full_name}`}
+            >
+              Activar
+            </Button>
+          )
+        }
+
+        // pending o active: mostrar botón de contraseña + desactivar
+        return (
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={RotateCcw}
+              onClick={() => handleResetearPassword(row)}
+              loading={guardandoReset}
+              aria-label={status === 'pending' ? `Regenerar contraseña de ${row.full_name}` : `Restablecer contraseña de ${row.full_name}`}
+            >
+              {status === 'pending' ? 'Regenerar' : 'Restablecer'}
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              icon={Power}
+              onClick={() => abrirModalEstado(row)}
+              aria-label={`Desactivar a ${row.full_name}`}
+            >
+              Desactivar
+            </Button>
+          </div>
+        )
+      },
     }] : []),
   ]
 
@@ -194,16 +232,6 @@ function GestionInvestigadores({ token }) {
             onChange={handleChangeCrear('email')}
             error={erroresCrear.email}
           />
-          <FormField
-            id="inv-crear-password"
-            label="Contraseña inicial"
-            type="password"
-            required
-            value={formCrear.password}
-            onChange={handleChangeCrear('password')}
-            error={erroresCrear.password}
-            helper="El usuario podrá cambiarla desde su perfil."
-          />
         </div>
       </Modal>
 
@@ -236,11 +264,22 @@ function GestionInvestigadores({ token }) {
           {errorApiEstado && <Alert variant="error">{errorApiEstado}</Alert>}
           <Typography as="body">
             {usuarioSeleccionado?.active
-              ? `¿Desactivar la cuenta de ${usuarioSeleccionado?.full_name}? El usuario no podrá consultar ni exportar el dataset hasta ser reactivado.`
-              : `¿Activar la cuenta de ${usuarioSeleccionado?.full_name}? El usuario podrá consultar y exportar el dataset nuevamente.`}
+              ? `¿Desactivar la cuenta de ${usuarioSeleccionado?.full_name}? El usuario no podrá iniciar sesión hasta ser reactivado.`
+              : `¿Activar la cuenta de ${usuarioSeleccionado?.full_name}? El usuario podrá iniciar sesión nuevamente.`}
           </Typography>
         </div>
       </Modal>
+
+      {/* Modal — Credenciales de acceso (una sola vez) */}
+      {credencialesNuevas && (
+        <CredencialesModal
+          open={modalCredenciales}
+          onClose={cerrarModalCredenciales}
+          email={credencialesNuevas.email}
+          setupToken={credencialesNuevas.setupToken}
+          nombreUsuario={credencialesNuevas.nombreUsuario}
+        />
+      )}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
