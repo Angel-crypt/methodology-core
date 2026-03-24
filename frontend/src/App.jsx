@@ -5,14 +5,25 @@ import GalleryPage from './pages/GalleryPage'
 import GestionAplicadores from './pages/GestionAplicadores'
 import GestionInvestigadores from './pages/GestionInvestigadores'
 import GestionInstrumentos from './pages/GestionInstrumentos'
+import CambiarPasswordModal from './pages/CambiarPasswordModal'
+import SetupPage from './pages/SetupPage'
 import AppLayout from './layouts/AppLayout'
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem('access_token') || '')
+  const [mustChangePassword, setMustChangePassword] = useState(
+    () => localStorage.getItem('must_change_password') === 'true'
+  )
 
-  function handleLogin(tk) {
+  function handleLogin(tk, mustChange = false) {
     localStorage.setItem('access_token', tk)
+    if (mustChange) {
+      localStorage.setItem('must_change_password', 'true')
+    } else {
+      localStorage.removeItem('must_change_password')
+    }
     setToken(tk)
+    setMustChangePassword(mustChange)
   }
 
   async function handleLogout() {
@@ -27,7 +38,15 @@ function App() {
       }
     }
     localStorage.removeItem('access_token')
+    localStorage.removeItem('must_change_password')
     setToken('')
+    setMustChangePassword(false)
+  }
+
+  // Llamado tras cambio forzado exitoso: el servidor invalidó el token,
+  // hay que hacer logout para que el usuario inicie sesión con la nueva contraseña.
+  function handleForcedPasswordChanged() {
+    handleLogout()
   }
 
   function getRoleFromToken(tk) {
@@ -62,6 +81,9 @@ function App() {
         {/* Dev — galería de componentes, sin autenticación */}
         <Route path="/gallery" element={<GalleryPage />} />
 
+        {/* Configuración inicial de cuenta — enlace enviado por el administrador */}
+        <Route path="/setup" element={<SetupPage />} />
+
         {/* Login */}
         <Route
           path="/login"
@@ -85,6 +107,16 @@ function App() {
           element={<Navigate to={token ? '/instruments' : '/login'} replace />}
         />
       </Routes>
+
+      {token && mustChangePassword && (
+        <CambiarPasswordModal
+          open={true}
+          onClose={() => {}}
+          token={token}
+          onSuccess={handleForcedPasswordChanged}
+          forced={true}
+        />
+      )}
     </BrowserRouter>
   )
 }
