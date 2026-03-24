@@ -389,7 +389,8 @@
     transition: background-color var(--duration-fast) var(--ease-default);
   }
   .data-table tbody tr:hover    { background-color: var(--color-bg-subtle); }
-  .data-table tbody tr.row-inactive { background-color: var(--color-error-bg); opacity: 0.7; }
+  .data-table tbody tr.row-inactive  { background-color: var(--color-error-bg); opacity: 0.7; }
+  .data-table tbody tr.row-clickable { cursor: pointer; }
 
   /* Toasts */
   .toast {
