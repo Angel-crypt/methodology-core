@@ -1,14 +1,15 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useToast } from '@/components/app'
-import { listarUsuarios, crearUsuario, cambiarEstadoUsuario } from '@/services/users'
+import { listarUsuarios, crearUsuario, cambiarEstadoUsuario, resetearPassword } from '@/services/users'
 
 export const FILTROS_ESTADO = [
   { value: '', label: 'Todos' },
   { value: 'true', label: 'Activos' },
+  { value: 'pending', label: 'Pendientes' },
   { value: 'false', label: 'Inactivos' },
 ]
 
-export const FORM_INICIAL = { full_name: '', email: '', password: '' }
+export const FORM_INICIAL = { full_name: '', email: '' }
 
 export function formatFecha(iso) {
   if (!iso) return '—'
@@ -17,6 +18,18 @@ export function formatFecha(iso) {
     month: 'short',
     day: 'numeric',
   })
+}
+
+/**
+ * Deriva el estado de un usuario a partir de sus campos booleanos.
+ * pending  → active=true  AND must_change_password=true
+ * active   → active=true  AND must_change_password=false
+ * inactive → active=false
+ */
+export function getUserStatus(user) {
+  if (!user.active) return 'inactive'
+  if (user.must_change_password) return 'pending'
+  return 'active'
 }
 
 /**
@@ -47,6 +60,10 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
   const [modalEstado, setModalEstado] = useState(false)
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null)
 
+  // ─── Estado modal credenciales ─────────────────────────────────
+  const [modalCredenciales, setModalCredenciales] = useState(false)
+  const [credencialesNuevas, setCredencialesNuevas] = useState(null) // { email, setupToken, nombreUsuario }
+
   // ─── Estado formulario crear ───────────────────────────────────
   const [formCrear, setFormCrear] = useState(FORM_INICIAL)
   const [erroresCrear, setErroresCrear] = useState({})
@@ -57,15 +74,34 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
   const [errorApiEstado, setErrorApiEstado] = useState('')
   const [guardandoEstado, setGuardandoEstado] = useState(false)
 
+  // ─── Estado reset contraseña ───────────────────────────────────
+  const [guardandoReset, setGuardandoReset] = useState(false)
+
   const { toasts, toast, dismiss } = useToast()
 
   // ─── Carga de datos ────────────────────────────────────────────
   const cargarUsuarios = useCallback(async () => {
     setCargando(true)
     try {
-      const data = await listarUsuarios(token, role, filtroEstado)
+      // El filtro 'pending' y 'true' (activos reales) requieren cargar
+      // los usuarios con active=true y filtrar cliente-side por must_change_password.
+      // El filtro 'false' (inactivos) usa el parámetro del API directamente.
+      const apiActiveFilter =
+        filtroEstado === 'pending' ? 'true'
+        : filtroEstado === 'true' ? 'true'
+        : filtroEstado === 'false' ? 'false'
+        : ''
+
+      const data = await listarUsuarios(token, role, apiActiveFilter)
       if (data.status === 'success') {
-        setUsuarios(data.data)
+        let lista = data.data
+        // Filtrado cliente-side para distinguir pending de active
+        if (filtroEstado === 'pending') {
+          lista = lista.filter((u) => u.must_change_password)
+        } else if (filtroEstado === 'true') {
+          lista = lista.filter((u) => !u.must_change_password)
+        }
+        setUsuarios(lista)
       } else {
         toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo cargar la lista.' })
       }
@@ -100,7 +136,6 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     const errs = {}
     if (!formCrear.full_name.trim()) errs.full_name = 'El nombre es obligatorio.'
     if (!formCrear.email.trim()) errs.email = 'El correo es obligatorio.'
-    if (!formCrear.password.trim()) errs.password = 'La contraseña es obligatoria.'
     setErroresCrear(errs)
     return Object.keys(errs).length === 0
   }
@@ -109,21 +144,23 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     if (!validarFormCrear()) return
     setGuardandoCrear(true)
     setErrorApiCrear('')
+
     try {
       const data = await crearUsuario(token, {
         full_name: formCrear.full_name.trim(),
         email: formCrear.email.trim(),
-        password: formCrear.password,
         role,
       })
       if (data.status === 'success') {
         setModalCrear(false)
-        const label = labelSingular.charAt(0).toUpperCase() + labelSingular.slice(1)
-        toast({
-          type: 'success',
-          title: `${label} creado`,
-          message: `${formCrear.full_name.trim()} fue registrado correctamente.`,
+        setFormCrear(FORM_INICIAL)
+        // Mostrar setup link al admin una sola vez (TTL 24h, single-use)
+        setCredencialesNuevas({
+          email: data.data.email,
+          setupToken: data.data._mock_setup_token,
+          nombreUsuario: data.data.full_name,
         })
+        setModalCredenciales(true)
         cargarUsuarios()
       } else {
         setErrorApiCrear(data.message || `No se pudo crear el ${labelSingular}.`)
@@ -133,6 +170,17 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     } finally {
       setGuardandoCrear(false)
     }
+  }
+
+  function cerrarModalCredenciales() {
+    setModalCredenciales(false)
+    setCredencialesNuevas(null)
+    const label = labelSingular.charAt(0).toUpperCase() + labelSingular.slice(1)
+    toast({
+      type: 'success',
+      title: `${label} creado`,
+      message: `La cuenta fue registrada. El usuario deberá cambiar su contraseña al primer acceso.`,
+    })
   }
 
   // ─── Handlers — Modal Estado ───────────────────────────────────
@@ -168,6 +216,30 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     }
   }
 
+  // ─── Handlers — Reset contraseña ──────────────────────────────
+  async function handleResetearPassword(usuario) {
+    setGuardandoReset(true)
+    try {
+      const data = await resetearPassword(token, usuario.id)
+      if (data.status === 'success') {
+        // Mostrar setup link al admin (TTL 24h, single-use)
+        setCredencialesNuevas({
+          email: usuario.email,
+          setupToken: data.data._mock_setup_token,
+          nombreUsuario: usuario.full_name,
+        })
+        setModalCredenciales(true)
+        cargarUsuarios()
+      } else {
+        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo restablecer la contraseña.' })
+      }
+    } catch {
+      toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
+    } finally {
+      setGuardandoReset(false)
+    }
+  }
+
   return {
     esAdmin,
     usuarios,
@@ -179,12 +251,16 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     modalEstado,
     setModalEstado,
     usuarioSeleccionado,
+    modalCredenciales,
+    credencialesNuevas,
+    cerrarModalCredenciales,
     formCrear,
     erroresCrear,
     errorApiCrear,
     guardandoCrear,
     errorApiEstado,
     guardandoEstado,
+    guardandoReset,
     toasts,
     toast,
     dismiss,
@@ -193,5 +269,6 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     handleGuardarCrear,
     abrirModalEstado,
     handleConfirmarEstado,
+    handleResetearPassword,
   }
 }
