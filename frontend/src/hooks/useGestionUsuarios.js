@@ -77,6 +77,12 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
   // ─── Estado reset contraseña ───────────────────────────────────
   const [guardandoReset, setGuardandoReset] = useState(false)
 
+  // ─── Estado drawer detalle ─────────────────────────────────────
+  const [drawerUsuario, setDrawerUsuario] = useState(null)
+
+  function abrirDetalle(usuario) { setDrawerUsuario(usuario) }
+  function cerrarDetalle()       { setDrawerUsuario(null) }
+
   const { toasts, toast, dismiss } = useToast()
 
   // ─── Carga de datos ────────────────────────────────────────────
@@ -270,5 +276,8 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     abrirModalEstado,
     handleConfirmarEstado,
     handleResetearPassword,
+    drawerUsuario,
+    abrirDetalle,
+    cerrarDetalle,
   }
 }
