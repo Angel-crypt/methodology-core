@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { forwardRef } from 'react'
 import { Loader2 } from 'lucide-react'
 
@@ -87,5 +88,16 @@ const Button = forwardRef(function Button(
 })
 
 Button.displayName = 'Button'
+
+Button.propTypes = {
+  variant: PropTypes.oneOf(['primary', 'secondary', 'ghost', 'danger', 'icon']),
+  size: PropTypes.oneOf(['sm', 'md', 'lg']),
+  loading: PropTypes.bool,
+  disabled: PropTypes.bool,
+  icon: PropTypes.elementType,
+  iconPosition: PropTypes.oneOf(['left', 'right']),
+  children: PropTypes.node,
+  className: PropTypes.string,
+}
 
 export default Button

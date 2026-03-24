@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { Database } from 'lucide-react'
 
 /**
@@ -23,6 +24,13 @@ function EmptyState({ icon: Icon = Database, title, message, action }) {
       )}
     </div>
   )
+}
+
+EmptyState.propTypes = {
+  icon: PropTypes.elementType,
+  title: PropTypes.string,
+  message: PropTypes.string,
+  action: PropTypes.node,
 }
 
 export default EmptyState

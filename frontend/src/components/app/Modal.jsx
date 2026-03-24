@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 
@@ -61,6 +62,15 @@ function Modal({ open, onClose, title, children, footer, size = 'md' }) {
       </Dialog.Portal>
     </Dialog.Root>
   )
+}
+
+Modal.propTypes = {
+  open: PropTypes.bool,
+  onClose: PropTypes.func,
+  title: PropTypes.string,
+  children: PropTypes.node,
+  footer: PropTypes.node,
+  size: PropTypes.oneOf(['sm', 'md', 'lg']),
 }
 
 export default Modal

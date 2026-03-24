@@ -1,3 +1,5 @@
+import PropTypes from 'prop-types'
+
 /**
  * SkeletonRow — animated skeleton row for tables
  * Props: cols (number, default 3)
@@ -26,6 +28,10 @@ function SkeletonRow({ cols = 3 }) {
       ))}
     </tr>
   )
+}
+
+SkeletonRow.propTypes = {
+  cols: PropTypes.number,
 }
 
 export default SkeletonRow

@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react'
 
 /**
@@ -75,6 +76,13 @@ function Alert({ variant = 'info', title, children, icon: IconOverride }) {
       </div>
     </div>
   )
+}
+
+Alert.propTypes = {
+  variant: PropTypes.oneOf(['info', 'success', 'warning', 'error']),
+  title: PropTypes.string,
+  children: PropTypes.node,
+  icon: PropTypes.elementType,
 }
 
 export default Alert

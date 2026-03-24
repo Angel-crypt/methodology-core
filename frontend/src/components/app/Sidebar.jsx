@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { NavLink } from 'react-router-dom'
 
 /**
@@ -45,6 +46,13 @@ function Sidebar({ items = [], header, renderItem, footer }) {
       )}
     </aside>
   )
+}
+
+Sidebar.propTypes = {
+  items: PropTypes.array,
+  header: PropTypes.node,
+  renderItem: PropTypes.func,
+  footer: PropTypes.node,
 }
 
 export default Sidebar

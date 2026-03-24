@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { forwardRef } from 'react'
 import { AlertCircle } from 'lucide-react'
 
@@ -80,5 +81,16 @@ const FormField = forwardRef(function FormField(
 })
 
 FormField.displayName = 'FormField'
+
+FormField.propTypes = {
+  id: PropTypes.string,
+  label: PropTypes.string,
+  type: PropTypes.string,
+  error: PropTypes.string,
+  helper: PropTypes.string,
+  required: PropTypes.bool,
+  disabled: PropTypes.bool,
+  className: PropTypes.string,
+}
 
 export default FormField
