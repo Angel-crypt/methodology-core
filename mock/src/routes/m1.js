@@ -112,7 +112,7 @@ router.post('/auth/login', (req, res) => {
     : null;
 
   const token = jwt.sign(
-    { user_id: user.id, role: user.role, jti, iat, exp, pwd_changed_at: pwdChangedAt },
+    { user_id: user.id, role: user.role, full_name: user.full_name, email: user.email, jti, iat, exp, pwd_changed_at: pwdChangedAt },
     JWT_SECRET,
     { algorithm: 'HS256', noTimestamp: true }
   );

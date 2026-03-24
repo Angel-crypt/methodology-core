@@ -194,4 +194,17 @@
    --color-border-success: var(--sage-400);
    /* borde en éxito */
 
+
+   /* -----------------------------------------------------------
+     SIDEBAR — Tema claro (§ 3.8 DESIGN_SYSTEM.md)
+     Fondo blanco · texto oscuro · acentos Verde Salvia
+     ----------------------------------------------------------- */
+   --color-sidebar-bg:                var(--color-surface);
+   --color-sidebar-text:              var(--color-text-primary);
+   --color-sidebar-text-muted:        var(--color-text-secondary);
+   --color-sidebar-item-hover:        var(--gray-50);
+   --color-sidebar-item-active-bg:    var(--sage-50);
+   --color-sidebar-item-active-text:  var(--sage-600);
+   --color-sidebar-border:            var(--color-border);
+
 }

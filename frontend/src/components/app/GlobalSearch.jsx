@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import PropTypes from 'prop-types'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Search, BookOpen, Plus } from 'lucide-react'
@@ -51,6 +51,8 @@ function GlobalSearch({ token }) {
   const [allInstruments, setAllInstruments] = useState([])
   const [cargando, setCargando] = useState(false)
   const [cargado, setCargado] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const resultsRef = useRef(null)
 
   // Cmd+K / Ctrl+K
   useEffect(() => {
@@ -78,6 +80,17 @@ function GlobalSearch({ token }) {
         setCargado(true)
       })
   }, [open, cargado, token])
+
+  // Resetear selección al cambiar query o cerrar
+  useEffect(() => { setActiveIndex(-1) }, [query, open])
+
+  // Scroll automático al ítem activo
+  useEffect(() => {
+    if (activeIndex < 0) return
+    resultsRef.current
+      ?.querySelector(`[data-search-id="${activeIndex}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex])
 
   function handleClose() {
     setOpen(false)
@@ -134,6 +147,28 @@ function GlobalSearch({ token }) {
     instrumentos.length === 0 &&
     acciones.length === 0
 
+  // Lista plana de ítems seleccionables (orden: usuarios → instrumentos → acciones)
+  const allItems = cargando ? [] : [
+    ...usuarios.map((u) => ({ id: u.id, handler: () => handleSelectUser(u) })),
+    ...instrumentos.map((i) => ({ id: i.id, handler: () => handleSelectInstrumento(i) })),
+    ...acciones.map((a) => ({ id: a.id, handler: () => handleSelectAccion(a) })),
+  ]
+
+  const activeId = activeIndex >= 0 ? (allItems[activeIndex]?.id ?? null) : null
+
+  function handleKeyDown(e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIndex((i) => Math.min(i + 1, allItems.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIndex((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault()
+      allItems[activeIndex]?.handler()
+    }
+  }
+
   const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
 
   return (
@@ -162,11 +197,12 @@ function GlobalSearch({ token }) {
               placeholder="Buscar usuarios, instrumentos o acciones..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
               autoFocus
             />
           </div>
 
-          <div className="search-results">
+          <div className="search-results" ref={resultsRef}>
             {cargando && <p className="search-empty">Cargando...</p>}
 
             {sinResultados && (
@@ -179,7 +215,7 @@ function GlobalSearch({ token }) {
             {!cargando && usuarios.length > 0 && (
               <>
                 <p className="search-section-label">Usuarios</p>
-                {usuarios.map((user) => {
+                {usuarios.map((user, i) => {
                   const status = !user.active
                     ? 'inactive'
                     : user.must_change_password
@@ -192,7 +228,8 @@ function GlobalSearch({ token }) {
                   return (
                     <button
                       key={user.id}
-                      className="search-result-item search-result-item--clickable"
+                      data-search-id={i}
+                      className={`search-result-item search-result-item--clickable${user.id === activeId ? ' is-active' : ''}`}
                       onClick={() => handleSelectUser(user)}
                     >
                       <div>
@@ -213,10 +250,11 @@ function GlobalSearch({ token }) {
             {!cargando && instrumentos.length > 0 && (
               <>
                 <p className="search-section-label">Instrumentos</p>
-                {instrumentos.map((instr) => (
+                {instrumentos.map((instr, i) => (
                   <button
                     key={instr.id}
-                    className="search-result-item search-result-item--clickable"
+                    data-search-id={usuarios.length + i}
+                    className={`search-result-item search-result-item--clickable${instr.id === activeId ? ' is-active' : ''}`}
                     onClick={() => handleSelectInstrumento(instr)}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)' }}>
@@ -248,10 +286,11 @@ function GlobalSearch({ token }) {
             {acciones.length > 0 && (
               <>
                 <p className="search-section-label">Acciones</p>
-                {acciones.map((accion) => (
+                {acciones.map((accion, i) => (
                   <button
                     key={accion.id}
-                    className="search-result-item search-result-item--clickable"
+                    data-search-id={usuarios.length + instrumentos.length + i}
+                    className={`search-result-item search-result-item--clickable${accion.id === activeId ? ' is-active' : ''}`}
                     onClick={() => handleSelectAccion(accion)}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
