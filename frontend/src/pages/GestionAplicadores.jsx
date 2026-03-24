@@ -3,6 +3,7 @@ import { Plus, Power, RotateCcw, ClipboardList } from 'lucide-react'
 import {
   Button,
   DataTable,
+  RoleBadge,
   StatusBadge,
   Modal,
   FormField,
@@ -19,6 +20,7 @@ import {
   getUserStatus,
 } from '@/hooks/useGestionUsuarios'
 import CredencialesModal from '@/pages/CredencialesModal'
+import DetalleUsuarioDrawer from '@/pages/DetalleUsuarioDrawer'
 
 /**
  * GestionAplicadores — Gestión de Usuarios
@@ -57,12 +59,22 @@ function GestionAplicadores({ token }) {
     abrirModalEstado,
     handleConfirmarEstado,
     handleResetearPassword,
+    drawerUsuario,
+    abrirDetalle,
+    cerrarDetalle,
   } = useGestionUsuarios({ token, role: 'applicator', labelSingular: 'aplicador' })
 
   // ─── Columnas de tabla ─────────────────────────────────────────
   const columnas = [
     { key: 'full_name', label: 'Nombre completo' },
     { key: 'email', label: 'Correo electrónico' },
+    {
+      key: 'role',
+      label: 'Rol',
+      render: (value) => (
+        <RoleBadge role={value === 'administrator' ? 'admin' : value === 'applicator' ? 'aplicador' : 'researcher'} />
+      ),
+    },
     {
       key: 'active',
       label: 'Estado',
@@ -85,21 +97,23 @@ function GestionAplicadores({ token }) {
 
         if (status === 'inactive') {
           return (
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Power}
-              onClick={() => abrirModalEstado(row)}
-              aria-label={`Activar a ${row.full_name}`}
-            >
-              Activar
-            </Button>
+            <div onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Power}
+                onClick={() => abrirModalEstado(row)}
+                aria-label={`Activar a ${row.full_name}`}
+              >
+                Activar
+              </Button>
+            </div>
           )
         }
 
         // pending o active: mostrar botón de contraseña + desactivar
         return (
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }} onClick={(e) => e.stopPropagation()}>
             <Button
               variant="secondary"
               size="sm"
@@ -188,6 +202,7 @@ function GestionAplicadores({ token }) {
           data={usuarios}
           loading={false}
           emptyMessage="No hay aplicadores que coincidan con el filtro."
+          onRowClick={abrirDetalle}
         />
       )}
 
@@ -280,6 +295,14 @@ function GestionAplicadores({ token }) {
           nombreUsuario={credencialesNuevas.nombreUsuario}
         />
       )}
+
+      {/* Drawer — Detalle de usuario */}
+      <DetalleUsuarioDrawer
+        open={!!drawerUsuario}
+        onClose={cerrarDetalle}
+        usuario={drawerUsuario}
+        formatFecha={formatFecha}
+      />
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>

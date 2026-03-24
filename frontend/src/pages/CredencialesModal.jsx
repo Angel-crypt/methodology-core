@@ -31,16 +31,24 @@ function CredencialesModal({ open, onClose, email, setupToken, nombreUsuario }) 
     })
   }
 
+  function copiarUrlYCerrar() {
+    navigator.clipboard.writeText(setupUrl).then(() => {
+      setCopiadoUrl(true)
+      setTimeout(() => onClose(), 800)
+    })
+  }
+
   return (
     <Modal
       open={open}
-      onClose={null}   // no se puede cerrar con Esc ni con overlay click
+      onClose={null}
       title="Enlace de acceso inicial"
       size="sm"
+      hideClose
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button onClick={onClose}>
-            Entendido, ya copié el enlace
+          <Button icon={copiadoUrl ? Check : Copy} onClick={copiarUrlYCerrar}>
+            Copiar enlace y cerrar
           </Button>
         </div>
       }

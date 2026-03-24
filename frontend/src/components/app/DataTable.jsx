@@ -4,9 +4,9 @@ import EmptyState from './EmptyState'
 
 /**
  * DataTable — data table with loading skeleton and empty state
- * Props: columns ([{key, label, render?}]), data ([]), loading, emptyMessage
+ * Props: columns ([{key, label, render?}]), data ([]), loading, emptyMessage, onRowClick
  */
-function DataTable({ columns = [], data = [], loading = false, emptyMessage = 'No hay datos disponibles' }) {
+function DataTable({ columns = [], data = [], loading = false, emptyMessage = 'No hay datos disponibles', onRowClick }) {
   const colCount = columns.length
 
   return (
@@ -34,7 +34,11 @@ function DataTable({ columns = [], data = [], loading = false, emptyMessage = 'N
             data.map((row, rowIndex) => (
               <tr
                 key={row.id ?? rowIndex}
-                className={row.active === false ? 'row-inactive' : ''}
+                className={[
+                  row.active === false ? 'row-inactive' : '',
+                  onRowClick ? 'row-clickable' : '',
+                ].filter(Boolean).join(' ')}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 {columns.map((col) => (
                   <td key={col.key}>
@@ -55,6 +59,7 @@ DataTable.propTypes = {
   data: PropTypes.array,
   loading: PropTypes.bool,
   emptyMessage: PropTypes.string,
+  onRowClick: PropTypes.func,
 }
 
 export default DataTable

@@ -594,6 +594,16 @@ router.get('/audit-log', authMiddleware(['administrator']), (req, res) => {
   });
 });
 
+// ─── GET /users/:id ──────────────────────────────────────────────────────────
+router.get('/users/:id', authMiddleware(['administrator']), (req, res) => {
+  const user = store.users.find((u) => u.id === req.params.id);
+  if (!user) {
+    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado.', data: null });
+  }
+  const { password_hash, ...safeUser } = user;
+  return res.json({ status: 'success', data: safeUser });
+});
+
 // ─── GET /users/me/sessions ─── (GAP-SEG-08) ─────────────────────────────────
 router.get('/users/me/sessions', authMiddleware(), (req, res) => {
   const nowSec = Math.floor(Date.now() / 1000);
