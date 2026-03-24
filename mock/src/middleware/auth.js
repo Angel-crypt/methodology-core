@@ -35,7 +35,6 @@ if (fs.existsSync(DOCKER_SECRET_PATH)) {
 if (process.env.NODE_ENV === 'production' && JWT_SECRET === DEFAULT_SECRET) {
   console.error('[SEGURIDAD CRÍTICA] JWT_SECRET por defecto detectado en entorno de producción.');
   console.error('Configure JWT_SECRET como variable de entorno o Docker Secret antes de iniciar.');
-  console.error('Referencia: mock/SECURITY_REPORT.md §SEG-02');
   process.exit(1);
 }
 
@@ -43,8 +42,11 @@ const JWT_ALGORITHM = 'HS256';
 
 /**
  * @param {string[]} roles  - Roles permitidos. Array vacío = cualquier rol autenticado.
+ * @param {{ allowPending?: boolean }} options
+ *   allowPending: si true, permite el acceso aunque must_change_password=true.
+ *   Usar en PATCH /users/me/password para que el usuario pendiente pueda cambiar su contraseña.
  */
-function authMiddleware(roles = []) {
+function authMiddleware(roles = [], { allowPending = false } = {}) {
   return (req, res, next) => {
     const authHeader = req.headers['authorization'];
 
@@ -87,6 +89,15 @@ function authMiddleware(roles = []) {
       jti: payload.jti,
       exp: payload.exp,
     };
+
+    // (4b) Un usuario en estado "pending" solo puede acceder a PATCH /users/me/password.
+    if (!allowPending && user.must_change_password) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Debes cambiar tu contraseña antes de continuar.',
+        data: { must_change_password: true },
+      });
+    }
 
     // (5) RBAC
     if (roles.length > 0 && !roles.includes(req.user.role)) {
