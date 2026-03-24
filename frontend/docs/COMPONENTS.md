@@ -560,5 +560,151 @@ Ver en galería: `/gallery#skeletonrow`
 
 ---
 
-_Última actualización: 2026-03-22_
+## UserAvatar
+
+Avatar de usuario con color e ícono según el rol y la inicial del nombre completo.
+
+**Ubicación:** `src/components/app/UserAvatar.jsx`
+
+### Props
+
+| Prop | Tipo | Default | Descripción |
+|------|------|---------|-------------|
+| `fullName` | `string` | — | Nombre completo del usuario. Se extrae la primera letra como inicial. |
+| `role` | `'administrator' \| 'researcher' \| 'applicator'` | — | Rol en formato JWT. Determina el color de fondo e ícono. |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | Tamaño del avatar. `sm`=28px, `md`=36px, `lg`=44px. |
+
+### Variantes por rol
+
+| Rol | Fondo | Ícono | Token |
+|-----|-------|-------|-------|
+| `administrator` | `--purple-600` | `Crown` | `--color-role-admin-*` |
+| `researcher` | `--sage-400` | `Search` | `--color-primary` |
+| `applicator` | `--amber-500` | `ClipboardList` | `--color-role-aplicador-*` |
+
+### Uso
+
+```jsx
+import { UserAvatar } from '@/components/app'
+
+<UserAvatar fullName="Ana García"    role="administrator" size="md" />
+<UserAvatar fullName="Luis Martínez" role="researcher"    size="sm" />
+<UserAvatar fullName="María López"   role="applicator"    size="lg" />
+```
+
+---
+
+## Tooltip
+
+Tooltip accesible sobre cualquier elemento hijo. Muestra un label al hacer hover. Requiere `TooltipPrimitive.Provider` en el árbol padre (ya incluido en `Sidebar`).
+
+**Ubicación:** `src/components/app/Tooltip.jsx`
+
+### Props
+
+| Prop | Tipo | Default | Descripción |
+|------|------|---------|-------------|
+| `content` | `string` | — | Texto a mostrar en el tooltip. |
+| `children` | `ReactNode` | — | Elemento que dispara el tooltip al hover. |
+| `disabled` | `boolean` | `false` | Si `true`, renderiza solo los `children` sin tooltip. |
+
+### Notas
+
+- Internamente usa `@radix-ui/react-tooltip` con `asChild` sobre un `<span style={{ display:'block' }}>` para evitar conflictos con `NavLink` (que usa función para `className`).
+- El `TooltipPrimitive.Provider` vive en `Sidebar.jsx`. Si se usa `Tooltip` fuera del Sidebar, añadir `<TooltipPrimitive.Provider>` en el árbol.
+- `side="right"` con `sideOffset={8}`. Colores: `--color-info-bg` / `--color-info-text` / `--color-info`.
+
+### Uso
+
+```jsx
+import { Tooltip } from '@/components/app'
+import * as TooltipPrimitive from '@radix-ui/react-tooltip'
+
+<TooltipPrimitive.Provider delayDuration={400}>
+  <Tooltip content="Cerrar sesión">
+    <button aria-label="Cerrar sesión"><LogOut /></button>
+  </Tooltip>
+</TooltipPrimitive.Provider>
+```
+
+---
+
+## ProfileDropdown
+
+Menú desplegable del perfil de usuario en el topbar. Muestra avatar, nombre completo, correo, rol y acceso a cambiar contraseña.
+
+**Ubicación:** `src/components/app/ProfileDropdown.jsx`
+
+### Props
+
+| Prop | Tipo | Default | Descripción |
+|------|------|---------|-------------|
+| `fullName` | `string` | — | Nombre completo del usuario. |
+| `role` | `'administrator' \| 'researcher' \| 'applicator'` | — | Rol en formato JWT. |
+| `email` | `string` | — | Correo electrónico. |
+| `onChangePassword` | `() => void` | — | Callback al pulsar "Cambiar contraseña". |
+
+### Estructura del menú
+
+- **Trigger:** `UserAvatar` (sm) + `ChevronDown`
+- **Header:** `UserAvatar` (md) + nombre + email
+- Separador
+- `RoleBadge` con el rol del usuario
+- Separador
+- Botón "Cambiar contraseña" (`KeyRound`)
+
+### Uso
+
+```jsx
+import { ProfileDropdown } from '@/components/app'
+
+<ProfileDropdown
+  fullName="Ana García"
+  role="administrator"
+  email="ana@universidad.edu"
+  onChangePassword={() => setModalOpen(true)}
+/>
+```
+
+---
+
+## GlobalSearch
+
+Búsqueda global accesible con `Ctrl+K` / `Cmd+K`. Busca usuarios e instrumentos simultáneamente y ofrece accesos rápidos para crear entidades. Solo disponible para administradores.
+
+**Ubicación:** `src/components/app/GlobalSearch.jsx`
+
+### Props
+
+| Prop | Tipo | Default | Descripción |
+|------|------|---------|-------------|
+| `token` | `string` | — | JWT del administrador. Requerido para cargar usuarios e instrumentos. |
+
+### Atajos de teclado
+
+| Tecla | Acción |
+|-------|--------|
+| `Ctrl+K` / `Cmd+K` | Abrir / cerrar el diálogo |
+| `↓` / `↑` | Navegar por los resultados |
+| `Enter` | Seleccionar el ítem activo |
+| `Escape` | Cerrar el diálogo |
+
+### Secciones de resultados
+
+1. **Usuarios** — filtra por nombre y email; navega a `/usuarios/aplicadores` o `/usuarios/investigadores` con `state: { openDrawer: usuario }`.
+2. **Instrumentos** — filtra por nombre y descripción; navega a `/instruments` con `state: { openDrawer: instrumento }`.
+3. **Acciones** — accesos rápidos para crear aplicador, investigador e instrumento.
+
+### Uso
+
+```jsx
+import { GlobalSearch } from '@/components/app'
+
+// En AppLayout, solo para admins
+{esAdmin && <GlobalSearch token={token} />}
+```
+
+---
+
+_Última actualización: 2026-03-24_
 _Actualizar al agregar nuevos componentes a `src/components/app/`._

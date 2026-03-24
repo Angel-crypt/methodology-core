@@ -94,7 +94,7 @@ function DetalleUsuarioDrawer({ open, onClose, usuario, formatFecha, token, esAd
 
         {esAdmin && (
           <div>
-            <dt style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 'var(--space-1-5)', marginBottom: 'var(--space-2)' }}>
+            <dt style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
               <Monitor size={12} aria-hidden="true" />
               Sesiones activas
             </dt>

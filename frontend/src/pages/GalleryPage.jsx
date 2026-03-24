@@ -1,11 +1,13 @@
 import PropTypes from 'prop-types'
 import { useState } from 'react'
+import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import {
   LayoutDashboard,
   Users,
   FileText,
   Trash2,
   Plus,
+  Search,
 } from 'lucide-react'
 
 import {
@@ -19,10 +21,12 @@ import {
   ToastContainer,
   Alert,
   Spinner,
-  Sidebar,
   Typography,
   useToast,
   PillToggle,
+  UserAvatar,
+  Tooltip,
+  ProfileDropdown,
 } from '../components/app'
 
 /* ─────────────────────────────────────────────────────────────
@@ -227,6 +231,8 @@ const CATEGORIES = [
       { id: 'spinner', label: 'Spinner' },
       { id: 'role-badge', label: 'RoleBadge' },
       { id: 'status-badge', label: 'StatusBadge' },
+      { id: 'user-avatar', label: 'UserAvatar' },
+      { id: 'tooltip', label: 'Tooltip' },
     ],
   },
   {
@@ -248,25 +254,26 @@ const CATEGORIES = [
       { id: 'empty-state', label: 'EmptyState' },
     ],
   },
+  {
+    label: 'Navegación',
+    items: [
+      { id: 'profile-dropdown', label: 'ProfileDropdown' },
+      { id: 'global-search', label: 'GlobalSearch' },
+    ],
+  },
 ]
 
-const ALL_SECTIONS = CATEGORIES.flatMap((cat) => cat.items)
 
 function GallerySidebar({ search, onSearch, activeId, onNavigate }) {
-  const filtered = ALL_SECTIONS.filter((item) =>
-    item.label.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const sidebarHeader = (
-    <>
-      <div style={{ borderBottom: '1px solid var(--color-border)', padding: 'var(--space-4)', marginBottom: 'var(--space-2)' }}>
-        <p style={{ fontSize: 'var(--font-size-body)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
-          Design System
-        </p>
-        <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>
-          v1.0
-        </p>
+  return (
+    <aside className="sidebar">
+      <div className="sidebar__header">
+        <div className="sidebar__brand">
+          <p className="sidebar__title">Design System</p>
+          <p className="sidebar__subtitle">Galería de componentes</p>
+        </div>
       </div>
+
       <div style={{ padding: 'var(--space-3)' }}>
         <input
           type="search"
@@ -278,27 +285,35 @@ function GallerySidebar({ search, onSearch, activeId, onNavigate }) {
           aria-label="Buscar componentes"
         />
       </div>
-    </>
-  )
 
-  return (
-    <Sidebar
-      items={filtered}
-      header={sidebarHeader}
-      renderItem={(item) => (
-        <a
-          href={`#${item.id}`}
-          onClick={(e) => {
-            e.preventDefault()
-            onNavigate(item.id)
-            document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth' })
-          }}
-          className={`sidebar-item${activeId === item.id ? ' is-active' : ''}`}
-        >
-          {item.label}
-        </a>
-      )}
-    />
+      <nav className="sidebar__nav" aria-label="Componentes">
+        {CATEGORIES.map((cat) => {
+          const filtered = cat.items.filter((item) =>
+            item.label.toLowerCase().includes(search.toLowerCase())
+          )
+          if (filtered.length === 0) return null
+          return (
+            <div key={cat.label} className="sidebar__section">
+              <span className="sidebar__section-label">{cat.label}</span>
+              {filtered.map((item) => (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    onNavigate(item.id)
+                    document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth' })
+                  }}
+                  className={`sidebar-item${activeId === item.id ? ' is-active' : ''}`}
+                >
+                  <span className="sidebar__item-label">{item.label}</span>
+                </a>
+              ))}
+            </div>
+          )
+        })}
+      </nav>
+    </aside>
   )
 }
 
@@ -1004,6 +1019,162 @@ import { Users } from 'lucide-react'
                     </Button>
                   }
                 />
+              </div>
+            </div>
+          </ComponentSection>
+
+          {/* ── SECTION: UserAvatar ── */}
+          <ComponentSection
+            id="user-avatar"
+            title="UserAvatar"
+            description="Avatar de usuario con color e ícono según el rol y la inicial del nombre."
+            props={[
+              { name: 'fullName', type: 'string', default: '—', desc: 'Nombre completo — extrae la inicial para mostrar' },
+              { name: 'role', type: "'administrator'|'researcher'|'applicator'", default: '—', desc: 'Rol en formato JWT — determina color e ícono' },
+              { name: 'size', type: "'sm'|'md'|'lg'", default: "'md'", desc: 'Tamaño del avatar' },
+            ]}
+            code={`import { UserAvatar } from '@/components/app'
+
+<UserAvatar fullName="Ana García"     role="administrator" size="md" />
+<UserAvatar fullName="Luis Martínez"  role="researcher"    size="md" />
+<UserAvatar fullName="María López"    role="applicator"    size="md" />`}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+              <div>
+                <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)', marginBottom: 'var(--space-3)' }}>Roles</p>
+                <div style={{ display: 'flex', gap: 'var(--space-6)', alignItems: 'center' }}>
+                  {[
+                    { name: 'Ana García',    role: 'administrator', label: 'Admin' },
+                    { name: 'Luis Martínez', role: 'researcher',    label: 'Investigador' },
+                    { name: 'María López',   role: 'applicator',    label: 'Aplicador' },
+                  ].map(({ name, role, label }) => (
+                    <div key={role} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)' }}>
+                      <UserAvatar fullName={name} role={role} size="md" />
+                      <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)' }}>{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)', marginBottom: 'var(--space-3)' }}>Tamaños</p>
+                <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
+                  {['sm', 'md', 'lg'].map((size) => (
+                    <div key={size} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)' }}>
+                      <UserAvatar fullName="Ana García" role="administrator" size={size} />
+                      <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>{size}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </ComponentSection>
+
+          {/* ── SECTION: Tooltip ── */}
+          <ComponentSection
+            id="tooltip"
+            title="Tooltip"
+            description="Tooltip accesible sobre cualquier elemento. Requiere TooltipPrimitive.Provider en el árbol padre (incluido en Sidebar)."
+            props={[
+              { name: 'content', type: 'string', default: '—', desc: 'Texto del tooltip' },
+              { name: 'children', type: 'ReactNode', default: '—', desc: 'Elemento que dispara el tooltip' },
+              { name: 'disabled', type: 'boolean', default: 'false', desc: 'Si true, renderiza solo el children sin tooltip' },
+            ]}
+            code={`import { Tooltip } from '@/components/app'
+import * as TooltipPrimitive from '@radix-ui/react-tooltip'
+
+// Requiere Provider en el árbol
+<TooltipPrimitive.Provider delayDuration={400}>
+  <Tooltip content="Guardar cambios">
+    <Button variant="icon" icon={Save} aria-label="Guardar" />
+  </Tooltip>
+</TooltipPrimitive.Provider>`}
+          >
+            <TooltipPrimitive.Provider delayDuration={200}>
+              <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center', flexWrap: 'wrap' }}>
+                <Tooltip content="Acción primaria">
+                  <Button variant="primary">Hover sobre mí</Button>
+                </Tooltip>
+                <Tooltip content="Eliminar elemento">
+                  <Button variant="icon" icon={Trash2} aria-label="Eliminar" />
+                </Tooltip>
+                <Tooltip content="Agregar nuevo registro">
+                  <Button variant="secondary" icon={Plus}>Nuevo</Button>
+                </Tooltip>
+                <Tooltip content="Deshabilitado" disabled>
+                  <Button variant="ghost">Sin tooltip</Button>
+                </Tooltip>
+              </div>
+            </TooltipPrimitive.Provider>
+          </ComponentSection>
+
+          {/* ── SECTION: ProfileDropdown ── */}
+          <ComponentSection
+            id="profile-dropdown"
+            title="ProfileDropdown"
+            description="Menú desplegable del perfil de usuario en el topbar. Muestra avatar, nombre, email, rol y acceso a cambiar contraseña."
+            props={[
+              { name: 'fullName', type: 'string', default: '—', desc: 'Nombre completo del usuario' },
+              { name: 'role', type: "'administrator'|'researcher'|'applicator'", default: '—', desc: 'Rol en formato JWT' },
+              { name: 'email', type: 'string', default: '—', desc: 'Correo electrónico del usuario' },
+              { name: 'onChangePassword', type: '() => void', default: '—', desc: 'Callback al pulsar "Cambiar contraseña"' },
+            ]}
+            code={`import { ProfileDropdown } from '@/components/app'
+
+<ProfileDropdown
+  fullName="Ana García"
+  role="administrator"
+  email="ana@universidad.edu"
+  onChangePassword={() => setModalOpen(true)}
+/>`}
+          >
+            <div style={{ display: 'flex', gap: 'var(--space-8)', flexWrap: 'wrap' }}>
+              {[
+                { fullName: 'Ana García',    role: 'administrator', email: 'ana@universidad.edu' },
+                { fullName: 'Luis Martínez', role: 'researcher',    email: 'luis@universidad.edu' },
+                { fullName: 'María López',   role: 'applicator',    email: 'maria@universidad.edu' },
+              ].map(({ fullName, role, email }) => (
+                <div key={role} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <ProfileDropdown
+                    fullName={fullName}
+                    role={role}
+                    email={email}
+                    onChangePassword={() => {}}
+                  />
+                  <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>{role}</span>
+                </div>
+              ))}
+            </div>
+          </ComponentSection>
+
+          {/* ── SECTION: GlobalSearch ── */}
+          <ComponentSection
+            id="global-search"
+            title="GlobalSearch"
+            description="Búsqueda global accesible con Ctrl+K / Cmd+K. Busca usuarios e instrumentos simultáneamente con navegación por teclado (↑↓ Enter). Solo disponible para administradores."
+            props={[
+              { name: 'token', type: 'string', default: '—', desc: 'JWT del usuario administrador — requerido para cargar datos' },
+            ]}
+            code={`import { GlobalSearch } from '@/components/app'
+
+// Solo visible para administradores
+{esAdmin && <GlobalSearch token={token} />}
+
+// Atajos de teclado
+// Ctrl+K / Cmd+K — abrir/cerrar
+// ↑ ↓            — navegar resultados
+// Enter          — seleccionar ítem activo
+// Escape         — cerrar`}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              <p style={{ fontSize: 'var(--font-size-small)', color: 'var(--color-text-secondary)' }}>
+                Trigger visual (el diálogo completo requiere un JWT válido con rol <code style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-code)' }}>administrator</code>):
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                <button className="search-trigger" style={{ pointerEvents: 'none' }} aria-hidden="true">
+                  <Search size={14} aria-hidden="true" />
+                  <span>Buscar...</span>
+                  <kbd>Ctrl+K</kbd>
+                </button>
               </div>
             </div>
           </ComponentSection>
