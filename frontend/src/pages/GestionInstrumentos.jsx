@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import PropTypes from 'prop-types'
-import { Plus, Pencil, Power, RotateCw, BookOpen } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Plus, Pencil, Power, RotateCw, BookOpen, Search } from 'lucide-react'
 import {
   Button,
   DataTable,
@@ -40,10 +41,14 @@ function GestionInstrumentos({ token }) {
     }
   }, [token])
 
+  const location = useLocation()
+  const navigate = useNavigate()
+
   // ─── Estado principal ──────────────────────────────────────────
   const [instrumentos, setInstrumentos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   // ─── Estado modales ────────────────────────────────────────────
   const [modalCrear, setModalCrear] = useState(false)
@@ -98,6 +103,26 @@ function GestionInstrumentos({ token }) {
   useEffect(() => {
     cargarInstrumentos()
   }, [cargarInstrumentos])
+
+  // ─── Filtrado client-side por búsqueda ─────────────────────────
+  const instrumentosFiltrados = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return instrumentos
+    return instrumentos.filter(
+      (i) =>
+        i.name.toLowerCase().includes(q) ||
+        (i.methodological_description || '').toLowerCase().includes(q)
+    )
+  }, [instrumentos, searchQuery])
+
+  // ─── Navegación desde GlobalSearch ────────────────────────────
+  useEffect(() => {
+    const s = location.state
+    if (!s) return
+    if (s.openCrear) setModalCrear(true)
+    navigate(location.pathname, { replace: true, state: null })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
 
   // ─── Helpers formulario crear ──────────────────────────────────
   function cambiarCrear(campo) {
@@ -321,7 +346,7 @@ function GestionInstrumentos({ token }) {
       key: 'id',
       label: 'Acciones',
       render: (_, fila) => (
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }} onClick={(e) => e.stopPropagation()}>
           <Button
             variant="icon"
             size="sm"
@@ -361,64 +386,62 @@ function GestionInstrumentos({ token }) {
     <main className="page-container">
 
       {/* Encabezado de página */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 'var(--space-4)',
-          marginBottom: 'var(--space-6)',
-        }}
-      >
-        <div>
-          <Typography as="h1">Instrumentos</Typography>
-          <Typography
-            as="small"
-            style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)' }}
-          >
-            Gestión de instrumentos metodológicos lingüísticos
-          </Typography>
-        </div>
-
-        {/* Botón nuevo solo para admin (FUNC-02) */}
-        {esAdmin && (
-          <Button icon={Plus} iconPosition="left" onClick={() => setModalCrear(true)}>
-            Nuevo instrumento
-          </Button>
-        )}
+      <div style={{ marginBottom: 'var(--space-6)' }}>
+        <Typography as="h1">Instrumentos</Typography>
+        <Typography
+          as="small"
+          style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)' }}
+        >
+          Gestión de instrumentos metodológicos lingüísticos
+        </Typography>
       </div>
 
-      {/* Barra de filtros */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-3)',
-          marginBottom: 'var(--space-4)',
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          {filtros.map(({ valor, etiqueta }) => (
-            <PillToggle
-              key={valor || 'all'}
-              selected={filtroEstado === valor}
-              onClick={() => setFiltroEstado(valor)}
-            >
-              {etiqueta}
-            </PillToggle>
-          ))}
+      {/* Búsqueda y filtros */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+        <div className="page-search-wrapper">
+          <Search size={14} className="page-search-icon" aria-hidden="true" />
+          <input
+            className="page-search-input"
+            placeholder="Buscar por nombre o descripción..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={RotateCw}
-          aria-label="Recargar lista"
-          onClick={cargarInstrumentos}
-          disabled={cargando}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            {filtros.map(({ valor, etiqueta }) => (
+              <PillToggle
+                key={valor || 'all'}
+                selected={filtroEstado === valor}
+                onClick={() => setFiltroEstado(valor)}
+              >
+                {etiqueta}
+              </PillToggle>
+            ))}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={RotateCw}
+            aria-label="Recargar lista"
+            onClick={cargarInstrumentos}
+            disabled={cargando}
+          />
+
+          {/* Botón nuevo solo para admin (FUNC-02) */}
+          {esAdmin && (
+            <Button
+              icon={Plus}
+              iconPosition="left"
+              onClick={() => setModalCrear(true)}
+              style={{ marginLeft: 'auto' }}
+            >
+              Nuevo instrumento
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tabla principal */}
@@ -442,9 +465,9 @@ function GestionInstrumentos({ token }) {
       ) : (
         <DataTable
           columns={columnas}
-          data={instrumentos}
+          data={instrumentosFiltrados}
           loading={cargando}
-          emptyMessage="No hay instrumentos para mostrar."
+          emptyMessage="No hay instrumentos que coincidan con la búsqueda."
         />
       )}
 
