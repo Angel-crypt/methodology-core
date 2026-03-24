@@ -166,3 +166,54 @@ Seguido de consolidación, deduplicación, asignación de IDs y prioridades.
 **Archivos producidos:**
 - `README.md` — README general del repositorio, orientado a cualquier lector
 - `README_STATUS.md` — Estado de READMEs internos con auditoría de ítems
+
+---
+
+## 8. Revisión de módulo M1 — Login — 2026-03-23
+
+**Rama:** `feature/m1-auth` · **Arquitecto / Team Lead:** Claude Sonnet 4.6
+
+### Diagnóstico principal
+
+La rama fue cortada del commit `16ff3c9` (solo documentación), antes de que
+existiera el frontend. Nunca fue rebased sobre main. Estado encontrado:
+
+- Solo `LoginPage.jsx` y `GalleryPage.jsx` presentes en `src/`
+- Toda la infraestructura ausente: `App.jsx`, `main.jsx`, `package.json`, componentes DS
+- `node_modules/` committeado accidentalmente (sin `.gitignore` en ese momento)
+- `LoginPage.jsx` importaba de `@/api/auth` y `@/lib/authStorage` — archivos inexistentes
+
+### Correcciones aplicadas
+
+| ID | Corrección | Commit |
+|----|-----------|--------|
+| INFRA-01 | `git rm --cached frontend/node_modules` | `4d0dabc` |
+| INFRA-04 | Rebase de `feature/m1-auth` sobre `main` | `53a15a6` (rebased) |
+| FUNC-01 | Ruta post-login: `navigate('/gallery')` eliminado — patrón `onLogin` de App.jsx usado | resuelto en rebase |
+| FUNC-02 | `result.accessToken` → `data.data.access_token` (snake_case correcto) | resuelto en rebase |
+| FUNC-03 | LoginPage ahora usa prop `onLogin` — compatible con App.jsx | resuelto en rebase |
+| DS-01 | `color` en SVG → color controlado desde el contenedor vía `style` | resuelto en rebase |
+| DS-02 | `disabled={loading}` → `loading={cargando}` + `size` via prop | resuelto en rebase |
+| COD-01 | Credenciales pre-rellenadas en estado → `useState('')` | resuelto en rebase |
+| COD-02 | Dead code `result.source === 'mock'` eliminado | resuelto en rebase |
+| COD-03 | Bloque de credenciales de referencia gateado con `import.meta.env.DEV` | resuelto en rebase |
+
+### Decisión arquitectónica — Patrón de sesión (FUNC-03)
+
+**Decisión:** LoginPage usa la prop `onLogin(token)` que App.jsx le pasa.
+App.jsx maneja el storage en localStorage y el estado React de sesión.
+LoginPage no importa `useNavigate` ni gestiona storage directamente.
+
+**Motivo:** mantener separación de responsabilidades — la página de login
+no debe saber cómo se almacena la sesión ni a qué ruta navegar post-login.
+App.jsx es el único punto de verdad para el estado de autenticación.
+
+### Estado final
+
+- **Build:** ✅ exitoso (`vite build` — 2.33s, 0 errores)
+- **Lint:** 86 errores `react/prop-types` — pre-existentes en componentes DS,
+  no introducidos por este módulo. `LoginPage` tiene 1 (patrón consistente).
+- **Rebase sobre main:** ✅ completo, conflictos resueltos
+- **Archivos producidos:** `MODULE_REVIEW_M1_Login.md`
+
+**Pendiente (no implementado aún en ninguna rama):** RF-M1-06 (cambio de contraseña).

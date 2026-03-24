@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { LogIn } from 'lucide-react'
 import { Button, FormField, Alert } from '@/components/app'
 
+const DEMO_EMAIL = 'admin@mock.local'
+const DEMO_PASSWORD = 'Admin123!'
+
 /**
  * LoginPage
  * Autentica al usuario con email y contraseña contra POST /api/v1/auth/login.
@@ -71,8 +74,8 @@ function LoginPage({ onLogin }) {
         >
           <div
             style={{
-              width: 48,
-              height: 48,
+              width: 'var(--input-height)',
+              height: 'var(--input-height)',
               borderRadius: 'var(--radius-lg)',
               backgroundColor: 'var(--color-primary-light)',
               display: 'flex',
@@ -150,6 +153,29 @@ function LoginPage({ onLogin }) {
             Ingresar
           </Button>
         </div>
+
+        {/* Referencia de credenciales — solo entorno de desarrollo */}
+        {import.meta.env.DEV && (
+          <div
+            style={{
+              marginTop: 'var(--space-5)',
+              padding: 'var(--space-4)',
+              backgroundColor: 'var(--color-bg-subtle)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px dashed var(--color-border)',
+            }}
+          >
+            <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-2)' }}>
+              Credenciales de prueba (mock):
+            </p>
+            <p style={{ fontFamily: 'monospace', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-primary)', marginBottom: 'var(--space-1)' }}>
+              {DEMO_EMAIL}
+            </p>
+            <p style={{ fontFamily: 'monospace', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-primary)' }}>
+              {DEMO_PASSWORD}
+            </p>
+          </div>
+        )}
 
       </div>
     </div>
