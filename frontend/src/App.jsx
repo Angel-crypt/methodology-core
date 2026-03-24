@@ -30,12 +30,26 @@ function App() {
     setToken('')
   }
 
+  function getRoleFromToken(tk) {
+    try {
+      return JSON.parse(atob(tk.split('.')[1])).role
+    } catch {
+      return null
+    }
+  }
+
   const authedLayout = (page) =>
     token ? (
       <AppLayout onLogout={handleLogout} token={token}>{page}</AppLayout>
     ) : (
       <Navigate to="/login" replace />
     )
+
+  const adminLayout = (page) => {
+    if (!token) return <Navigate to="/login" replace />
+    if (getRoleFromToken(token) !== 'administrator') return <Navigate to="/instruments" replace />
+    return <AppLayout onLogout={handleLogout} token={token}>{page}</AppLayout>
+  }
 
   return (
     <BrowserRouter
@@ -61,9 +75,9 @@ function App() {
         {/* Módulo 2 — Gestión de Instrumentos */}
         <Route path="/instruments" element={authedLayout(<GestionInstrumentos token={token} />)} />
 
-        {/* Módulo 1 — Gestión de usuarios */}
-        <Route path="/usuarios/aplicadores" element={authedLayout(<GestionAplicadores token={token} />)} />
-        <Route path="/usuarios/investigadores" element={authedLayout(<GestionInvestigadores token={token} />)} />
+        {/* Módulo 1 — Gestión de usuarios (solo Administrador) */}
+        <Route path="/usuarios/aplicadores" element={adminLayout(<GestionAplicadores token={token} />)} />
+        <Route path="/usuarios/investigadores" element={adminLayout(<GestionInvestigadores token={token} />)} />
 
         {/* Redirect raíz */}
         <Route

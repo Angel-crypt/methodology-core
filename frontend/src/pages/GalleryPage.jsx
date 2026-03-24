@@ -1,13 +1,10 @@
+import PropTypes from 'prop-types'
 import { useState } from 'react'
 import {
-  Database,
   LayoutDashboard,
   Users,
   FileText,
-  Settings,
-  Bell,
   Trash2,
-  Edit3,
   Plus,
 } from 'lucide-react'
 
@@ -207,6 +204,15 @@ function ComponentSection({ id, title, description, children, props: propsDef = 
   )
 }
 
+ComponentSection.propTypes = {
+  id: PropTypes.string,
+  title: PropTypes.string,
+  description: PropTypes.string,
+  children: PropTypes.node,
+  props: PropTypes.object,
+  code: PropTypes.string,
+}
+
 /* ─────────────────────────────────────────────────────────────
    INTERNAL: GallerySidebar
    ───────────────────────────────────────────────────────────── */
@@ -294,6 +300,13 @@ function GallerySidebar({ search, onSearch, activeId, onNavigate }) {
       )}
     />
   )
+}
+
+GallerySidebar.propTypes = {
+  search: PropTypes.string.isRequired,
+  onSearch: PropTypes.func.isRequired,
+  activeId: PropTypes.string,
+  onNavigate: PropTypes.func.isRequired,
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -583,7 +596,7 @@ function FilterBar() {
               <Typography as="small">Small — 14px regular</Typography>
               <Typography as="caption">Caption — 13px secondary</Typography>
               <Typography as="label">Label — 11px medium uppercase</Typography>
-              <Typography as="code">const value = 'code · 13px mono'</Typography>
+              <Typography as="code">{'const value = \'code · 13px mono\''}</Typography>
             </div>
           </ComponentSection>
 
@@ -891,7 +904,7 @@ const [open, setOpen] = useState(false)
                 }
               >
                 <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-small)', marginBottom: 'var(--space-4)' }}>
-                  Este es un modal de demostración. Puedes cerrarlo haciendo clic en "Cancelar",
+                  Este es un modal de demostración. Puedes cerrarlo haciendo clic en &quot;Cancelar&quot;,
                   en el botón X, o presionando la tecla Escape.
                 </p>
                 <Alert variant="info">

@@ -1,3 +1,5 @@
+import PropTypes from 'prop-types'
+
 /**
  * PillToggle — Pill-shaped toggle button for filter groups
  *
@@ -45,6 +47,13 @@ function PillToggle({ selected = false, disabled = false, children, className = 
       {children}
     </button>
   )
+}
+
+PillToggle.propTypes = {
+  selected: PropTypes.bool,
+  disabled: PropTypes.bool,
+  children: PropTypes.node,
+  className: PropTypes.string,
 }
 
 export default PillToggle

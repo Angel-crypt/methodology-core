@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import SkeletonRow from './SkeletonRow'
 import EmptyState from './EmptyState'
 
@@ -47,6 +48,13 @@ function DataTable({ columns = [], data = [], loading = false, emptyMessage = 'N
       </table>
     </div>
   )
+}
+
+DataTable.propTypes = {
+  columns: PropTypes.array,
+  data: PropTypes.array,
+  loading: PropTypes.bool,
+  emptyMessage: PropTypes.string,
 }
 
 export default DataTable

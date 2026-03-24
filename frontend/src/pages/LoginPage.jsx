@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { useState } from 'react'
 import { LogIn } from 'lucide-react'
 import { Button, FormField, Alert } from '@/components/app'
@@ -180,6 +181,10 @@ function LoginPage({ onLogin }) {
       </div>
     </div>
   )
+}
+
+LoginPage.propTypes = {
+  onLogin: PropTypes.func.isRequired,
 }
 
 export default LoginPage

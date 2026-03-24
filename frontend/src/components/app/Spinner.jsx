@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { Loader2 } from 'lucide-react'
 
 /**
@@ -21,6 +22,12 @@ function Spinner({ size = 16, color = 'primary', label = 'Cargando...' }) {
       <span className="sr-only">{label}</span>
     </span>
   )
+}
+
+Spinner.propTypes = {
+  size: PropTypes.number,
+  color: PropTypes.string,
+  label: PropTypes.string,
 }
 
 export default Spinner

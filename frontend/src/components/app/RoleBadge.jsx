@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { Crown, Search, ClipboardList } from 'lucide-react'
 
 /**
@@ -36,6 +37,10 @@ function RoleBadge({ role }) {
       {label}
     </span>
   )
+}
+
+RoleBadge.propTypes = {
+  role: PropTypes.oneOf(['admin', 'researcher', 'aplicador']).isRequired,
 }
 
 export default RoleBadge

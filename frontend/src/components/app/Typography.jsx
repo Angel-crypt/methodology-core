@@ -1,3 +1,5 @@
+import PropTypes from 'prop-types'
+
 /**
  * Typography — renders semantic HTML with DS token styles
  * Props: as ('display'|'h1'|'h2'|'h3'|'body'|'small'|'caption'|'label'|'code'),
@@ -104,6 +106,13 @@ function Typography({ as = 'body', children, className = '', style: styleProp })
       {children}
     </Tag>
   )
+}
+
+Typography.propTypes = {
+  as: PropTypes.string,
+  children: PropTypes.node,
+  className: PropTypes.string,
+  style: PropTypes.object,
 }
 
 export default Typography

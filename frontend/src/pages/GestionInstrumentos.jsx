@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import PropTypes from 'prop-types'
 import { Plus, Pencil, Power, RotateCw, BookOpen } from 'lucide-react'
 import {
   Button,
@@ -10,6 +11,7 @@ import {
   EmptyState,
   PillToggle,
   ToastContainer,
+  Typography,
   useToast,
 } from '@/components/app'
 import {
@@ -18,6 +20,8 @@ import {
   editarInstrumento,
   cambiarEstadoInstrumento,
 } from '@/services/instruments'
+
+const DESCRIPTION_COL_MAX_WIDTH = 300
 
 /**
  * GestionInstrumentos — Módulo 2
@@ -28,14 +32,13 @@ import {
  */
 function GestionInstrumentos({ token }) {
   // ─── Rol del usuario desde el JWT ─────────────────────────────
-  const esAdmin = (() => {
+  const esAdmin = useMemo(() => {
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]))
-      return payload.role === 'administrator'
+      return JSON.parse(atob(token.split('.')[1])).role === 'administrator'
     } catch {
       return false
     }
-  })()
+  }, [token])
 
   // ─── Estado principal ──────────────────────────────────────────
   const [instrumentos, setInstrumentos] = useState([])
@@ -287,7 +290,7 @@ function GestionInstrumentos({ token }) {
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
-              maxWidth: 300,
+              maxWidth: DESCRIPTION_COL_MAX_WIDTH,
             }}
           >
             {valor}
@@ -369,24 +372,13 @@ function GestionInstrumentos({ token }) {
         }}
       >
         <div>
-          <h1
-            style={{
-              fontSize: 'var(--font-size-h1)',
-              fontWeight: 'var(--font-weight-medium)',
-              color: 'var(--color-text-primary)',
-            }}
-          >
-            Instrumentos
-          </h1>
-          <p
-            style={{
-              fontSize: 'var(--font-size-small)',
-              color: 'var(--color-text-secondary)',
-              marginTop: 'var(--space-1)',
-            }}
+          <Typography as="h1">Instrumentos</Typography>
+          <Typography
+            as="small"
+            style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)' }}
           >
             Gestión de instrumentos metodológicos lingüísticos
-          </p>
+          </Typography>
         </div>
 
         {/* Botón nuevo solo para admin (FUNC-02) */}
@@ -625,6 +617,10 @@ function GestionInstrumentos({ token }) {
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
   )
+}
+
+GestionInstrumentos.propTypes = {
+  token: PropTypes.string.isRequired,
 }
 
 export default GestionInstrumentos

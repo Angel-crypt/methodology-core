@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import PropTypes from 'prop-types'
 import { Modal, FormField, Button, Alert } from '@/components/app'
 
 /**
@@ -132,6 +133,13 @@ function CambiarPasswordModal({ open, onClose, token, onSuccess }) {
       </div>
     </Modal>
   )
+}
+
+CambiarPasswordModal.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  token: PropTypes.string.isRequired,
+  onSuccess: PropTypes.func.isRequired,
 }
 
 export default CambiarPasswordModal

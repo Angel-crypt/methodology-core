@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { CheckCircle, XCircle, Clock } from 'lucide-react'
 
 /**
@@ -36,6 +37,10 @@ function StatusBadge({ status }) {
       {label}
     </span>
   )
+}
+
+StatusBadge.propTypes = {
+  status: PropTypes.oneOf(['active', 'inactive', 'pending']).isRequired,
 }
 
 export default StatusBadge

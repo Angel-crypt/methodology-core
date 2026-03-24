@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { createPortal } from 'react-dom'
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react'
 
@@ -111,6 +112,19 @@ export function ToastContainer({ toasts = [], onDismiss }) {
     </div>,
     document.body
   )
+}
+
+Toast.propTypes = {
+  id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  type: PropTypes.oneOf(['info', 'success', 'warning', 'error']),
+  title: PropTypes.string,
+  message: PropTypes.string,
+  onDismiss: PropTypes.func.isRequired,
+}
+
+ToastContainer.propTypes = {
+  toasts: PropTypes.array,
+  onDismiss: PropTypes.func.isRequired,
 }
 
 export default Toast
