@@ -604,6 +604,25 @@ router.get('/users/:id', authMiddleware(['administrator']), (req, res) => {
   return res.json({ status: 'success', data: safeUser });
 });
 
+// ─── GET /users/:id/sessions ─────────────────────────────────────────────────
+router.get('/users/:id/sessions', authMiddleware(['administrator']), (req, res) => {
+  const user = store.users.find((u) => u.id === req.params.id);
+  if (!user) {
+    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado.', data: null });
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  const sessions = store.sessions
+    .filter((s) => s.user_id === req.params.id && s.expires_at > nowSec)
+    .map((s) => ({
+      jti: s.jti,
+      ip: s.ip,
+      user_agent: s.user_agent,
+      created_at: s.created_at,
+      expires_at: new Date(s.expires_at * 1000),
+    }));
+  return res.json({ status: 'success', data: sessions });
+});
+
 // ─── GET /users/me/sessions ─── (GAP-SEG-08) ─────────────────────────────────
 router.get('/users/me/sessions', authMiddleware(), (req, res) => {
   const nowSec = Math.floor(Date.now() / 1000);
