@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { BookOpen, ClipboardList, Users } from 'lucide-react'
 import { Sidebar, Button } from '@/components/app'
+import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
 
 const NAV_ITEMS = [
   { label: 'Instrumentos', icon: BookOpen, to: '/instruments' },
@@ -16,7 +18,9 @@ const NAV_ITEMS = [
  *   children  ReactNode
  *   onLogout  () => void — limpia el token y regresa al login
  */
-function AppLayout({ children, onLogout }) {
+function AppLayout({ children, onLogout, token }) {
+  const [modalOpen, setModalOpen] = useState(false)
+
   return (
     <div className="app-layout">
 
@@ -51,12 +55,22 @@ function AppLayout({ children, onLogout }) {
         {/* Topbar */}
         <header className="topbar">
           <div style={{ flex: 1 }} />
+          <Button variant="ghost" size="sm" onClick={() => setModalOpen(true)}>
+            Cambiar contraseña
+          </Button>
           <Button variant="ghost" size="sm" onClick={onLogout}>
             Cerrar sesión
           </Button>
         </header>
 
         {children}
+
+        <CambiarPasswordModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          token={token}
+          onSuccess={onLogout}
+        />
 
       </div>
     </div>
