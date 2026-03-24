@@ -8,7 +8,7 @@ const sizeMap = {
   lg: '720px',
 }
 
-function Modal({ open, onClose, title, children, footer, size = 'md' }) {
+function Modal({ open, onClose, title, children, footer, size = 'md', hideClose = false }) {
   const maxWidth = sizeMap[size] || sizeMap.md
 
   return (
@@ -19,6 +19,8 @@ function Modal({ open, onClose, title, children, footer, size = 'md' }) {
           className="modal-content"
           style={{ maxWidth }}
           aria-describedby={undefined}
+          onInteractOutside={(e) => { if (!onClose) e.preventDefault() }}
+          onEscapeKeyDown={(e) => { if (!onClose) e.preventDefault() }}
         >
           {/* Header */}
           <div
@@ -42,15 +44,17 @@ function Modal({ open, onClose, title, children, footer, size = 'md' }) {
                 </h2>
               </Dialog.Title>
             )}
-            <Dialog.Close asChild>
-              <button
-                className="btn btn-icon"
-                aria-label="Cerrar modal"
-                style={{ marginLeft: 'auto' }}
-              >
-                <X size={16} aria-hidden="true" />
-              </button>
-            </Dialog.Close>
+            {!hideClose && (
+              <Dialog.Close asChild>
+                <button
+                  className="btn btn-icon"
+                  aria-label="Cerrar modal"
+                  style={{ marginLeft: 'auto' }}
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </Dialog.Close>
+            )}
           </div>
 
           {/* Body */}
@@ -71,6 +75,7 @@ Modal.propTypes = {
   children: PropTypes.node,
   footer: PropTypes.node,
   size: PropTypes.oneOf(['sm', 'md', 'lg']),
+  hideClose: PropTypes.bool,
 }
 
 export default Modal
