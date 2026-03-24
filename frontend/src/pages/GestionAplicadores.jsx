@@ -97,21 +97,23 @@ function GestionAplicadores({ token }) {
 
         if (status === 'inactive') {
           return (
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Power}
-              onClick={() => abrirModalEstado(row)}
-              aria-label={`Activar a ${row.full_name}`}
-            >
-              Activar
-            </Button>
+            <div onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Power}
+                onClick={() => abrirModalEstado(row)}
+                aria-label={`Activar a ${row.full_name}`}
+              >
+                Activar
+              </Button>
+            </div>
           )
         }
 
         // pending o active: mostrar botón de contraseña + desactivar
         return (
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }} onClick={(e) => e.stopPropagation()}>
             <Button
               variant="secondary"
               size="sm"
