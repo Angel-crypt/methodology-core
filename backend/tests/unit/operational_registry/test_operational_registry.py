@@ -1,0 +1,9 @@
+# test_operational_registry.py
+# Criterios cubiertos: CA-CONTRACT-01
+# Ver: backend/docs/ACCEPTANCE_CRITERIA.md
+
+
+class TestOperationalRegistryModule:
+    async def test_should_validate_contract_for_operational_registry_endpoints(self) -> None:
+        # CA-CONTRACT-01
+        raise NotImplementedError
