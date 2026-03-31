@@ -19,6 +19,8 @@ Todo el despliegue usa Kubernetes Secrets. No se usa Docker Secrets ni `.env` pa
 - `scripts/create-k8s-secret.sh`: creacion rapida de namespace + secret
 - `Makefile`: comandos homogeneos de desarrollo y despliegue
 
+Nota: la configuracion de HAProxy ya no se toma de archivo en `haproxy/`. En k3s se define en `deploy/k3s/base/configmap-haproxy.yaml`.
+
 ## Componentes desplegados (base)
 
 - `frontend` (Deployment + Service)
@@ -171,3 +173,8 @@ make k3s-delete
 
 - Todos los comandos usan rutas relativas desde la raiz del repositorio.
 - Los playbooks usan rutas estables (`deploy/k3s/...`) para evitar roturas por ejecucion desde distintos directorios.
+
+## Limpieza de artefactos legacy
+
+- No se mantienen archivos de Docker Swarm/Compose para despliegue.
+- No se mantiene archivo `haproxy/haproxy-postgres.cfg` porque el manifiesto k3s usa ConfigMap.
