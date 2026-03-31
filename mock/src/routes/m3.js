@@ -144,7 +144,7 @@ router.get('/metrics', authMiddleware(), (req, res) => {
 
 // ─── RF-M3-02b/03/04b · PATCH /metrics/:id ───────────────────────────────────
 router.patch('/metrics/:id', authMiddleware(['administrator']), (req, res) => {
-  const { metric_type, required, min_value, max_value, options, description } = req.body || {};
+  const { name, metric_type, required, min_value, max_value, options, description } = req.body || {};
 
   const metric = store.metrics.find((m) => m.id === req.params.id);
   if (!metric) {
@@ -164,6 +164,7 @@ router.patch('/metrics/:id', authMiddleware(['administrator']), (req, res) => {
     return res.status(400).json({ status: 'error', message: typeError, data: null });
   }
 
+  if (name !== undefined) metric.name = name;
   if (metric_type !== undefined) metric.metric_type = metric_type;
   if (required !== undefined) metric.required = Boolean(required);
   metric.min_value = effectiveType === 'numeric' ? (effectiveMin ?? null) : null;
@@ -176,6 +177,20 @@ router.patch('/metrics/:id', authMiddleware(['administrator']), (req, res) => {
     status: 'success',
     message: 'Métrica actualizada correctamente',
     data: metric,
+  });
+});
+
+// ─── DELETE /metrics/:id ─────────────────────────────────────────────────────
+router.delete('/metrics/:id', authMiddleware(['administrator']), (req, res) => {
+  const idx = store.metrics.findIndex((m) => m.id === req.params.id);
+  if (idx === -1) {
+    return res.status(404).json({ status: 'error', message: 'Métrica no encontrada', data: null });
+  }
+  const [removed] = store.metrics.splice(idx, 1);
+  return res.status(200).json({
+    status: 'success',
+    message: 'Métrica eliminada correctamente',
+    data: { id: removed.id, name: removed.name },
   });
 });
 
