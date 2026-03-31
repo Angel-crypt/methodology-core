@@ -1,172 +1,73 @@
 # Backend
 
-Guia rapida para levantar el backend localmente con **Docker o Podman**.
+Backend FastAPI del sistema.
 
-## 1) Requisitos previos
+## Requisitos
 
-- Git
 - Python 3.12
-- `uv` instalado
-- Docker o Podman instalado
+- `uv`
 
-## 2) Instalar uv
+## Instalar uv
 
-| Sistema operativo | Comando |
-|---|---|
-| Linux / macOS | `curl -Ls https://astral.sh/uv/install.sh | sh` |
-| Windows (PowerShell) | `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"` |
-
-### Linux / macOS
+Linux/macOS:
 
 ```bash
 curl -Ls https://astral.sh/uv/install.sh | sh
 ```
 
-### Windows (PowerShell)
+Windows (PowerShell):
 
 ```powershell
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-## 3) Clonar el repositorio
+## Desarrollo rapido
 
 ```bash
-git clone https://github.com/Angel-crypt/methodology-core.git
-cd methodology-core
 cd backend
+uv sync --all-groups
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## 4) Configurar entorno Python
+## Preparacion recomendada
 
 ```bash
+cd backend
 uv sync --all-groups
 uv run pre-commit install
-cp .env.example .env
 ```
 
-## 5) Levantar infraestructura (PostgreSQL + Keycloak)
-
-Este proyecto define contenedores separados para:
-
-1. `backend`
-2. `postgres`
-3. `keycloak`
-
-### Opcion A: Docker
+Si tienes la base de datos disponible, aplica migraciones:
 
 ```bash
-docker compose up -d
-```
-
-### Opcion B: Podman
-
-Si tu sistema expone `docker compose` via provider de Podman, usa:
-
-```bash
-docker compose up -d
-```
-
-Si falla por credenciales, usa directamente podman-compose:
-
-```bash
-podman-compose up -d
-```
-
-## 6) Migraciones
-
-```bash
+cd backend
 uv run alembic upgrade head
 ```
 
-## 7) Ejecutar API
-
-Si ya levantaste `backend` con Docker/Podman, la API ya esta corriendo en `:8000`.
-
-Si prefieres correr la API local (fuera de contenedor), levanta solo infraestructura y luego FastAPI:
+## Tests
 
 ```bash
-# Solo infraestructura
-podman-compose up -d postgres keycloak
-# o
-docker compose up -d postgres keycloak
-
-# API local
-uv run fastapi dev app/main.py
-```
-
-Tambien puedes correr todo en contenedores:
-
-```bash
-podman-compose up -d
-# o
-docker compose up -d
-```
-
-API disponible en:
-
-- `http://127.0.0.1:8000`
-- Docs: `http://127.0.0.1:8000/docs`
-
-## 8) Ejecutar tests
-
-```bash
+cd backend
 uv run pytest
 ```
 
-Nota: en este scaffold hay tests con `NotImplementedError` por diseno TDD, por lo que fallos iniciales son esperados.
-
-## 9) Comandos utiles
+## Calidad de codigo
 
 ```bash
-# Formato y lint
-uv run ruff format .
+cd backend
 uv run ruff check .
-
-# Type checking
 uv run mypy .
-
-# Apagar contenedores
-docker compose down
-# o
-podman-compose down
 ```
 
-## 10) Troubleshooting (Podman)
+## Nota de despliegue
 
-Si `docker compose up -d` falla con error similar a `docker-credential-secretservice`:
+El despliegue de backend se realiza desde `deploy/k3s/` en el repositorio raiz.
+Las credenciales y llaves se inyectan mediante Kubernetes Secrets.
 
-1. Ejecuta con `podman-compose up -d`.
-2. O ajusta la configuracion de credenciales del cliente Docker/Podman en tu entorno local.
-
-Si el contenedor backend arranca y sale por problemas del entorno virtual dentro de imagen:
-
-- reconstruye limpio:
+Desde raiz tambien puedes usar:
 
 ```bash
-podman-compose down
-podman-compose up -d --build --force-recreate
-```
-
-- este repositorio incluye `.dockerignore` para evitar sobreescribir `/app/.venv` de la imagen con el `.venv` local.
-
-## 11) Verificacion rapida
-
-```bash
-# Estado de contenedores
-podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-# o
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-
-# Verificar docs de FastAPI
-curl -I http://127.0.0.1:8000/docs
-
-# Ver logs del backend
-podman logs methodology-backend --tail 100
-# o
-docker logs methodology-backend --tail 100
-
-# Apagar stack
-podman-compose down
-# o
-docker compose down
+make backend-install
+make backend-dev
+make backend-test
 ```
