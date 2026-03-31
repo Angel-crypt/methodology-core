@@ -1,5 +1,0 @@
-# Docker Compose configuration
-# This file is intentionally minimal for now.
-# Services will be defined in future development stages.
-
-services: {}
