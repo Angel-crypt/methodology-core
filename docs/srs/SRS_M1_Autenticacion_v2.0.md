@@ -383,6 +383,29 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 ---
 
+### RF-M1-SETUP – Activación de cuenta en primer acceso *(IT-1)*
+
+| Campo | Detalle |
+|---|---|
+| **Actor** | Profesional Aplicador / Investigador / Administrador (usuario con cuenta nueva o restablecida) |
+| **Entidades** | `User` (campo `must_change_password`) |
+| **Flujo cliente** | El frontend detecta `must_change_password=TRUE` en la respuesta de `POST /auth/login` y redirige al usuario al formulario de cambio forzado de contraseña. El usuario debe completar `PATCH /users/me/password` antes de poder acceder a cualquier otra funcionalidad. |
+| **Descripción** | Cuando un usuario se autentica por primera vez (o tras un restablecimiento por el Administrador), el sistema retorna `must_change_password=TRUE` en el body de login. El middleware rechaza con HTTP 403 (`{ must_change_password: true }`) todas las peticiones del usuario hasta que completa el cambio de contraseña vía `PATCH /users/me/password` (único endpoint disponible en estado **pending**). Al completar el cambio exitosamente, `must_change_password` pasa a `FALSE` y el usuario queda en estado **active** con acceso completo según su rol. |
+| **Credenciales de primer acceso** | Al crear un usuario o restablecer su contraseña, el sistema genera internamente una contraseña temporal con CSPRNG (`generateTempPassword()`). **Solo en el mock de desarrollo** esta contraseña se devuelve en `_mock_temp_password` / `_mock_setup_token`. En producción se entrega por canal seguro fuera de banda y nunca se expone en la respuesta API. El Administrador muestra las credenciales al aplicador/investigador una única vez a través del modal de credenciales en el frontend. |
+| **Resultado** | Usuario en estado **pending** puede autenticarse pero solo accede a `PATCH /users/me/password`. Al completar el cambio: estado **active**, acceso completo según rol, todas las sesiones previas invalidadas por `password_changed_at`. |
+
+**Casos de prueba clave:**
+
+| ID | Caso | Resultado esperado |
+|---|---|---|
+| CA-SETUP-01 | Usuario nuevo inicia sesión con contraseña temporal. | Login exitoso. Respuesta incluye `must_change_password: true`. |
+| CA-SETUP-02 | Usuario pending intenta acceder a endpoint distinto de `/users/me/password`. | HTTP 403 `{ must_change_password: true }`. |
+| CA-SETUP-03 | Usuario pending completa `PATCH /users/me/password` con contraseña actual correcta y nueva diferente. | `must_change_password=FALSE`. Estado **active**. Acceso completo. |
+| CA-SETUP-04 | Administrador restablece contraseña de usuario activo. | Usuario vuelve a estado **pending**. Tokens anteriores invalidados. Nuevo `_mock_setup_token` disponible una sola vez. |
+| CA-SETUP-05 | Usuario en estado **pending** intenta completar el setup con la misma contraseña temporal. | HTTP 400. No se actualiza. |
+
+---
+
 ## 6. Requisitos No Funcionales
 
 | ID | Categoría | Descripción | Métrica verificable |
@@ -563,6 +586,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | RF-M1-08 | Sesiones activas | — | `GET /api/v1/users/me/sessions` · `DELETE /api/v1/sessions/{jti}` | tabla `sessions` | Alto |
 | RF-M1-09 | Recuperación de contraseña | — | `POST /api/v1/auth/password-recovery` · `POST /api/v1/auth/password-reset` | tabla `users` + `AuditLog` | Alto |
 | RF-M1-RESET (IT-1) | Regenerar contraseña temporal | — | `POST /api/v1/users/{id}/reset-password` | tabla `users` | Alto |
+| RF-M1-SETUP (IT-1) | Activación en primer acceso | CA-SETUP-01 a 05 | `POST /auth/login` + `PATCH /users/me/password` | campo `must_change_password` en `users` | Alto |
 | RNF-M1-15 (Fix-Sec-01) | CSPRNG contraseñas temporales | — | `POST /users` · `POST /users/:id/reset-password` | — | Crítico |
 | RNF-M1-16 (Fix-Sec-02) | POST /users sin password del admin | — | `POST /users` | — | Alto |
 
