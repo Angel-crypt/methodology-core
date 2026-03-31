@@ -1,95 +1,143 @@
-# Sistema de Registro de Métricas Lingüísticas
+# Sistema de Registro de Metricas Linguisticas
 
-> Herramienta académica para capturar métricas lingüísticas de forma estructurada, trazable y anónima, facilitando la creación de conjuntos de datos científicos confiables.
+Herramienta academica para registrar metricas linguisticas de forma estructurada, trazable y anonima.
 
----
+## Desarrollo por componente
 
-## ¿Qué es este sistema?
+- Backend: `backend/README.md`
+- Frontend: `frontend/README.md`
+- Mock server: `mock/README.md`
 
-El Sistema de Registro de Métricas Lingüísticas es una herramienta para investigadores y lingüistas que necesitan **registrar datos sobre la producción del lenguaje de manera sistemática y segura.**
+Tambien puedes usar `Makefile` para desarrollo local sin k3s:
 
-El sistema asegura que los registros sean **anónimos**, de modo que ningún dato permita identificar a los sujetos del estudio. Al mismo tiempo, cada registro es **trazable y verificable**, garantizando la integridad científica de los datos recopilados.
-
-En esta fase inicial, el sistema **solo captura y organiza datos**; el análisis y la interpretación quedan en manos de los investigadores.
-
----
-
-## ¿Cómo funciona?
-
-El flujo de trabajo del sistema tiene tres etapas:
-
-1. Un **administrador** configura los instrumentos de medición y define las métricas a capturar según los objetivos del estudio.
-2. Los **operadores** registran observaciones lingüísticas de los sujetos sin almacenar ningún dato personal que permita identificarlos.
-3. El sistema guarda los registros con trazabilidad completa y permite consultarlos y exportarlos en formatos estructurados para análisis posteriores.
-
-```
-[Administrador]          [Operador]            [Investigador]
-      │                      │                       │
-      ▼                      ▼                       ▼
-Configura            Registra              Consulta y exporta
-instrumentos   →   observaciones   →      los datos para
-y métricas       (sin datos              análisis externo
-                 identificatorios)
+```bash
+make help
+make backend-dev
+make frontend-dev
+make mock-dev
 ```
 
----
+## Clonar
 
-## Funcionalidades principales
+```bash
+git clone https://github.com/Angel-crypt/methodology-core.git
+cd methodology-core
+```
 
-| Módulo | Qué hace |
-|--------|----------|
-| **Autenticación y Acceso** | Gestiona usuarios, roles y permisos de acceso al sistema |
-| **Gestión de Instrumentos** | Permite crear y administrar los instrumentos de medición del estudio |
-| **Definición de Métricas** | Define qué se va a medir: tipo de dato, rangos válidos, obligatoriedad |
-| **Registro Operativo** | Captura las observaciones lingüísticas de forma anónima y trazable |
-| **Consulta Interna** | Permite buscar y filtrar registros almacenados |
-| **Exportación Estructurada** | Exporta los datos en formatos utilizables para análisis científico |
+## Requisitos del sistema
 
----
+Para despliegue con k3s y automatizacion con Ansible necesitas:
 
-## Estructura del proyecto
+- `make`
+- `kubectl`
+- `k3s`
+- `ansible`
 
-Este repositorio contiene tres partes principales:
+Verifica instalacion:
 
-### Frontend
-Interfaz de usuario del sistema. Todo lo que el usuario ve e interactúa.
-→ Ver instrucciones de uso en [`frontend/README.md`](./frontend/README.md)
+```bash
+make --version
+kubectl version --client
+ansible --version
+k3s --version
+```
 
-### Backend
-Lógica del servidor y base de datos del sistema.
-→ Documentación disponible próximamente — ver requerimientos en [`docs/srs/`](./docs/srs/)
+### Linux (Ubuntu/Debian)
 
-### Mock Server
-Servidor de simulación para desarrollo. Permite al equipo de frontend desarrollar y probar la interfaz sin depender del backend real.
-→ Ver instrucciones de uso en [`mock/README.md`](./mock/README.md)
+```bash
+sudo apt update
+sudo apt install -y make curl ca-certificates
+curl -sfL https://get.k3s.io | sh -
+sudo apt install -y ansible
+```
 
----
+`kubectl` queda disponible con k3s en `/usr/local/bin/kubectl`.
 
-## ¿Por dónde empiezo?
+### macOS
 
-| Quiero... | Ve a... |
-|-----------|---------|
-| Entender el proyecto a fondo | [`docs/`](./docs/) |
-| Desarrollar el frontend | [`frontend/README.md`](./frontend/README.md) |
-| Usar o modificar el Mock Server | [`mock/README.md`](./mock/README.md) |
-| Ver los requerimientos del sistema | [`docs/srs/`](./docs/srs/) |
-| Ver el estado de los READMEs internos | [`README_STATUS.md`](./README_STATUS.md) |
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install make ansible kubectl
+curl -sfL https://get.k3s.io | sh -
+```
 
----
+Si prefieres no instalar k3s local en macOS, puedes usar un cluster remoto y solo instalar `kubectl` + `ansible`.
 
-## Estado del proyecto
+### Windows
 
-El sistema se encuentra en **desarrollo activo**. Los módulos de autenticación, gestión de instrumentos, definición de métricas y registro operativo están especificados y cuentan con un Mock Server funcional que permite el desarrollo del frontend de forma independiente.
+Recomendado: usar WSL2 (Ubuntu) para ejecutar `k3s`, `ansible` y `make`.
 
-El backend real está pendiente de implementación. Los módulos de consulta interna y exportación estructurada están especificados en el backlog.
+Pasos generales:
 
----
+1. Instalar WSL2 y Ubuntu.
+2. Abrir terminal Ubuntu y ejecutar los comandos de la seccion Linux.
 
-## Documentación
+Si solo operaras un cluster remoto, instala en Windows:
 
-| Documento | Descripción |
-|-----------|-------------|
-| [`docs/srs/`](./docs/srs/) | Especificaciones de requerimientos del sistema (SRS) |
-| [`docs/BACKLOG.pdf`](./docs/BACKLOG.pdf) | Backlog del proyecto con historias de usuario |
-| [`docs/CONTEXTO.pdf`](./docs/CONTEXTO.pdf) | Contexto general del proyecto |
-| [`BITACORA.md`](./BITACORA.md) | Decisiones arquitectónicas y análisis de brechas |
+- `kubectl`
+- `ansible` (desde WSL)
+- `make` (por ejemplo con Chocolatey: `choco install make`)
+
+## Despliegue local (k3s)
+
+Antes de desplegar, construye e importa imagenes al runtime de k3s:
+
+```bash
+docker build -t methodology-frontend:latest ./frontend
+docker build -t methodology-backend:latest ./backend
+docker build -t methodology-mock:latest ./mock
+
+docker save methodology-frontend:latest | sudo k3s ctr images import -
+docker save methodology-backend:latest | sudo k3s ctr images import -
+docker save methodology-mock:latest | sudo k3s ctr images import -
+```
+
+Primero crea namespace y secret (desde variables de entorno):
+
+```bash
+export db_primary_password='...'
+export db_replica_password='...'
+export db_keycloak_user='...'
+export db_keycloak_password='...'
+export master_encryption_key='...'
+export jwt_secret_key='...'
+export keycloak_admin_user='...'
+export keycloak_admin_password='...'
+export keycloak_client_secret='...'
+export redis_password='...'
+make k3s-secret-from-env
+```
+
+Tambien puedes ver ayuda del script:
+
+```bash
+./scripts/create-k8s-secret.sh --help
+```
+
+Luego aplica modo mock:
+
+```bash
+make k3s-deploy-mock
+```
+
+## Despliegue real (k3s)
+
+```bash
+make k3s-deploy-real
+```
+
+## Ver estado y limpieza
+
+```bash
+make k3s-status
+make k3s-delete
+```
+
+## Despliegue automatizado (1 maquina o cluster)
+
+Usa `ansible/README.md` para instalacion k3s, secrets y despliegue homogeneo.
+
+## Seguridad
+
+Credenciales y llaves se inyectan como Kubernetes Secrets.
+No se usa `.env` para secretos de despliegue.
