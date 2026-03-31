@@ -13,6 +13,7 @@ import {
   PillToggle,
   ToastContainer,
   Typography,
+  ActionsMenu,
   useToast,
 } from '@/components/app'
 import {
@@ -23,6 +24,38 @@ import {
 } from '@/services/instruments'
 
 const DESCRIPTION_COL_MAX_WIDTH = 300
+
+// ── Helpers de fechas ────────────────────────────────────────────────────────
+
+function hoy() {
+  return new Date().toISOString().split('T')[0]
+}
+
+function sumarMeses(fechaISO, meses) {
+  const [y, m, d] = fechaISO.split('-').map(Number)
+  const totalMeses  = (m - 1) + meses
+  const targetYear  = y + Math.floor(totalMeses / 12)
+  const targetMonth = (totalMeses % 12) + 1
+  const diasEnMes   = new Date(targetYear, targetMonth, 0).getDate()
+  const targetDay   = Math.min(d, diasEnMes)
+  return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`
+}
+
+const MESES_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+function fechaLegible(fechaISO) {
+  if (!fechaISO) return ''
+  const [y, m, d] = fechaISO.split('-')
+  return `${parseInt(d)} ${MESES_ES[parseInt(m) - 1]} ${y}`
+}
+
+const VIGENCIA_PRESETS = [
+  { key: '1m',     label: '1 mes',              meses: 1  },
+  { key: '3m',     label: '3 meses',             meses: 3  },
+  { key: '6m',     label: '6 meses',             meses: 6  },
+  { key: '12m',    label: '1 año',               meses: 12 },
+  { key: 'custom', label: 'Fecha personalizada', meses: null },
+]
 
 /**
  * GestionInstrumentos — Módulo 2
@@ -62,6 +95,7 @@ function GestionInstrumentos({ token }) {
     methodological_description: '',
     start_date: '',
     end_date: '',
+    end_date_preset: '3m',
   })
   const [erroresCrear, setErroresCrear] = useState({})
   const [errorApiCrear, setErrorApiCrear] = useState('')
@@ -125,6 +159,20 @@ function GestionInstrumentos({ token }) {
   }, [location.state])
 
   // ─── Helpers formulario crear ──────────────────────────────────
+  function abrirModalCrear() {
+    const fechaInicio = hoy()
+    setFormCrear({
+      name: '',
+      methodological_description: '',
+      start_date: fechaInicio,
+      end_date: sumarMeses(fechaInicio, 3),
+      end_date_preset: '3m',
+    })
+    setErroresCrear({})
+    setErrorApiCrear('')
+    setModalCrear(true)
+  }
+
   function cambiarCrear(campo) {
     return (e) => {
       setFormCrear((prev) => ({ ...prev, [campo]: e.target.value }))
@@ -132,9 +180,30 @@ function GestionInstrumentos({ token }) {
     }
   }
 
+  function handleCambiarStartDate(e) {
+    const newStart = e.target.value
+    setFormCrear((prev) => {
+      const preset = VIGENCIA_PRESETS.find((p) => p.key === prev.end_date_preset)
+      const newEnd = preset?.meses && newStart ? sumarMeses(newStart, preset.meses) : prev.end_date
+      return { ...prev, start_date: newStart, end_date: newEnd }
+    })
+    if (erroresCrear.start_date) setErroresCrear((prev) => ({ ...prev, start_date: '' }))
+  }
+
+  function handleCambiarPreset(presetKey) {
+    const preset = VIGENCIA_PRESETS.find((p) => p.key === presetKey)
+    setFormCrear((prev) => {
+      const newEnd = preset?.meses && prev.start_date ? sumarMeses(prev.start_date, preset.meses) : prev.end_date
+      return { ...prev, end_date_preset: presetKey, end_date: newEnd }
+    })
+    if (erroresCrear.end_date) setErroresCrear((prev) => ({ ...prev, end_date: '' }))
+  }
+
   function validarCrear() {
     const errs = {}
     if (!formCrear.name.trim()) errs.name = 'El nombre es obligatorio.'
+    if (!formCrear.start_date) errs.start_date = 'La fecha de inicio es obligatoria.'
+    if (!formCrear.end_date) errs.end_date = 'La fecha de fin es obligatoria.'
     if (formCrear.start_date && formCrear.end_date && formCrear.end_date <= formCrear.start_date) {
       errs.end_date = 'La fecha de fin debe ser posterior a la de inicio.'
     }
@@ -148,12 +217,14 @@ function GestionInstrumentos({ token }) {
     setGuardandoCrear(true)
     setErrorApiCrear('')
 
-    const body = { name: formCrear.name.trim() }
+    const body = {
+      name: formCrear.name.trim(),
+      start_date: formCrear.start_date,
+      end_date: formCrear.end_date,
+    }
     if (formCrear.methodological_description.trim()) {
       body.methodological_description = formCrear.methodological_description.trim()
     }
-    if (formCrear.start_date) body.start_date = formCrear.start_date
-    if (formCrear.end_date) body.end_date = formCrear.end_date
 
     try {
       const res = await crearInstrumento(token, body)
@@ -173,7 +244,7 @@ function GestionInstrumentos({ token }) {
 
   function cerrarModalCrear() {
     setModalCrear(false)
-    setFormCrear({ name: '', methodological_description: '', start_date: '', end_date: '' })
+    setFormCrear({ name: '', methodological_description: '', start_date: '', end_date: '', end_date_preset: '3m' })
     setErroresCrear({})
     setErrorApiCrear('')
   }
@@ -346,25 +417,15 @@ function GestionInstrumentos({ token }) {
       key: 'id',
       label: 'Acciones',
       render: (_, fila) => (
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }} onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="icon"
-            size="sm"
-            icon={Pencil}
-            aria-label={`Editar ${fila.name}`}
-            onClick={() => abrirModalEditar(fila)}
-          />
-          <Button
-            variant="icon"
-            size="sm"
-            icon={Power}
-            aria-label={fila.status === 'active' ? `Desactivar ${fila.name}` : `Activar ${fila.name}`}
-            onClick={() => abrirModalEstado(fila)}
-            style={{
-              color: fila.status === 'active' ? 'var(--color-error)' : 'var(--color-success)',
-            }}
-          />
-        </div>
+        <ActionsMenu actions={[
+          { label: 'Editar',    icon: Pencil, onClick: () => abrirModalEditar(fila) },
+          {
+            label:   fila.status === 'active' ? 'Desactivar' : 'Activar',
+            icon:    Power,
+            onClick: () => abrirModalEstado(fila),
+            variant: fila.status === 'active' ? 'danger' : 'default',
+          },
+        ]} />
       ),
     }] : []),
   ]
@@ -397,8 +458,8 @@ function GestionInstrumentos({ token }) {
       </div>
 
       {/* Búsqueda y filtros */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-        <div className="page-search-wrapper">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
+        <div className="page-search-wrapper" style={{ flex: '1 1 200px' }}>
           <Search size={14} className="page-search-icon" aria-hidden="true" />
           <input
             className="page-search-input"
@@ -408,40 +469,30 @@ function GestionInstrumentos({ token }) {
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-            {filtros.map(({ valor, etiqueta }) => (
-              <PillToggle
-                key={valor || 'all'}
-                selected={filtroEstado === valor}
-                onClick={() => setFiltroEstado(valor)}
-              >
-                {etiqueta}
-              </PillToggle>
-            ))}
-          </div>
+        {filtros.map(({ valor, etiqueta }) => (
+          <PillToggle
+            key={valor || 'all'}
+            selected={filtroEstado === valor}
+            onClick={() => setFiltroEstado(valor)}
+          >
+            {etiqueta}
+          </PillToggle>
+        ))}
 
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={RotateCw}
-            aria-label="Recargar lista"
-            onClick={cargarInstrumentos}
-            disabled={cargando}
-          />
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={RotateCw}
+          aria-label="Recargar lista"
+          onClick={cargarInstrumentos}
+          disabled={cargando}
+        />
 
-          {/* Botón nuevo solo para admin (FUNC-02) */}
-          {esAdmin && (
-            <Button
-              icon={Plus}
-              iconPosition="left"
-              onClick={() => setModalCrear(true)}
-              style={{ marginLeft: 'auto' }}
-            >
-              Nuevo instrumento
-            </Button>
-          )}
-        </div>
+        {esAdmin && (
+          <Button icon={Plus} onClick={abrirModalCrear} style={{ marginLeft: 'auto' }}>
+            Nuevo instrumento
+          </Button>
+        )}
       </div>
 
       {/* Tabla principal */}
@@ -456,7 +507,7 @@ function GestionInstrumentos({ token }) {
           }
           action={
             esAdmin && !filtroEstado && (
-              <Button size="sm" icon={Plus} iconPosition="left" onClick={() => setModalCrear(true)}>
+              <Button size="sm" icon={Plus} iconPosition="left" onClick={abrirModalCrear}>
                 Nuevo instrumento
               </Button>
             )
@@ -516,21 +567,57 @@ function GestionInstrumentos({ token }) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
-            <FormField
-              id="crear-inicio"
-              label="Inicio de vigencia"
-              type="date"
-              value={formCrear.start_date}
-              onChange={cambiarCrear('start_date')}
-            />
-            <FormField
-              id="crear-fin"
-              label="Fin de vigencia"
-              type="date"
-              value={formCrear.end_date}
-              onChange={cambiarCrear('end_date')}
-              error={erroresCrear.end_date}
-            />
+            {/* Inicio de vigencia — default: hoy */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+              <label htmlFor="crear-inicio" className="field-label">
+                Inicio de vigencia <span style={{ color: 'var(--color-error)' }}>*</span>
+              </label>
+              <input
+                id="crear-inicio"
+                type="date"
+                className="input-base"
+                value={formCrear.start_date}
+                onChange={handleCambiarStartDate}
+              />
+              {erroresCrear.start_date && (
+                <p className="field-error" role="alert">{erroresCrear.start_date}</p>
+              )}
+            </div>
+
+            {/* Fin de vigencia — preset dropdown + picker opcional */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+              <label htmlFor="crear-fin-preset" className="field-label">
+                Fin de vigencia <span style={{ color: 'var(--color-error)' }}>*</span>
+              </label>
+              <select
+                id="crear-fin-preset"
+                className="input-base"
+                value={formCrear.end_date_preset}
+                onChange={(e) => handleCambiarPreset(e.target.value)}
+              >
+                {VIGENCIA_PRESETS.map(({ key, label, meses }) => {
+                  const fechaCalc = meses && formCrear.start_date ? sumarMeses(formCrear.start_date, meses) : null
+                  const texto = fechaCalc ? `${label} — ${fechaLegible(fechaCalc)}` : label
+                  return <option key={key} value={key}>{texto}</option>
+                })}
+              </select>
+              {formCrear.end_date_preset === 'custom' && (
+                <input
+                  type="date"
+                  className="input-base"
+                  value={formCrear.end_date}
+                  min={formCrear.start_date || undefined}
+                  onChange={(e) => {
+                    setFormCrear((prev) => ({ ...prev, end_date: e.target.value }))
+                    if (erroresCrear.end_date) setErroresCrear((prev) => ({ ...prev, end_date: '' }))
+                  }}
+                  style={{ marginTop: 'var(--space-1)' }}
+                />
+              )}
+              {erroresCrear.end_date && (
+                <p className="field-error" role="alert">{erroresCrear.end_date}</p>
+              )}
+            </div>
           </div>
         </div>
       </Modal>
