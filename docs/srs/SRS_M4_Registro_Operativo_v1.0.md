@@ -42,7 +42,7 @@ Este documento cubre:
 - Consulta básica de un sujeto y su contexto.
 
 Se relaciona con:
-- **M1 – Autenticación:** provee JWT y validación de rol para todos los endpoints.
+- **M1 – Autenticación:** provee JWT, validación de roles y membresía de proyectos.
 - **M2 – Gestión de Instrumentos:** M4 valida que el instrumento esté activo y dentro de su periodo de vigencia.
 - **M3 – Definición de Métricas:** M4 valida tipo, rango y obligatoriedad de cada valor capturado.
 - **M5 – Consulta Interna:** M5 consulta los datos registrados por este módulo.
@@ -153,7 +153,7 @@ M3 – Definición de Métricas                                         │
 | Dependencia | Tipo | Detalle |
 |---|---|---|
 | **M1 – Autenticación** | Consumidor | Solo Aplicador y Administrador pueden registrar. Todos los autenticados pueden consultar. |
-| **M2 – Gestión de Instrumentos** | Consumidor | Al registrar una aplicación, el instrumento debe existir, estar `active` y dentro de su periodo de vigencia. |
+| **M2 – Gestión de Instrumentos** | Consumidor | Al registrar una aplicación, el instrumento debe existir, estar `is_active` y dentro de su periodo de vigencia. |
 | **M3 – Definición de Métricas** | Consumidor | Al capturar valores, cada valor se valida contra el tipo, rango y opciones definidos en M3. Las métricas con `required: true` deben estar presentes. |
 | **PostgreSQL** | Infraestructura | Almacena `Subject`, `ContextData`, `TestApplication`, `MetricValue`. |
 | **Alembic** | Infraestructura | Migraciones de las tablas del módulo antes del primer uso. |
@@ -200,7 +200,7 @@ M3 – Definición de Métricas                                         │
 |---|---|---|---|
 | **Administrador** | Control total del sistema. | Lectura y escritura. | Puede ejecutar todos los flujos del módulo. Configura los permisos operativos de cada aplicador. |
 | **Profesional Aplicador** | Profesional habilitado para aplicar instrumentos, con acceso parametrizado por el Administrador. | Escritura operativa (sujeta a configuración). | Registro de sujetos, contextos, aplicaciones y captura de valores, dentro de los límites configurados. |
-| **Investigador** | Usuario académico. | Solo lectura. | Consultar sujetos y sus datos contextuales (sin PII). |
+| **Investigador** | Usuario académico. | Solo lectura y exportación. | Consultar sujetos y sus datos contextuales (sin PII). Exportar datos mediante M6. Sin permisos de captura de datos. |
 
 > **Acceso parametrizado del Aplicador (SRS General §3.4–3.5):**
 > El Administrador puede configurar tres restricciones individuales por aplicador desde el panel de detalle:
@@ -212,6 +212,19 @@ M3 – Definición de Métricas                                         │
 > | `subject_limit` | Entero · `null` | Máximo de sujetos que el aplicador puede registrar. `null` = sin límite. `POST /subjects` retorna HTTP 422 si el aplicador ya alcanzó su cuota. |
 >
 > La configuración vive en `GET /PUT /users/:id/permissions` (M1) y es consultada por `POST /subjects` y por el wizard de Registro Operativo al iniciar la sesión del aplicador.
+>
+> **Permisos granulares del Investigador:**
+> El Administrador puede configurar restricciones de acceso granulares por investigador desde `GET /PUT /users/:id/researcher_permissions`:
+>
+> | Parámetro | Tipo | Efecto |
+> |---|---|---|
+> | `instruments` | Lista de UUIDs | El investigador solo puede consultar/exportar datos de estos instrumentos. Vacío = todos. |
+> | `age_cohorts` | Lista de strings | El investigador solo puede ver sujetos en estos rangos de edad. Vacío = todos. |
+> | `education_levels` | Lista de enums | El investigador solo puede ver sujetos de estos niveles educativos. Vacío = todos. |
+> | `genders` | Lista de enums | El investigador solo puede ver sujetos de estos géneros. Vacío = todos. |
+> | `socioeconomic_levels` | Lista de enums | El investigador solo puede ver sujetos de estos niveles socioeconómicos. Vacío = todos. |
+>
+> Los endpoints de consulta (M5) y exportación (M6) aplican estos filtros automáticamente. Los datos que no cumplan las restricciones se ocultan del resultado.
 
 ---
 
@@ -253,12 +266,12 @@ Permitir la captura estructurada, validada y anonimizada de datos lingüísticos
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Profesional Aplicador / Administrador |
-| **Entidades** | `Subject` |
-| **Endpoint** | `POST /subjects` |
+| **Actor** | Aplicador (miembro del proyecto) |
+| **Entidades** | `Subject`, `Project` |
+| **Endpoint** | `POST /projects/{project_id}/subjects` |
 | **Entrada** | Sin body. El body debe estar vacío o ausente. JWT en Authorization header. |
-| **Descripción** | El sistema debe registrar un sujeto MOCK generando automáticamente un UUID como único identificador. No se almacena ningún dato que permita identificar a la persona: sin nombre, CURP, dirección, fecha de nacimiento exacta ni cualquier otro PII. El UUID es el único vínculo entre el sujeto y sus aplicaciones posteriores. El backend rechaza con HTTP 400 cualquier solicitud cuyo body contenga campos, independientemente de su nombre o valor. Este rechazo activo implementa Privacy by Design (AD-09): el sistema no acepta silenciosamente datos no declarados. |
-| **Resultado** | Sujeto registrado. Respuesta incluye exclusivamente `id` (UUID) y `created_at`. HTTP 201. Si el body contiene campos: HTTP 400. |
+| **Descripción** | El Aplicador registra un sujeto en su proyecto. El sujeto se asocia al proyecto. Se genera un UUID como único identificador. No se almacena ningún PII. El UUID es el único vínculo con sus aplicaciones. El backend rechaza con HTTP 400 cualquier body con campos. |
+| **Resultado** | Sujeto registrado con proyecto asociado. Respuesta: `id` (UUID), `created_at`. HTTP 201. |
 
 ---
 
@@ -266,12 +279,12 @@ Permitir la captura estructurada, validada y anonimizada de datos lingüísticos
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Profesional Aplicador / Administrador |
-| **Entidades** | `ContextData` (relacionada con `Subject`) |
-| **Endpoint** | `POST /subjects/{id}/context` |
-| **Entrada** | `school_type`, `education_level`, `age_cohort`, `gender`, `socioeconomic_level` (todos opcionales individualmente), `additional_attributes` (objeto JSON abierto, opcional) |
-| **Descripción** | El sistema debe permitir registrar datos contextuales mínimos no identificables para un sujeto existente. Ningún atributo permite identificar directa ni indirectamente al sujeto. El sistema valida que el sujeto exista antes de persistir el contexto. Los valores deben pertenecer a los enums definidos metodológicamente para cada atributo. |
-| **Resultado** | Contexto registrado y vinculado al UUID del sujeto. HTTP 201. |
+| **Actor** | Aplicador (miembro del proyecto) |
+| **Entidades** | `ContextData`, `Subject`, `Project` |
+| **Endpoint** | `POST /projects/{project_id}/subjects/{subject_id}/context` |
+| **Entrada** | `school_type`, `education_level`, `age_cohort`, `gender`, `socioeconomic_level`, `additional_attributes` |
+| **Descripción** | El Aplicador puede registrar datos contextuales para un sujeto de su proyecto. Se valida que el sujeto pertenezca al proyecto. Los valores deben pertenecer a los enums definidos. |
+| **Resultado** | Contexto vinculado al sujeto. HTTP 201. |
 
 **Atributos de contexto y valores permitidos:**
 
@@ -290,21 +303,20 @@ Permitir la captura estructurada, validada y anonimizada de datos lingüísticos
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Profesional Aplicador / Administrador |
-| **Entidades** | `TestApplication` (relaciona `Subject` + `Instrument`) |
-| **Endpoint** | `POST /applications` |
-| **Entrada** | `subject_id` (UUID, obligatorio), `instrument_id` (UUID, obligatorio), `application_date` (date ISO 8601, opcional — usa fecha actual si no se proporciona), `notes` (string, opcional) |
-| **Descripción** | El sistema debe registrar la aplicación de un instrumento metodológico a un sujeto. Antes de persistir valida: (1) que el sujeto exista, (2) que el instrumento exista y esté en estado `active`, (3) que la fecha de aplicación esté dentro del periodo de vigencia del instrumento (`start_date ≤ application_date ≤ end_date`). Si el instrumento existe pero está `inactive`, retorna HTTP 422 (no 404). |
-| **Resultado** | Aplicación registrada con id, subject_id, instrument_id y application_date. HTTP 201. |
+| **Actor** | Aplicador (miembro del proyecto) |
+| **Entidades** | `TestApplication`, `Subject`, `Instrument`, `Project` |
+| **Endpoint** | `POST /projects/{project_id}/applications` |
+| **Entrada** | `subject_id` (UUID), `instrument_id` (UUID), `application_date` (date ISO 8601, opcional), `notes` (string, opcional) |
+| **Descripción** | El Aplicador registra la aplicación de un instrumento a un sujeto de su proyecto. Se valida: (1) sujeto pertenece al proyecto, (2) instrumento pertenece al proyecto y está `is_active`, (3) fecha dentro del periodo de vigencia. |
+| **Resultado** | Aplicación registrada. HTTP 201. |
 
 **Validaciones específicas:**
 
 | Condición | Código HTTP | Descripción |
 |---|---|---|
-| Sujeto o instrumento no encontrado | 404 | El recurso no existe en el sistema. |
-| Instrumento existe pero está `inactive` | 422 | El instrumento no puede recibir nuevas aplicaciones. |
-| `application_date` fuera del periodo de vigencia | 400 | La fecha no está dentro de `[start_date, end_date]`. |
-| Formato de `application_date` inválido | 400 | La fecha no cumple el formato ISO 8601. |
+| Sujeto o instrumento no encontrado en el proyecto | 404 | El recurso no existe en el proyecto. |
+| Instrumento `is_active=false` | 422 | El instrumento no puede recibir aplicaciones. |
+| `application_date` fuera de vigencia | 400 | La fecha no está dentro de `[start_date, end_date]`. |
 
 ---
 
@@ -312,12 +324,12 @@ Permitir la captura estructurada, validada y anonimizada de datos lingüísticos
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Profesional Aplicador / Administrador |
-| **Entidades** | `MetricValue` (relaciona `TestApplication` + `Metric`) |
-| **Endpoint** | `POST /metric-values` |
-| **Entrada** | `application_id` (UUID, obligatorio), `values` (array de objetos `{ metric_id, value }`, obligatorio) |
-| **Descripción** | El sistema debe registrar el conjunto de valores de métricas de una aplicación. Esta operación es **atómica**: si cualquier validación falla en cualquier valor del lote, ningún valor se persiste. Para cada valor en `values` el sistema valida: (1) que la aplicación exista, (2) que la métrica pertenezca al instrumento de esa aplicación, (3) que el tipo del valor coincida con `metric_type` de la métrica, (4) que el valor esté dentro de `[min_value, max_value]` si `metric_type = numeric`, (5) que el valor esté dentro de `options` si `metric_type = categorical`. Adicionalmente valida que todas las métricas marcadas como `required: true` en el instrumento estén presentes en el envío. Si alguna validación falla, retorna HTTP 400 con un array `errors[]` detallando cada problema. |
-| **Resultado** | Todos los valores registrados exitosamente. HTTP 201. O HTTP 400 con `errors[]` si alguna validación falla (nada se persiste). |
+| **Actor** | Aplicador (miembro del proyecto) |
+| **Entidades** | `MetricValue`, `TestApplication`, `Metric`, `Project` |
+| **Endpoint** | `POST /projects/{project_id}/applications/{application_id}/metric-values` |
+| **Entrada** | `values` (array de objetos `{ metric_id, value }`) |
+| **Descripción** | El Aplicador captura valores de métricas para una aplicación del proyecto. Operación **atómica**: si falla la validación de cualquier valor, no se persiste ninguno. Se valida: tipo, rango, opciones, obligatoriedad conforme a M3. |
+| **Resultado** | Valores registrados. HTTP 201. O HTTP 400 con `errors[]` si falla validación. |
 
 **Reglas de validación por MetricType:**
 
@@ -338,11 +350,11 @@ Permitir la captura estructurada, validada y anonimizada de datos lingüísticos
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador, Investigador, Aplicador |
+| **Actor** | Investigador o Aplicador (miembro del proyecto) |
 | **Entidades** | `Subject`, `ContextData` |
-| **Endpoint** | `GET /subjects/{id}` |
-| **Entrada** | `id` (UUID, path param) |
-| **Descripción** | El sistema debe devolver los datos de un sujeto: su UUID y, si existe, su contexto asociado. No expone ningún dato personal identificable. Accesible por todos los roles autenticados. |
+| **Endpoint** | `GET /projects/{project_id}/subjects/{subject_id}` |
+| **Entrada** | `subject_id` (UUID, path param) |
+| **Descripción** | El sistema debe devolver los datos de un sujeto del proyecto: su UUID y, si existe, su contexto asociado. No expone ningún dato personal identificable. Accesible por miembros del proyecto. |
 | **Resultado** | Datos del sujeto con contexto anidado si existe. HTTP 200. |
 
 ---
@@ -370,7 +382,7 @@ Permitir la captura estructurada, validada y anonimizada de datos lingüísticos
 | Módulo | Tipo | Detalle |
 |---|---|---|
 | **M1 – Autenticación** | Consumidor | Valida JWT y rol en cada petición. |
-| **M2 – Gestión de Instrumentos** | Consumidor | Verifica estado `active` y vigencia (`start_date`, `end_date`) del instrumento al registrar una aplicación. |
+| **M2 – Gestión de Instrumentos** | Consumidor | Verifica estado `is_active` y vigencia (`start_date`, `end_date`) del instrumento al registrar una aplicación. |
 | **M3 – Definición de Métricas** | Consumidor | Consulta las métricas del instrumento para validar cada `MetricValue`: tipo, rango, opciones y obligatoriedad. |
 | **M5 – Consulta Interna** | Proveedor | M5 consulta `Subject`, `ContextData`, `TestApplication` y `MetricValue` registrados por M4. |
 | **M6 – Exportación** | Proveedor | M6 exporta los datos registrados por M4. |
@@ -455,8 +467,8 @@ Se considera aceptado si:
 
 Se considera aceptado si:
 - El Aplicador puede registrar una aplicación especificando sujeto e instrumento.
-- La aplicación se persiste si el instrumento está `active` y la fecha de aplicación está dentro de `[start_date, end_date]`.
-- HTTP 422 si el instrumento existe pero está `inactive`.
+- La aplicación se persiste si el instrumento está `is_active` y la fecha de aplicación está dentro de `[start_date, end_date]`.
+- HTTP 422 si el instrumento existe pero está `is_active=false`.
 - HTTP 400 si la fecha de aplicación está fuera del periodo de vigencia del instrumento.
 - HTTP 404 si el sujeto o el instrumento no existen.
 - HTTP 400 si el formato de la fecha es inválido.
