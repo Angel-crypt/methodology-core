@@ -88,3 +88,65 @@ export async function cambiarEstadoInstrumento(token, id, status) {
   })
   return parseResponse(res)
 }
+
+/**
+ * RF-M3 — GET /instruments/:id
+ */
+export async function obtenerInstrumento(token, id) {
+  const res = await fetch(`${BASE}/${id}`, { headers: headers(token) })
+  return parseResponse(res)
+}
+
+/**
+ * RF-M3 — DELETE /instruments/:id  (soft delete)
+ */
+export async function eliminarInstrumento(token, id) {
+  const res = await fetch(`${BASE}/${id}`, {
+    method: 'DELETE',
+    headers: headers(token),
+  })
+  return parseResponse(res)
+}
+
+/**
+ * RF-M3-LIST — GET /metrics?instrument_id=...
+ */
+export async function listarMetricas(token, instrumentId) {
+  const res = await fetch(`/api/v1/metrics?instrument_id=${instrumentId}`, { headers: headers(token) })
+  return parseResponse(res)
+}
+
+/**
+ * RF-M3-01 — POST /metrics
+ */
+export async function crearMetrica(token, body) {
+  const res = await fetch('/api/v1/metrics', {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(body),
+  })
+  return parseResponse(res)
+}
+
+/**
+ * RF-M3-02b — PATCH /metrics/:id
+ */
+export async function editarMetrica(token, id, body) {
+  const res = await fetch(`/api/v1/metrics/${id}`, {
+    method: 'PATCH',
+    headers: headers(token),
+    body: JSON.stringify(body),
+  })
+  return parseResponse(res)
+}
+
+/**
+ * RF-M3 — DELETE /metrics/:id
+ */
+export async function eliminarMetrica(token, id) {
+  const res = await fetch(`/api/v1/metrics/${id}`, {
+    method: 'DELETE',
+    headers: headers(token),
+  })
+  return parseResponse(res)
+}
