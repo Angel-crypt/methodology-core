@@ -52,19 +52,21 @@ Quedan **fuera del alcance**: recuperación de contraseña, registro público de
 | Término | Definición |
 |---|---|
 | **Token JWT** | Token único de sesión, firmado con HS256. Expira en 6 horas (`exp = iat + 21600`). Incluye `user_id`, `role`, `iat`, `exp`, `jti`. Sin datos personales. |
-| **password_changed_at** | Timestamp registrado en la tabla `users` al cambiar la contraseña. El middleware rechaza con HTTP 401 todo token cuyo `iat` sea anterior a este valor, invalidando automáticamente todas las sesiones previas sin necesidad de revocar cada `jti` individualmente. |
-| **must_change_password** | Campo booleano en `users`, `TRUE` por defecto al crear un usuario. Indica que el usuario tiene una contraseña temporal y debe cambiarla antes de poder usar el sistema. El middleware rechaza con HTTP 403 toda petición de un usuario con `must_change_password=TRUE`, excepto `PATCH /users/me/password`. Se establece en `FALSE` tras el primer cambio exitoso de contraseña, o en `TRUE` cuando el Administrador restablece la contraseña del usuario. |
-| **Estado pending** | Estado derivado de un usuario cuando `active=TRUE` y `must_change_password=TRUE`. El usuario puede autenticarse pero no acceder a ningún endpoint hasta cambiar su contraseña. |
 | **jti** | JWT ID. Identificador único del token incluido en el payload. Permite revocación individual en `revoked_tokens`. |
 | **HS256** | Algoritmo de firma simétrica HMAC-SHA256. La clave se gestiona exclusivamente como Docker Secret. |
 | **Docker Secret** | Mecanismo de gestión de secretos de Docker Swarm. Nunca en texto plano en archivos de configuración. |
+| **Keycloak** | Proveedor de identidad externo (broker) que gestiona la autenticación de usuarios. El sistema delega autenticación a Keycloak. |
+| **UID interno** | Identificador local del usuario en el sistema, vinculado al subject de Keycloak. Se usa para referenciar usuarios en tablas locales (audit_log, etc.) sin exponer el identificador externo del broker. |
+| **Broker de identidad** | Componente externo (Keycloak) que gestiona la autenticación de usuarios. El backend es la fuente de verdad; el broker solo autentica. |
+| **Magic Link** | Enlace de un solo uso enviado al correo del usuario para verificar su identidad. Se almacena como hash con expiración (24h). |
+| **user_id (UUID)** | Identificador único e inmutable que representa la identidad real del usuario en el sistema. Se genera al crear el usuario y nunca cambia. |
+| **Separación identidad/autenticación** | El user_id es inmutable y representa la identidad real. El correo es un atributo de autenticación que puede cambiar sin alterar el user_id. |
 | **revoked_tokens** | Tabla PostgreSQL que registra `jti` de tokens invalidados por logout. Tiene TTL igual a `exp` del token. |
 | **Cron de limpieza** | Proceso dentro del contenedor que elimina entradas expiradas de `revoked_tokens`. |
-| **Stateless** | La validación del token no requiere consulta a BD: el rol se extrae del JWT firmado. Solo se consulta BD para verificar `active` y `revoked_tokens`. |
+| **Stateless** | La validación del token no requiere consulta a BD: el rol se extrae del JWT firmado. Solo se consulta BD para verificar `state=ACTIVE` y `revoked_tokens`. |
 | **RBAC** | Role-Based Access Control. Control de acceso basado en roles fijos. |
 | **Rate limiting** | Mecanismo que bloquea temporalmente un IP/cuenta tras 5 intentos fallidos en 60 s. |
 | **Whitelist de rutas públicas** | Lista explícita de endpoints que no requieren token (ej. `/health`). El middleware los excluye de la verificación. |
-| **bcrypt** | Algoritmo de hash para contraseñas. Factor de trabajo mínimo 12. |
 
 ### 1.4 Referencias
 
@@ -111,7 +113,7 @@ Balanceador de carga Swarm
                     Docker Secret (clave HS256)
 ```
 
-La validación de tokens es stateless: el rol se extrae del JWT firmado sin consulta a BD. Solo se consulta PostgreSQL para verificar `active` del usuario y presencia del `jti` en `revoked_tokens`.
+La validación de tokens es stateless: el rol se extrae del JWT firmado sin consulta a BD. Solo se consulta PostgreSQL para verificar `is_active` del usuario y presencia del `jti` en `revoked_tokens`.
 
 ### 2.4 Relación con Otros Módulos
 
@@ -126,65 +128,93 @@ La validación de tokens es stateless: el rol se extrae del JWT firmado sin cons
 ### 2.5 Flujo General de Autenticación
 
 ```
-POST /auth/login (email + password)
-  └─ Valida credenciales + active=TRUE
-       └─ Éxito → JWT(user_id, role, iat, exp=6h, jti)
-            └─ Respuesta incluye must_change_password (boolean)
+FLUJO DE REGISTRO (Administrador crea usuario):
+  POST /users (email, role, organization)
+    → Sistema genera user_id (UUID) inmutable
+    → Genera Magic Link (hash con expiración)
+    → Estado: PENDING
+    → Envía Magic Link por correo (en producción)
 
-Cada petición protegida
-  └─ Authorization: Bearer {token}
-       └─ Middleware: valida firma HS256
-            └─ Verifica jti no está en revoked_tokens
-                 └─ Verifica active=TRUE en users
-                      └─ Verifica must_change_password=FALSE (excepción: PATCH /users/me/password)
-                           └─ Verifica rol vs. endpoint → concede o deniega
+FLUJO DE ACTIVACIÓN (Usuario usa Magic Link):
+  POST /auth/activate (magic_link_token)
+    → Valida hash del Magic Link (no expirado, no usado)
+    → Vincula identidad externa del broker al user_id
+    → Estado: ACTIVE
+    → Genera JWT de sesión
 
-POST /auth/logout
-  └─ Registra jti en revoked_tokens (expires_at = exp del token)
-  └─ Cron elimina entradas cuyo expires_at < ahora
+FLUJO DE LOGIN (Usuario autenticado):
+  POST /auth/login (email)
+    → Broker (Keycloak) autentica usuario
+    → Si email coincide con user_id vinculado:
+      → Genera JWT con user_id, role, organization
+      → Backend valida estado del usuario (is_active)
+      → Acceso según rol
+
+FLUJO DE CAMBIO DE CORREO:
+  PATCH /users/me/email (new_email)
+    → user_id se conserva inmutable
+    → Invalidar todas las sesiones (revoked_tokens)
+    → Romper vínculo con broker
+    → Estado: PENDING (reinicia flujo)
+    → Generar nuevo Magic Link
 ```
 
 ### 2.6 Máquina de Estados de Usuario
 
-Los usuarios tienen tres estados derivados de los campos `active` y `must_change_password`:
-
 ```
-  [CREACIÓN]
-      │ POST /users → active=TRUE, must_change_password=TRUE
-      ▼
-  ┌─────────────────────────────────────────────────┐
-  │  PENDING  (active=TRUE, must_change_password=TRUE) │
-  │  - Puede autenticarse (login exitoso)            │
-  │  - Solo puede usar PATCH /users/me/password      │
-  │  - Administrador puede: regenerar contraseña     │
-  │                          desactivar              │
-  └─────────────┬───────────────────────────────────┘
-                │ PATCH /users/me/password exitoso
-                │ → must_change_password=FALSE
-                ▼
-  ┌─────────────────────────────────────────────────┐
-  │  ACTIVE   (active=TRUE, must_change_password=FALSE)│
-  │  - Acceso completo según su rol                  │
-  │  - Administrador puede: desactivar               │
-  │                          restablecer contraseña  │
-  └─────────────┬──────────────┬────────────────────┘
-                │ PATCH        │ PATCH /users/:id/status
-                │ /users/:id/  │ { active: false }
-                │ reset-pass.  ▼
-                │   ┌──────────────────────────────────────────┐
-                │   │  INACTIVE  (active=FALSE)                 │
-                │   │  - No puede autenticarse                  │
-                │   │  - Administrador puede: activar           │
-                │   └──────────────┬───────────────────────────┘
-                │                  │ PATCH /users/:id/status
-                │                  │ { active: true }
-                │                  └─► vuelve al estado anterior
-                │                      (PENDING o ACTIVE)
-                │
-                └─► vuelve a PENDING (must_change_password=TRUE)
+[CREACIÓN POR ADMINISTRADOR]
+    │ POST /users → state=PENDING, user_id=UUID_generado
+    ▼
+┌─────────────────────────────────────────────────┐
+│  PENDING                                         │
+│  - Esperando activación por Magic Link           │
+│  - Solo puede usar POST /auth/activate           │
+│  - Admin puede: regenerar Magic Link             │
+│                      deshabilitar                │
+│                      eliminar                    │
+└─────────────┬───────────────────────────────────┘
+              │ POST /auth/activate exitoso
+              │ (Magic Link válido
+              │  + vinculación con broker)
+              ▼
+┌─────────────────────────────────────────────────┐
+│  ACTIVE                                          │
+│  - Acceso completo según rol                     │
+│  - Admin puede: deshabilitar                    │
+│                 eliminar                        │
+│                 cambiar correo                   │
+│                      (reinicia a PENDING)       │
+└─────────────┬──────────────┬────────────────────┘
+              │ PATCH        │ PATCH /users/:id/status
+              │ /users/:id/  │ { state: 'disabled' }
+              │ disable      ▼
+              │   ┌──────────────────────────────────────────┐
+              │   │  DISABLED                                │
+              │   │  - Sin acceso al sistema                 │
+              │   │  - Revocación de sesiones               │
+              │   │  - Admin puede: reactivar (→ ACTIVE)     │
+              │   │                   eliminar (→ DELETED)  │
+              │   └──────────────┬───────────────────────────┘
+              │                  │
+              │                  │ PATCH /users/:id/status
+              │                  │ { state: 'deleted' }
+              │                  ▼
+              │   ┌──────────────────────────────────────────┐
+              │   │  DELETED (soft delete)                   │
+              │   │  - Sin acceso al sistema                 │
+              │   │  - Trazabilidad en audit_log            │
+              │   │  - Irreversible                          │
+              │   │  - user_id se mantiene para integridad  │
+              │   └──────────────────────────────────────────┘
+              │
+              └─► Cambio de correo → PENDING (Magic Link nuevo)
 ```
 
-**Regla de reactivación:** al activar un usuario inactivo, `active` vuelve a `TRUE` pero `must_change_password` conserva su valor previo. Un usuario que fue desactivado en estado PENDING volverá a PENDING al reactivarse.
+**Notas:**
+- El `user_id` (UUID) es **inmutable** durante todo el ciclo de vida del usuario.
+- El correo es un atributo de autenticación, no la identidad.
+- El backend es la **fuente de verdad**; el broker (Keycloak) solo autentica.
+- El estado se gestiona en campo `state` (ENUM: PENDING, ACTIVE, DISABLED, DELETED).
 
 ---
 
@@ -253,51 +283,76 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | Campo | Detalle |
 |---|---|
 | **Actor** | Administrador |
-| **Entidades** | `User`, `Role` |
+| **Entidades** | `User`, `Role`, `MagicLink` |
 | **Endpoint** | `POST /users` |
-| **Entrada** | `full_name` (string, obligatorio), `email` (string, obligatorio, único), `role` (enum: `administrator` · `researcher` · `applicator`) |
-| **Descripción** | El sistema debe permitir al Administrador registrar un nuevo usuario con rol asignado. El correo debe ser único. **Fix 2 (Security by Design, 2026-03-23):** el Administrador no provee la contraseña — el servidor la genera internamente con `generateTempPassword()` (CSPRNG basado en `crypto.randomBytes()`). Esto garantiza que ni el admin ni el canal de transmisión conocen la contraseña antes de que el usuario la reciba. La contraseña se hashea con bcrypt (factor mínimo 12); nunca en texto plano. El usuario se crea en estado **pending** (`active=TRUE`, `must_change_password=TRUE`): puede autenticarse pero el middleware bloquea todos los endpoints hasta que cambie su contraseña. La respuesta incluye `_mock_temp_password` (solo en mock) para que el frontend muestre el modal de credenciales al Administrador una sola vez. |
-| **Resultado** | Usuario creado en PostgreSQL con UUID, `password_hash`, `role`, `active=TRUE`, `must_change_password=TRUE`, `created_at`. HTTP 201 con datos del usuario sin contraseña, incluyendo `must_change_password` y `_mock_temp_password` (solo mock). |
+| **Entrada** | `full_name` (string, obligatorio), `email` (string, obligatorio, único), `role` (enum: `administrator` · `researcher` · `applicator`), `organization` (string, obligatorio) |
+| **Descripción** | El Administrador registra un nuevo usuario. El sistema genera un `user_id` (UUID) inmutable que representa la identidad del usuario. Se genera un Magic Link de un solo uso que se almacena como hash con TTL (24 h). El usuario se crea en estado **PENDING**. El Magic Link se envía por correo (en producción). La respuesta incluye `_mock_magic_link` (solo en mock). |
+| **Resultado** | Usuario creado con `user_id`, `email`, `role`, `organization`, `state=PENDING`, `created_at`. HTTP 201. |
 
 **Esquema de tabla `users`:**
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `id` | UUID | PK, generado automáticamente |
+| `user_id` | UUID | PK, inmutable, generado automáticamente |
 | `full_name` | VARCHAR | Nombre completo |
-| `email` | VARCHAR | Único, índice |
-| `password_hash` | VARCHAR | bcrypt factor ≥ 12 |
+| `email` | VARCHAR | Único, índice. Atributo de autenticación, no identidad. |
 | `role` | ENUM | `administrator` · `researcher` · `applicator` |
-| `active` | BOOLEAN | `TRUE` por defecto |
-| `must_change_password` | BOOLEAN | `TRUE` por defecto. Indica estado **pending**. Se establece `FALSE` al cambiar contraseña; `TRUE` al restablecer por admin. |
+| `organization` | VARCHAR | Organización a la que pertenece el usuario |
+| `state` | ENUM | `PENDING` · `ACTIVE` · `DISABLED` · `DELETED`. Por defecto `PENDING`. |
+| `broker_subject` | VARCHAR | Identificador externo del broker (Keycloak). Null hasta activación. |
 | `created_at` | TIMESTAMP | UTC |
-| `updated_at` | TIMESTAMP | `NULL` por defecto. Se actualiza en `PATCH /users/:id/status` y `POST /users/:id/reset-password`. |
-| `password_changed_at` | TIMESTAMP | `NULL` por defecto. Se actualiza al cambiar la contraseña. El middleware rechaza tokens con `iat` anterior a este valor. |
+| `updated_at` | TIMESTAMP | Se actualiza en cambios de estado |
+| `deleted_at` | TIMESTAMP | Soft delete para trazabilidad |
+
+**Esquema de tabla `magic_links`:**
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID | PK |
+| `user_id` | UUID | FK a users.user_id |
+| `token_hash` | VARCHAR | Hash del token (SHA-256) |
+| `expires_at` | TIMESTAMP | TTL del token |
+| `used_at` | TIMESTAMP | Null = no usado. Timestamp = usado. |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | `NULL` por defecto. Se actualiza en cambios de estado. |
 
 ---
 
-### RF-M1-02 – Activar / desactivar usuario *(HU2)*
+### RF-M1-02 – Gestionar estado del usuario *(HU2)*
 
 | Campo | Detalle |
 |---|---|
 | **Actor** | Administrador |
-| **Entidades** | `User` (campo `active`) |
-| **Endpoint** | `PATCH /users/{id}/status` |
-| **Entrada** | `id` (UUID, path param), `active` (boolean) |
-| **Descripción** | El sistema debe permitir al Administrador cambiar el estado operativo de un usuario. Un usuario con `active = FALSE` es rechazado en login con HTTP 401 y el mismo mensaje genérico que cualquier otro fallo de autenticación (sin revelar que la cuenta está desactivada). El middleware también rechaza peticiones de usuarios desactivados aunque su token no haya expirado. Los registros históricos del usuario no se modifican. El sistema debe proteger al único Administrador activo: si se intenta desactivar al único `administrator` con `active=TRUE`, la operación es rechazada con HTTP 409. |
-| **Resultado** | Campo `active` actualizado. HTTP 200. |
+| **Entidades** | `User` (campo `state`) |
+| **Endpoint** | `PATCH /users/{user_id}/status` |
+| **Entrada** | `user_id` (UUID, path param), `state` (enum: `DISABLED`, `DELETED`) |
+| **Descripción** | El Administrador puede deshabilitar o eliminar usuarios. Los estados `PENDING` y `ACTIVE` no se modifican directamente — se gestionan mediante Magic Link y login. Un usuario en `DISABLED` no puede acceder al sistema. Un usuario en `DELETED` es soft delete con trazabilidad. El sistema protege al único Administrador activo: si se intenta deshabilitar al último admin activo, la operación es rechazada con HTTP 409. |
+| **Resultado** | Campo `state` actualizado. `deleted_at` establecido si es `DELETED`. Sesiones activas revocadas. HTTP 200. |
 
 ---
 
-### RF-M1-03 – Iniciar sesión *(HU3)*
+### RF-M1-03 – Activar usuario con Magic Link *(HU3)*
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Cualquier usuario registrado y activo |
+| **Actor** | Usuario nuevo (estado PENDING) |
+| **Entidades** | `User`, `MagicLink`, `BrokerIdentity` |
+| **Endpoint** | `POST /auth/activate` |
+| **Entrada** | `magic_link_token` (string) |
+| **Descripción** | El usuario presenta el Magic Link recibido por correo. El sistema valida: (1) token no expirado, (2) token no usado. Si es válido, vincula la identidad del broker (Keycloak) al `user_id`, establece `state=ACTIVE`, marca el Magic Link como usado. En producción, el Magic Link redirige al frontend que envía el token al backend. En mock, el token se devuelve directamente. |
+| **Resultado** | `broker_subject` vinculado, `state=ACTIVE`. JWT emitido. HTTP 200. |
+
+---
+
+### RF-M1-04 – Iniciar sesión *(HU4)*
+
+| Campo | Detalle |
+|---|---|
+| **Actor** | Usuario activo |
 | **Endpoint** | `POST /auth/login` |
-| **Entrada** | `email` (string), `password` (string) |
-| **Descripción** | El sistema valida credenciales verificando el hash bcrypt y el estado `active = TRUE`. Si la autenticación es exitosa emite un token JWT firmado con HS256 usando el Docker Secret. El token incluye `user_id`, `role`, `iat`, `exp` (iat + 21600 s) y `jti` (UUID único para soporte de revocación). Todos los fallos de autenticación —credenciales incorrectas, usuario inexistente, cuenta desactivada— retornan **HTTP 401 con mensaje genérico idéntico**, sin revelar causa. El sistema implementa rate limiting: 5 intentos fallidos en 60 s bloquean temporalmente el IP/cuenta durante 5 minutos; durante el bloqueo el sistema retorna HTTP 401 con el mismo mensaje genérico (no HTTP 429). El token es stateless y válido entre reinicios del servicio, ya que la clave reside en el Docker Secret compartido entre nodos. La respuesta incluye el campo `must_change_password` para que el cliente pueda mostrar el modal de cambio forzado si el usuario está en estado **pending**. Un usuario en estado **pending** sí puede autenticarse, pero el middleware bloqueará sus peticiones hasta que cambie la contraseña. |
-| **Resultado** | `{ access_token, token_type: "Bearer", expires_in: 21600, must_change_password: boolean }`. HTTP 200. |
+| **Entrada** | `email` (string) |
+| **Descripción** | El sistema delega autenticación al broker (Keycloak). El broker valida credenciales. Si el broker autentica exitosamente y el email coincide con un usuario activo (`state=ACTIVE`), el sistema emite un token JWT con `user_id`, `role`, `organization`. El backend siempre valida el estado del usuario además del JWT del broker. Fallos retornan HTTP 401 genérico. Rate limiting: 5 intentos fallidos en 60 s → bloqueo 5 min. |
+| **Resultado** | `{ access_token, token_type: "Bearer", expires_in: 21600, state: "ACTIVE" }`. HTTP 200. |
 
 ---
 
@@ -326,22 +381,25 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 |---|---|
 | **Actor** | Sistema (middleware compartido) |
 | **Aplica a** | Todos los endpoints protegidos bajo `/api/v1/*` |
-| **Descripción** | El middleware se implementa como función compartida importada por todos los servicios del stack. Para cada petición evalúa en orden: (1) Validación de firma HS256 del token. Si falla → 401 (antes de evaluar rol). (2) Verificación de `jti` en `revoked_tokens`. Si está → 401. (3) Verificación de `active=TRUE` en `users`. Si está inactivo → 401. (4) Verificación de `password_changed_at`: si el token fue emitido antes del último cambio de contraseña → 401. **(4b) Verificación de `must_change_password`**: si `TRUE`, todas las peticiones retornan HTTP 403 con `{ must_change_password: true }`, excepto `PATCH /users/me/password` que siempre está permitida para usuarios autenticados (flag `allowPending`). (5) Verificación de rol del token contra la matriz de permisos centralizada → si no tiene permiso → 403. La verificación es stateless respecto al rol: se extrae del JWT sin consultar BD. Las rutas públicas (ej. `/health`) se declaran en una whitelist explícita y son excluidas de la verificación. |
-| **Resultado** | HTTP 401 ante firma inválida, token revocado o usuario inactivo. HTTP 403 con `must_change_password: true` si el usuario está en estado pending. HTTP 403 ante rol sin permiso. |
+| **Descripción** | El middleware se implementa como función compartida importada por todos los servicios del stack. Para cada petición evalúa en orden: (1) Validación de firma HS256 del token. Si falla → 401 (antes de evaluar rol). (2) Verificación de `jti` en `revoked_tokens`. Si está → 401. (3) Verificación de `state=ACTIVE` en `users`. Si está inactivo (DISABLED/DELETED) → 401. (4) Verificación de rol del token contra la matriz de permisos centralizada → si no tiene permiso → 403. La verificación es stateless respecto al rol: se extrae del JWT sin consultar BD. Las rutas públicas (ej. `/health`) se declaran en una whitelist explícita y son excluidas de la verificación. |
+| **Resultado** | HTTP 401 ante firma inválida, token revocado o usuario no activo. HTTP 403 ante rol sin permiso. |
 
 **Matriz de permisos (constante centralizada, nunca hardcodeada por endpoint):**
 
 | Acción / Recurso | administrator | researcher | applicator |
 |---|:---:|:---:|:---:|
 | Crear usuario con rol | ✓ | ✗ | ✗ |
-| Activar / desactivar usuario | ✓ | ✗ | ✗ |
-| Iniciar sesión | ✓ | ✓ | ✓ |
+| Gestionar estado de usuario (disable/delete) | ✓ | ✗ | ✗ |
+| Iniciar sesión / Activar con Magic Link | ✓ | ✓ | ✓ |
 | Cerrar sesión | ✓ | ✓ | ✓ |
 | Gestionar instrumentos metodológicos | ✓ | ✗ | ✗ |
 | Definir métricas | ✓ | ✗ | ✗ |
 | Registrar sujetos y aplicar pruebas | ✓ | ✗ | ✓ |
-| Consultar registros internos | ✓ | ✓ | ✗ |
+| Consultar aplicaciones y resultados | ✓ | ✓ | ✗ |
 | Exportar datos (CSV / JSON) | ✓ | ✓ | ✗ |
+| Ver audit_log | ✓ | ✗ | ✗ |
+| Gestionar sesiones activas | ✓ | ✓ (propias) | ✓ (propias) |
+| Cambiar correo | ✓ | ✗ | ✗ |
 
 ---
 
@@ -351,58 +409,154 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 |---|---|
 | **Actor** | Administrador |
 | **Endpoint** | `GET /users` |
-| **Entrada** | Query params opcionales: `active` (boolean), `role` (enum) |
-| **Descripción** | El sistema debe devolver el listado de usuarios registrados. La respuesta nunca incluye `password_hash`. Solo accesible por el Administrador. Incluye el campo `must_change_password` para que el frontend pueda derivar el estado (pending / active / inactive) de cada usuario. |
-| **Resultado** | Lista de usuarios con id, full_name, email, role, active, `must_change_password`, created_at. HTTP 200. |
+| **Entrada** | Query params opcionales: `state` (enum), `role` (enum) |
+| **Descripción** | El sistema debe devolver el listado de usuarios registrados. Solo accesible por el Administrador. Incluye el campo `state` (PENDING, ACTIVE, DISABLED, DELETED) para que el frontend pueda derivar el estado de cada usuario. El `user_id` es inmutable y es la clave de identificación. |
+| **Resultado** | Lista de usuarios con user_id, full_name, email, role, organization, state, created_at. HTTP 200. |
 
 ---
 
-### RF-M1-06 – Cambiar contraseña *(HU6b)*
-
-| Campo | Detalle |
-|---|---|
-| **Actor** | Cualquier usuario autenticado |
-| **Entidades** | `User` (campos `password_hash`, `password_changed_at`), `AuditLog` |
-| **Endpoint** | `PATCH /users/me/password` |
-| **Entrada** | `current_password` (string, obligatorio), `new_password` (string, obligatorio) |
-| **Descripción** | El sistema permite al usuario autenticado cambiar su propia contraseña. Este endpoint **siempre está permitido** independientemente del estado `must_change_password` (flag `allowPending` en el middleware). Valida en orden: (1) `bcrypt.verify(current_password, password_hash)` — si falla, HTTP 401. (2) `bcrypt.verify(new_password, password_hash)` — si la nueva contraseña es idéntica a la actual, HTTP 400. Superadas las validaciones, hashea la nueva contraseña con bcrypt (factor ≥ 12), actualiza `password_hash`, registra `password_changed_at = NOW()` y establece `must_change_password = FALSE` (transición PENDING → ACTIVE o mantenimiento en ACTIVE). El evento se registra en `AuditLog` con detalle diferenciado si el cambio fue forzado. |
-| **Resultado** | `password_hash`, `password_changed_at` y `must_change_password=FALSE` actualizados. Todas las sesiones anteriores invalidadas. HTTP 200. |
-
----
-
-### RF-M1-RESET – Restablecer contraseña temporal *(IT-1)*
+### RF-M1-06 – Cambiar correo electrónico
 
 | Campo | Detalle |
 |---|---|
 | **Actor** | Administrador |
-| **Entidades** | `User` (campos `password_hash`, `must_change_password`, `password_changed_at`) |
-| **Endpoint** | `POST /users/{id}/reset-password` |
-| **Entrada** | `id` (UUID, path param) |
-| **Descripción** | El sistema permite al Administrador generar una nueva contraseña temporal para un usuario activo (en estado **pending** o **active**). **Fix 1 (CSPRNG, 2026-03-23):** la contraseña se genera con `generateTempPassword()` usando `crypto.randomBytes()` (entropía del SO; prohibido `Math.random()`). Algoritmo: charset 61 caracteres sin ambiguos (sin I/L/O/i/l/o/0/1), longitud 16, ~95.8 bits de entropía (`log₂(61^16)`), rejection sampling para eliminar sesgo de módulo, Fisher-Yates shuffle con CSPRNG. Sin formato fijo, sin timestamp, sin patrones predecibles. El sistema la hashea con bcrypt (factor ≥ 12), y establece `must_change_password=TRUE` y `password_changed_at=NOW()` (esto invalida los tokens activos del usuario). El usuario vuelve al estado **pending** y deberá cambiar la contraseña en su próximo acceso. **Solo en el mock de desarrollo:** la contraseña temporal se devuelve en el campo `_mock_temp_password`; en producción nunca se expone en la respuesta — se entrega por canal seguro fuera de banda. Si el usuario está en estado **inactive** (`active=FALSE`), la operación es rechazada con HTTP 409 (debe activarse primero). |
-| **Resultado** | `password_hash`, `must_change_password=TRUE` y `password_changed_at` actualizados. Todas las sesiones activas del usuario quedan invalidadas. HTTP 200. |
+| **Entidades** | `User`, `MagicLink`, `revoked_tokens`, `AuditLog` |
+| **Endpoint** | `PATCH /users/{user_id}/email` |
+| **Entrada** | `user_id` (UUID, path param), `new_email` (string, obligatorio) |
+| **Descripción** | El Administrador puede cambiar el correo de un usuario. **Cambio de correo ≠ cambio de usuario**: el `user_id` se conserva inmutable. La operación: (1) invalida todas las sesiones activas (registra todos los `jti` en `revoked_tokens`), (2) rompe el vínculo con el broker (borra `broker_subject`), (3) genera nuevo Magic Link, (4) establece `state=PENDING`. El usuario debe reactivarse usando el nuevo Magic Link. Todo se registra en `AuditLog`. |
+| **Resultado** | `email` actualizado, `broker_subject` = null, `state=PENDING`, nuevo Magic Link generado. Todas las sesiones previas revocadas. HTTP 200. |
 
 ---
 
-### RF-M1-SETUP – Activación de cuenta en primer acceso *(IT-1)*
+### RF-M1-REGEN – Regenerar Magic Link
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Profesional Aplicador / Investigador / Administrador (usuario con cuenta nueva o restablecida) |
-| **Entidades** | `User` (campo `must_change_password`) |
-| **Flujo cliente** | El frontend detecta `must_change_password=TRUE` en la respuesta de `POST /auth/login` y redirige al usuario al formulario de cambio forzado de contraseña. El usuario debe completar `PATCH /users/me/password` antes de poder acceder a cualquier otra funcionalidad. |
-| **Descripción** | Cuando un usuario se autentica por primera vez (o tras un restablecimiento por el Administrador), el sistema retorna `must_change_password=TRUE` en el body de login. El middleware rechaza con HTTP 403 (`{ must_change_password: true }`) todas las peticiones del usuario hasta que completa el cambio de contraseña vía `PATCH /users/me/password` (único endpoint disponible en estado **pending**). Al completar el cambio exitosamente, `must_change_password` pasa a `FALSE` y el usuario queda en estado **active** con acceso completo según su rol. |
-| **Credenciales de primer acceso** | Al crear un usuario o restablecer su contraseña, el sistema genera internamente una contraseña temporal con CSPRNG (`generateTempPassword()`). **Solo en el mock de desarrollo** esta contraseña se devuelve en `_mock_temp_password` / `_mock_setup_token`. En producción se entrega por canal seguro fuera de banda y nunca se expone en la respuesta API. El Administrador muestra las credenciales al aplicador/investigador una única vez a través del modal de credenciales en el frontend. |
-| **Resultado** | Usuario en estado **pending** puede autenticarse pero solo accede a `PATCH /users/me/password`. Al completar el cambio: estado **active**, acceso completo según rol, todas las sesiones previas invalidadas por `password_changed_at`. |
+| **Actor** | Administrador |
+| **Entidades** | `User`, `MagicLink` |
+| **Endpoint** | `POST /users/{user_id}/regenerate-magic-link` |
+| **Entrada** | `user_id` (UUID, path param) |
+| **Descripción** | El Administrador puede regenerar el Magic Link para un usuario en estado PENDING. El Magic Link anterior (si existe y no ha sido usado) se invalida. Se genera un nuevo token con nueva expiración (24h). |
+| **Resultado** | Nuevo Magic Link generado. HTTP 200. |
 
-**Casos de prueba clave:**
+---
 
-| ID | Caso | Resultado esperado |
+### RF-M1-PROJECT-01 – Crear proyecto
+
+| Campo | Detalle |
+|---|---|
+| **Actor** | Administrador |
+| **Entidades** | `Project`, `Dataset` |
+| **Endpoint** | `POST /projects` |
+| **Entrada** | `name` (string, obligatorio), `description` (string, opcional) |
+| **Descripción** | El Administrador crea un nuevo proyecto. El sistema genera un `project_id` (UUID) y crea automáticamente un `Dataset` asociado. El creador se agrega automáticamente como miembro del proyecto. |
+| **Resultado** | Proyecto creado con `project_id`, `dataset_id`, `created_at`. Creador agregado como miembro. HTTP 201. |
+
+**Esquema de tabla `projects`:**
+
+| Columna | Tipo | Notas |
 |---|---|---|
-| CA-SETUP-01 | Usuario nuevo inicia sesión con contraseña temporal. | Login exitoso. Respuesta incluye `must_change_password: true`. |
-| CA-SETUP-02 | Usuario pending intenta acceder a endpoint distinto de `/users/me/password`. | HTTP 403 `{ must_change_password: true }`. |
-| CA-SETUP-03 | Usuario pending completa `PATCH /users/me/password` con contraseña actual correcta y nueva diferente. | `must_change_password=FALSE`. Estado **active**. Acceso completo. |
-| CA-SETUP-04 | Administrador restablece contraseña de usuario activo. | Usuario vuelve a estado **pending**. Tokens anteriores invalidados. Nuevo `_mock_setup_token` disponible una sola vez. |
-| CA-SETUP-05 | Usuario en estado **pending** intenta completar el setup con la misma contraseña temporal. | HTTP 400. No se actualiza. |
+| `project_id` | UUID | PK, generado automáticamente |
+| `name` | VARCHAR | Nombre del proyecto |
+| `description` | VARCHAR | Descripción opcional |
+| `dataset_id` | UUID | FK a datasets.dataset_id |
+| `created_at` | TIMESTAMP | UTC |
+| `created_by` | UUID | FK a users.user_id |
+
+**Esquema de tabla `datasets`:**
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `dataset_id` | UUID | PK |
+| `name` | VARCHAR | Nombre del dataset |
+| `created_at` | TIMESTAMP | UTC |
+
+**Esquema de tabla `project_members`:**
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID | PK |
+| `project_id` | UUID | FK a projects.project_id |
+| `user_id` | UUID | FK a users.user_id |
+| `role_global` | ENUM | `investigador` · `aplicador`. |
+| `permissions` | JSONB | Permisos finos opcionales: `{ instruments: [], metrics: [] }` |
+| `created_at` | TIMESTAMP | UTC |
+| `created_by` | UUID | FK a users.user_id (quien lo agregó) |
+
+---
+
+### RF-M1-PROJECT-02 – Listar proyectos del usuario
+
+| Campo | Detalle |
+|---|---|
+| **Actor** | Cualquier usuario autenticado |
+| **Entidades** | `Project`, `ProjectMember` |
+| **Endpoint** | `GET /projects` |
+| **Descripción** | Devuelve los proyectos a los que el usuario pertenece. Cada resultado incluye el rol global del usuario en ese proyecto. |
+| **Resultado** | Lista de proyectos con project_id, name, role_global, created_at. HTTP 200. |
+
+---
+
+### RF-M1-PROJECT-03 – Ver detalle de proyecto
+
+| Campo | Detalle |
+|---|---|
+| **Actor** | Miembro del proyecto |
+| **Entidades** | `Project`, `Dataset`, `ProjectMember` |
+| **Endpoint** | `GET /projects/{project_id}` |
+| **Descripción** | Devuelve el detalle de un proyecto incluyendo el dataset asociado y la lista de miembros. Solo accesible para miembros del proyecto. |
+| **Resultado** | Proyecto con dataset y miembros. HTTP 200. |
+
+---
+
+### RF-M1-PROJECT-04 – Agregar instrumento a proyecto
+
+| Campo | Detalle |
+|---|---|
+| **Actor** | Administrador |
+| **Entidades** | `Project`, `Instrument` |
+| **Endpoint** | `POST /projects/{project_id}/instruments` |
+| **Entrada** | `instrument_id` (UUID) |
+| **Descripción** | El Administrador asigna un instrumento existente al proyecto. El instrumento debe existir y estar activo. |
+| **Resultado** | Instrumento agregado al proyecto. HTTP 201. |
+
+---
+
+### RF-M1-PROJECT-05 – Agregar miembro a proyecto
+
+| Campo | Detalle |
+|---|---|
+| **Actor** | Administrador |
+| **Entidades** | `ProjectMember`, `User` |
+| **Endpoint** | `POST /projects/{project_id}/members` |
+| **Entrada** | `user_id` (UUID), `role_global` (enum: `investigador` · `aplicador`) |
+| **Descripción** | El Administrador agrega un usuario al proyecto con su rol global. El usuario debe existir y tener estado ACTIVE. |
+| **Resultado** | Miembro agregado con role_global. HTTP 201. |
+
+---
+
+### RF-M1-PROJECT-06 – Remover miembro de proyecto
+
+| Campo | Detalle |
+|---|---|
+| **Actor** | Administrador |
+| **Entidades** | `ProjectMember` |
+| **Endpoint** | `DELETE /projects/{project_id}/members/{user_id}` |
+| **Descripción** | El Administrador remueve un miembro del proyecto. |
+| **Resultado** | Miembro removido. HTTP 204. |
+
+---
+
+### RF-M1-PROJECT-07 – Asignar permisos finos a miembro
+
+| Campo | Detalle |
+|---|---|
+| **Actor** | Administrador |
+| **Entidades** | `ProjectMember` |
+| **Endpoint** | `PATCH /projects/{project_id}/members/{user_id}/permissions` |
+| **Entrada** | `permissions` (JSONB: `{ instruments: [], metrics: [] }`) |
+| **Descripción** | El Administrador puede agregar filtros finos al miembro. Campos vacíos = acceso a todos. |
+| **Resultado** | Permisos actualizados. HTTP 200. |
 
 ---
 
@@ -411,21 +565,18 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | ID | Categoría | Descripción | Métrica verificable |
 |---|---|---|---|
 | RNF-M1-01 | Rendimiento | Los endpoints responden en tiempo razonable. | `POST /auth/login` < 1 s. Demás endpoints < 500 ms. |
-| RNF-M1-02 | Seguridad | Contraseñas almacenadas como hash bcrypt factor ≥ 12. | Ninguna contraseña en texto plano en ninguna capa. |
-| RNF-M1-03 | Seguridad | Token JWT firmado HS256 con clave almacenada como Docker Secret. | Clave nunca en texto plano en archivos de configuración ni variables de entorno. |
-| RNF-M1-04 | Seguridad | Token expira en 6 horas (exp = iat + 21600). | Token expirado retorna 401. Sin mecanismo de refresh. |
-| RNF-M1-05 | Seguridad | El campo `jti` está presente en todos los tokens emitidos. | 100% de tokens incluyen `jti` UUID único. |
-| RNF-M1-06 | Seguridad | El middleware verifica firma, revocación, estado activo y rol en cada petición. | Sin firma válida → 401. Token en `revoked_tokens` → 401. Usuario inactivo → 401. Rol incorrecto → 403. |
-| RNF-M1-07 | Seguridad | Rate limiting: 5 intentos fallidos en 60 s → bloqueo 5 min. Durante el bloqueo el sistema retorna HTTP 401 con mensaje genérico idéntico al de autenticación fallida. No se retorna HTTP 429. | El audit_log registra `AUTH_RATE_LIMIT_TRIGGERED` con IP y timestamp. La respuesta es indistinguible de un fallo de autenticación normal. |
-| RNF-M1-13 | Seguridad | Al cambiar la contraseña, todas las sesiones previas quedan invalidadas automáticamente vía `password_changed_at`. | El middleware rechaza con HTTP 401 tokens con `iat < password_changed_at`. |
-| RNF-M1-14 | Seguridad | La nueva contraseña no puede ser idéntica a la actual. | `bcrypt.verify(new_password, current_hash) == true` → HTTP 400. |
-| RNF-M1-08 | Disponibilidad | Servicio stateless compatible con múltiples réplicas en Swarm. | Sin sesiones en memoria. Comportamiento idéntico independientemente de qué réplica procesa cada petición. |
-| RNF-M1-09 | Integridad | `revoked_tokens` no crece indefinidamente. | Cron elimina entradas con `expires_at < NOW()`. Tabla no supera el volumen de tokens activos simultáneos. |
-| RNF-M1-10 | Integridad | El único Administrador activo no puede desactivarse. | Intento de desactivar el último admin activo → 409. |
-| RNF-M1-11 | Mantenibilidad | Matriz de permisos como constante centralizada. | No existen permisos hardcodeados en endpoints individuales. |
-| RNF-M1-12 | Consistencia API | Todas las respuestas siguen `{ "status", "message", "data" }`. | 100% de endpoints retornan estructura estándar. |
-| RNF-M1-15 | Seguridad (Fix 1) | Las contraseñas temporales se generan exclusivamente con CSPRNG (`crypto.randomBytes()`). Prohibido `Math.random()` (Xorshift128+, predecible), UUIDs (charset hex limitado, ~64 bits), timestamps (patrón temporal). | `generateTempPassword()` usa `crypto.randomBytes(4)` por índice. Entropía mínima: ~95.8 bits (`log₂(61^16)`). Sin formato fijo o terminador predecible. Rejection sampling elimina sesgo de módulo. Fisher-Yates shuffle con CSPRNG. |
-| RNF-M1-16 | Seguridad (Fix 2) | El Administrador no provee contraseña al crear un usuario. El servidor la genera internamente. | `POST /users` rechaza el campo `password` en el body. La contraseña se genera con `generateTempPassword()` en el servidor. |
+| RNF-M1-02 | Seguridad | Token JWT firmado HS256 con clave almacenada como Docker Secret. | Clave nunca en texto plano en archivos de configuración ni variables de entorno. |
+| RNF-M1-03 | Seguridad | Token expira en 6 horas (exp = iat + 21600). | Token expirado retorna 401. Sin mecanismo de refresh. |
+| RNF-M1-04 | Seguridad | El campo `jti` está presente en todos los tokens emitidos. | 100% de tokens incluyen `jti` UUID único. |
+| RNF-M1-05 | Seguridad | El middleware verifica firma, revocación, estado ACTIVE y rol en cada petición. | Sin firma válida → 401. Token en `revoked_tokens` → 401. Usuario no activo → 401. Rol incorrecto → 403. |
+| RNF-M1-06 | Seguridad | Rate limiting: 5 intentos fallidos en 60 s → bloqueo 5 min. | El audit_log registra `RATE_LIMIT_ACTIVADO`. |
+| RNF-M1-07 | Disponibilidad | Servicio stateless compatible con múltiples réplicas en Swarm. | Sin sesiones en memoria. |
+| RNF-M1-08 | Integridad | `revoked_tokens` no crece indefinidamente. | Cron elimina entradas expiradas. |
+| RNF-M1-09 | Integridad | El único Administrador activo no puede deshabilitarse. | Intento → 409. |
+| RNF-M1-10 | Mantenibilidad | Matriz de permisos como constante centralizada. | Sin permisos hardcodeados. |
+| RNF-M1-11 | Consistencia API | Todas las respuestas siguen `{ "status", "message", "data" }`. | 100% de endpoints. |
+| RNF-M1-12 | Seguridad | Separación identidad/autenticación: user_id inmutable, correo可变. | Cambio de correo invalida sesiones, reinicia flujo (PENDING), conserva user_id. |
+| RNF-M1-13 | Seguridad | El broker (Keycloak) solo autentica; el backend es fuente de verdad. | Backend valida estado del usuario además del JWT del broker. |
 
 ---
 
@@ -436,24 +587,25 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | Módulo | Tipo | Detalle |
 |---|---|---|
 | M2, M3, M4, M5, M6 | Consumidor | Todos importan el middleware de M1 para validar JWT y rol en cada petición. El middleware es una función compartida dentro del stack, no un endpoint separado. |
+| **Keycloak** | Broker de identidad | Gestiona autenticación de usuarios. El sistema consume tokens JWT de Keycloak y valida estado local. |
 
 ### 7.2 Interfaces de Usuario
 
-- Formulario de inicio de sesión con email y contraseña.
-- Panel de administración: listado de usuarios con filtros por rol y estado (`active`), acciones de activar/desactivar.
-- Formulario de creación de usuario: nombre completo, email, rol. (La contraseña la genera el servidor.)
+- Formulario de activación con Magic Link.
+- Panel de administración: listado de usuarios con filtros por rol y estado (`state`), acciones de deshabilitar/eliminar.
+- Formulario de creación de usuario: nombre completo, email, rol, organización.
 
 ### 7.3 Interfaces de Software
 
 | Componente | Descripción |
 |---|---|
 | **FastAPI** | Framework web. Expone los endpoints REST. |
-| **passlib (bcrypt)** | Hash y verificación de contraseñas. Factor de trabajo ≥ 12. |
 | **python-jose** | Generación y validación de tokens JWT HS256. |
-| **SQLAlchemy + PostgreSQL** | ORM y base de datos para `users` y `revoked_tokens`. |
+| **SQLAlchemy + PostgreSQL** | ORM y base de datos para `users`, `magic_links` y `revoked_tokens`. |
 | **Alembic** | Migraciones del esquema de las tablas del módulo. |
 | **Pydantic** | Validación de esquemas de entrada y salida. |
 | **Docker Swarm** | Orquestación del servicio replicado. Gestión de Docker Secrets. |
+| **Keycloak** | Broker de identidad externo. Gestiona usuarios, sesiones y credenciales. |
 
 ### 7.4 Interfaces de Comunicación
 
@@ -472,14 +624,13 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | # | Restricción | Detalle |
 |---|---|---|
 | R1 | Stateless obligatorio | Sin sesiones en memoria compartida entre réplicas. Todo el estado en PostgreSQL. |
-| R2 | Docker Secret | La clave HS256 se gestiona exclusivamente como Docker Secret. Nunca en texto plano en `.env` o Compose. |
-| R3 | PostgreSQL única fuente de verdad | Usuarios, roles y tokens revocados solo en PostgreSQL. |
-| R4 | bcrypt factor ≥ 12 | Ningún otro algoritmo de hash para contraseñas. |
-| R5 | Sin recuperación de contraseña | No implementado en MVP. |
-| R6 | Sin federación de identidad | Credenciales propias en PostgreSQL. Sin OAuth2, SAML ni LDAP. |
-| R7 | Roles fijos | Los tres roles son fijos. Sin gestión granular de permisos. |
-| R8 | Sin auto-registro | Solo el Administrador crea cuentas. |
-| R9 | Respuesta estándar | Todos los endpoints retornan `{ "status", "message", "data" }` sin excepción. |
+| R2 | Docker Secret | La clave HS256 se gestiona exclusivamente como Docker Secret. Nunca en texto plano fuera del sistema de secretos de la plataforma. |
+| R3 | PostgreSQL única fuente de verdad | Usuarios, tokens revocados y Magic Links solo en PostgreSQL. |
+| R4 | Separación identidad/autenticación | user_id inmutable, correo como atributo de autenticación. |
+| R5 | Broker externo (Keycloak) | La autenticación se delega a Keycloak. El backend valida estado. |
+| R6 | Roles fijos | Los tres roles son fijos. Sin gestión granular de permisos. |
+| R7 | Sin auto-registro | Solo el Administrador crea cuentas. |
+| R8 | Respuesta estándar | Todos los endpoints retornan `{ "status", "message", "data" }` sin excepción. |
 
 ### 8.2 Supuestos
 
@@ -499,38 +650,38 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | ID | Criterio | Resultado esperado |
 |---|---|---|
-| CA-HU1-01 | El Administrador envía nombre, correo y rol válido (sin contraseña). | Usuario creado en PostgreSQL con `password_hash` bcrypt (generado por servidor con CSPRNG) y `active=TRUE`. HTTP 201 con `_mock_temp_password`. |
+| CA-HU1-01 | El Administrador envía nombre, correo, rol y organización. | Usuario creado con `user_id` inmutable, estado `PENDING`, Magic Link generado. HTTP 201 con `_mock_magic_link`. |
 | CA-HU1-02 | Se intenta crear un usuario con correo ya registrado. | HTTP 409 Conflict. No se crea duplicado. |
 | CA-HU1-03 | Se intenta crear un usuario con rol no definido en el sistema. | HTTP 400 Bad Request con mensaje descriptivo. |
 | CA-HU1-04 | Se intenta crear usuario sin estar autenticado como Administrador. | HTTP 403 Forbidden. |
-| CA-HU1-05 | El usuario creado intenta iniciar sesión inmediatamente. | Login exitoso. Rol asignado reflejado en el token JWT. |
+| CA-HU1-05 | El usuario en estado PENDING intenta activarse. | Magic Link válido → `state=ACTIVE`, vinculación con broker. |
 
-**Stack técnico:** `POST /api/v1/users` · tabla `users` · bcrypt factor ≥ 12.
+**Stack técnico:** `POST /api/v1/users` · tabla `users` (user_id, state) · tabla `magic_links`.
 
-### HU2 – Activar / desactivar usuario
-
-| ID | Criterio | Resultado esperado |
-|---|---|---|
-| CA-HU2-01 | El Administrador desactiva un usuario activo. | `active = FALSE`. Usuario no puede autenticarse. Historial intacto en BD. |
-| CA-HU2-02 | Un usuario desactivado intenta iniciar sesión. | HTTP 401 Unauthorized con mensaje genérico idéntico al de credenciales incorrectas. No se revela que la cuenta está desactivada. |
-| CA-HU2-03 | El Administrador reactiva un usuario desactivado. | `active = TRUE`. Usuario puede iniciar sesión normalmente. |
-| CA-HU2-04 | Un token JWT emitido antes de la desactivación se usa después. | Middleware detecta `active=FALSE` y retorna HTTP 401 inmediatamente. |
-| CA-HU2-05 | Se intenta desactivar al único Administrador activo del sistema. | HTTP 409 Conflict. Operación rechazada para preservar acceso administrativo mínimo. |
-
-**Stack técnico:** `PATCH /api/v1/users/{id}/status` · El middleware valida `active=TRUE` en cada request, no solo en login.
-
-### HU3 – Iniciar sesión
+### HU2 – Gestionar estado de usuario
 
 | ID | Criterio | Resultado esperado |
 |---|---|---|
-| CA-HU3-01 | Credenciales correctas, cuenta activa. | JWT con `exp=6h`, `role`, `user_id`, `jti`. HTTP 200 OK. `{ access_token, token_type: "Bearer", expires_in: 21600 }`. |
-| CA-HU3-02 | Contraseña incorrecta. | HTTP 401 Unauthorized. Mensaje genérico sin revelar si el correo existe. |
-| CA-HU3-03 | Correo no registrado. | HTTP 401 Unauthorized con mensaje genérico (sin enumeración de usuarios). |
-| CA-HU3-04 | Usuario desactivado con credenciales correctas. | HTTP 401 Unauthorized con mensaje genérico. No se emite token ni se revela causa. |
-| CA-HU3-05 | Servicio de autenticación se reinicia en Swarm tras emitir un token. | Token sigue siendo válido (validación stateless por firma con Docker Secret compartido entre nodos). |
-| CA-HU3-06 | 5 intentos fallidos consecutivos en menos de 60 s. | Bloqueo temporal del IP/cuenta durante 5 minutos. El sistema retorna HTTP 401 con mensaje genérico durante el bloqueo; no retorna HTTP 429. El evento queda registrado en audit_log como `AUTH_RATE_LIMIT_TRIGGERED`. |
+| CA-HU2-01 | El Administrador deshabilita un usuario activo. | `state = DISABLED`. Usuario no puede autenticarse. Historial intacto en BD. |
+| CA-HU2-02 | Un usuario deshabilitado intenta iniciar sesión. | HTTP 401 Unauthorized con mensaje genérico. |
+| CA-HU2-03 | El Administrador reactiva un usuario deshabilitado. | `state = ACTIVE`. Usuario puede iniciar sesión normalmente. |
+| CA-HU2-04 | El Administrador elimina (soft delete) un usuario. | `state = DELETED`, `deleted_at` establecido. Sin acceso. Trazabilidad en audit_log. |
+| CA-HU2-05 | Se intenta deshabilitar al único Administrador activo del sistema. | HTTP 409 Conflict. Operación rechazada. |
 
-**Stack técnico:** `POST /api/v1/auth/login` · HS256 con Docker Secret · Rate limiting a nivel de servicio o proxy Swarm.
+**Stack técnico:** `PATCH /api/v1/users/{user_id}/status` · El middleware valida `state=ACTIVE` en cada request.
+
+### HU3 – Iniciar sesión / Activar con Magic Link
+
+| ID | Criterio | Resultado esperado |
+|---|---|---|
+| CA-HU3-01 | Usuario activo inicia sesión vía broker (Keycloak). | JWT con `exp=6h`, `role`, `user_id`, `jti`. HTTP 200 OK. |
+| CA-HU3-02 | Usuario en estado PENDING intenta login. | HTTP 401. Debe usar Magic Link primero. |
+| CA-HU3-03 | Usuario con estado DISABLED o DELETED intenta login. | HTTP 401 Unauthorized con mensaje genérico. |
+| CA-HU3-04 | Correo no registrado en sistema. | HTTP 401. El usuario no existe en backend. |
+| CA-HU3-05 | Usuario activa con Magic Link válido. | `state=ACTIVE`, `broker_subject` vinculado, JWT emitido. |
+| CA-HU3-06 | Magic Link expirado o usado. | HTTP 400. Link inválido. |
+
+**Stack técnico:** `POST /api/v1/auth/login` · HS256 con Docker Secret · Keycloak broker · Rate limiting.
 
 ### HU4 – Cerrar sesión
 
@@ -557,38 +708,22 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 **Stack técnico:** Middleware compartido importado por todos los servicios del stack · Verificación stateless del rol · Whitelist de rutas públicas.
 
-### HU6b – Cambiar contraseña
-
-| ID | Criterio | Resultado esperado |
-|---|---|---|
-| CA-HU6b-01 | Usuario autenticado envía contraseña actual correcta y nueva contraseña distinta. | `password_hash` actualizado. `password_changed_at = NOW()`. HTTP 200. |
-| CA-HU6b-02 | La nueva contraseña es idéntica a la actual. | HTTP 400 Bad Request. No se actualiza nada. |
-| CA-HU6b-03 | La contraseña actual proporcionada es incorrecta. | HTTP 401 Unauthorized. No se actualiza nada. |
-| CA-HU6b-04 | Tras el cambio exitoso, se usa un token emitido antes del cambio. | HTTP 401 Unauthorized. El middleware detecta `iat < password_changed_at`. |
-| CA-HU6b-05 | El usuario sin token intenta cambiar su contraseña. | HTTP 401 Unauthorized. |
-
-**Stack técnico:** `PATCH /api/v1/users/me/password` · tabla `users` (campos `password_hash`, `password_changed_at`) · tabla `AuditLog` · bcrypt factor ≥ 12 · middleware check `iat < password_changed_at`.
-
 ---
 
 ## 10. Trazabilidad de Requisitos
 
 | Historia | Criterios CA | Endpoint | Componente BD | Nivel de riesgo |
 |---|---|---|---|---|
-| HU1 – Crear usuario | CA-HU1-01 a 05 | `POST /api/v1/users` | tabla `users` | Alto |
-| HU2 – Activar/Desactivar | CA-HU2-01 a 05 | `PATCH /api/v1/users/{id}/status` | tabla `users` (campo `active`) | Alto |
-| HU3 – Login | CA-HU3-01 a 06 | `POST /api/v1/auth/login` | tabla `users` + Docker Secret | Crítico |
+| HU1 – Crear usuario | CA-HU1-01 a 05 | `POST /api/v1/users` | tabla `users` (user_id, state) | Alto |
+| HU2 – Gestionar estado | CA-HU2-01 a 05 | `PATCH /api/v1/users/{user_id}/status` | tabla `users` (campo `state`) | Alto |
+| HU3 – Login/Activar | CA-HU3-01 a 06 | `POST /api/v1/auth/login` · `POST /auth/activate` | tabla `users` + `magic_links` | Crítico |
 | HU4 – Logout | CA-HU4-01 a 05 | `POST /api/v1/auth/logout` | tabla `revoked_tokens` | Alto |
 | HU5 – RBAC | CA-HU5-01 a 06 | Middleware transversal | JWT payload (stateless) | Crítico |
-| RF-M1-06 | Cambiar contraseña | CA-HU6b-01 a 05 | `PATCH /api/v1/users/me/password` | tabla `users` + `AuditLog` | Alto |
 | RF-M1-LIST | — | `GET /api/v1/users` | tabla `users` | Bajo |
 | RF-M1-07 | Audit log | — | `GET /api/v1/audit-log` | tabla `AuditLog` | Crítico |
 | RF-M1-08 | Sesiones activas | — | `GET /api/v1/users/me/sessions` · `DELETE /api/v1/sessions/{jti}` | tabla `sessions` | Alto |
-| RF-M1-09 | Recuperación de contraseña | — | `POST /api/v1/auth/password-recovery` · `POST /api/v1/auth/password-reset` | tabla `users` + `AuditLog` | Alto |
-| RF-M1-RESET (IT-1) | Regenerar contraseña temporal | — | `POST /api/v1/users/{id}/reset-password` | tabla `users` | Alto |
-| RF-M1-SETUP (IT-1) | Activación en primer acceso | CA-SETUP-01 a 05 | `POST /auth/login` + `PATCH /users/me/password` | campo `must_change_password` en `users` | Alto |
-| RNF-M1-15 (Fix-Sec-01) | CSPRNG contraseñas temporales | — | `POST /users` · `POST /users/:id/reset-password` | — | Crítico |
-| RNF-M1-16 (Fix-Sec-02) | POST /users sin password del admin | — | `POST /users` | — | Alto |
+| RF-M1-06 | Cambiar correo | — | `PATCH /api/v1/users/{user_id}/email` | tabla `users` + `magic_links` | Alto |
+| RF-M1-REGEN | Regenerar Magic Link | — | `POST /api/v1/users/{user_id}/regenerate-magic-link` | tabla `magic_links` | Medio |
 
 ---
 
@@ -610,15 +745,19 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Evento | Cuándo se registra |
 |---|---|
-| `LOGIN` | Login exitoso |
-| `LOGIN_FALLIDO` | Credenciales incorrectas (antes del bloqueo) |
-| `LOGOUT` | Cierre de sesión o revocación de sesión |
-| `CAMBIO_CONTRASENA` | Cambio o restablecimiento de contraseña |
+| `USER_CREATED` | Usuario creado por administrador |
+| `USER_ACTIVATED` | Usuario activado con Magic Link |
+| `LOGIN` | Login exitoso vía broker |
+| `LOGIN_FAILED` | Autenticación fallida |
+| `LOGOUT` | Cierre de sesión |
+| `EMAIL_CHANGED` | Cambio de correo (invalida sesiones) |
+| `USER_DISABLED` | Usuario deshabilitado |
+| `USER_DELETED` | Usuario eliminado (soft delete) |
 | `RATE_LIMIT_ACTIVADO` | IP/cuenta bloqueada por exceso de intentos |
-| `ACCESO_DENEGADO` | Token válido pero rol insuficiente (RBAC) |
-| `CONSULTA_USUARIOS` | Acceso al endpoint `GET /users` |
+| `ACCESS_DENIED` | Token válido pero rol insuficiente (RBAC) |
+| `USER_LISTED` | Acceso al endpoint `GET /users` |
 
-**Nota de implementación (Mock):** El audit log se almacena en memoria (`store.auditLog`). Los eventos se pierden al reiniciar. En producción debe persistirse en PostgreSQL.
+**Nota de implementación (Mock):** El audit log se almacena en memoria (`store.auditLog`). Los eventos se pierden al reiniciar. En producción debe persisterse en PostgreSQL.
 
 ### RF-M1-08 – Gestión de Sesiones Activas
 
@@ -629,18 +768,6 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 - `DELETE /api/v1/sessions/{jti}` — Revoca una sesión específica por JTI.
 
 **Reglas:** Solo se pueden revocar sesiones propias. Un administrador no puede revocar sesiones de otros usuarios desde este endpoint.
-
-### RF-M1-09 – Recuperación de Contraseña
-
-**Descripción:** Permite restablecer la contraseña mediante token temporal.
-
-**Endpoints:**
-- `POST /api/v1/auth/password-recovery` — Solicita recuperación (acepta `email`). Respuesta siempre genérica (anti-enumeración).
-- `POST /api/v1/auth/password-reset` — Restablece contraseña con `{recovery_token, new_password}`.
-
-**TTL del token:** 15 minutos.
-
-**Nota de implementación (Mock):** El token se devuelve directamente en la respuesta (`_mock_recovery_token`). **En producción se debe enviar por email y NUNCA exponer en la respuesta API.**
 
 ---
 
