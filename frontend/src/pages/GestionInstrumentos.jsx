@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import PropTypes from 'prop-types'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Power, RotateCw, BookOpen, Search } from 'lucide-react'
+import { Plus, Pencil, Power, RotateCw, BookOpen, Search, Trash2, Eye } from 'lucide-react'
 import {
   Button,
   DataTable,
@@ -21,6 +21,8 @@ import {
   crearInstrumento,
   editarInstrumento,
   cambiarEstadoInstrumento,
+  eliminarInstrumento,
+  crearMetrica,
 } from '@/services/instruments'
 
 const DESCRIPTION_COL_MAX_WIDTH = 300
@@ -56,6 +58,19 @@ const VIGENCIA_PRESETS = [
   { key: '12m',    label: '1 año',               meses: 12 },
   { key: 'custom', label: 'Fecha personalizada', meses: null },
 ]
+
+const METRIC_TYPES = [
+  { value: 'numeric',     label: 'Numérico'   },
+  { value: 'categorical', label: 'Categórico' },
+  { value: 'boolean',     label: 'Booleano'   },
+  { value: 'short_text',  label: 'Texto corto'},
+]
+
+const TIPO_LABELS = Object.fromEntries(METRIC_TYPES.map((t) => [t.value, t.label]))
+
+function emptyMetricForm() {
+  return { name: '', metric_type: 'numeric', required: true, description: '', min_value: '', max_value: '', options: '' }
+}
 
 /**
  * GestionInstrumentos — Módulo 2
@@ -115,6 +130,17 @@ function GestionInstrumentos({ token }) {
   const [errorApiEstado, setErrorApiEstado] = useState('')
   const [guardandoEstado, setGuardandoEstado] = useState(false)
 
+  // ─── Estado modal eliminar (soft delete) ──────────────────────
+  const [modalEliminar, setModalEliminar] = useState(false)
+  const [errorApiEliminar, setErrorApiEliminar] = useState('')
+  const [guardandoEliminar, setGuardandoEliminar] = useState(false)
+
+  // ─── Estado wizard crear — paso 2: métricas ───────────────────
+  const [pasoCrear, setPasoCrear] = useState(1)
+  const [metricasCrear, setMetricasCrear] = useState([])
+  const [formMetrica, setFormMetrica] = useState(emptyMetricForm())
+  const [erroresMetrica, setErroresMetrica] = useState({})
+
   const { toasts, toast, dismiss } = useToast()
 
   // ─── Cargar instrumentos ───────────────────────────────────────
@@ -170,6 +196,10 @@ function GestionInstrumentos({ token }) {
     })
     setErroresCrear({})
     setErrorApiCrear('')
+    setPasoCrear(1)
+    setMetricasCrear([])
+    setFormMetrica(emptyMetricForm())
+    setErroresMetrica({})
     setModalCrear(true)
   }
 
@@ -211,8 +241,19 @@ function GestionInstrumentos({ token }) {
   }
 
   async function handleCrear() {
-    const errs = validarCrear()
-    if (Object.keys(errs).length > 0) { setErroresCrear(errs); return }
+    if (pasoCrear === 1) {
+      const errs = validarCrear()
+      if (Object.keys(errs).length > 0) { setErroresCrear(errs); return }
+      setPasoCrear(2)
+      setErrorApiCrear('')
+      return
+    }
+
+    // Paso 2 — validar al menos 1 métrica
+    if (metricasCrear.length === 0) {
+      setErrorApiCrear('Agrega al menos una métrica antes de crear el instrumento.')
+      return
+    }
 
     setGuardandoCrear(true)
     setErrorApiCrear('')
@@ -228,13 +269,38 @@ function GestionInstrumentos({ token }) {
 
     try {
       const res = await crearInstrumento(token, body)
-      if (res.status === 'success') {
-        setInstrumentos((prev) => [res.data, ...prev])
-        toast({ type: 'success', title: 'Instrumento creado', message: `"${res.data.name}" fue registrado correctamente.` })
-        cerrarModalCrear()
-      } else {
+      if (res.status !== 'success') {
         setErrorApiCrear(res.message || 'Error al crear el instrumento.')
+        setGuardandoCrear(false)
+        return
       }
+      const nuevoId = res.data.id
+
+      for (const m of metricasCrear) {
+        const mb = {
+          instrument_id: nuevoId,
+          name: m.name.trim(),
+          metric_type: m.metric_type,
+          required: m.required,
+        }
+        if (m.description.trim()) mb.description = m.description.trim()
+        if (m.metric_type === 'numeric') {
+          if (m.min_value !== '') mb.min_value = parseFloat(m.min_value)
+          if (m.max_value !== '') mb.max_value = parseFloat(m.max_value)
+        }
+        if (m.metric_type === 'categorical') {
+          mb.options = m.options.split(',').map((o) => o.trim()).filter(Boolean)
+        }
+        await crearMetrica(token, mb)
+      }
+
+      setInstrumentos((prev) => [res.data, ...prev])
+      toast({
+        type: 'success',
+        title: 'Instrumento creado',
+        message: `"${res.data.name}" registrado con ${metricasCrear.length} métrica${metricasCrear.length > 1 ? 's' : ''}.`,
+      })
+      cerrarModalCrear()
     } catch {
       setErrorApiCrear('No se pudo conectar con el servidor.')
     } finally {
@@ -247,6 +313,10 @@ function GestionInstrumentos({ token }) {
     setFormCrear({ name: '', methodological_description: '', start_date: '', end_date: '', end_date_preset: '3m' })
     setErroresCrear({})
     setErrorApiCrear('')
+    setPasoCrear(1)
+    setMetricasCrear([])
+    setFormMetrica(emptyMetricForm())
+    setErroresMetrica({})
   }
 
   // ─── Helpers formulario editar ─────────────────────────────────
@@ -355,6 +425,63 @@ function GestionInstrumentos({ token }) {
     setErrorApiEstado('')
   }
 
+  // ─── Helpers eliminar instrumento (soft delete) ────────────────
+  function abrirModalEliminar(instrumento) {
+    setInstrumentoSeleccionado(instrumento)
+    setErrorApiEliminar('')
+    setModalEliminar(true)
+  }
+
+  async function handleEliminar() {
+    setGuardandoEliminar(true)
+    setErrorApiEliminar('')
+    try {
+      const res = await eliminarInstrumento(token, instrumentoSeleccionado.id)
+      if (res.status === 'success') {
+        setInstrumentos((prev) => prev.filter((i) => i.id !== instrumentoSeleccionado.id))
+        toast({ type: 'success', title: 'Instrumento eliminado', message: `"${instrumentoSeleccionado.name}" fue eliminado.` })
+        setModalEliminar(false)
+        setInstrumentoSeleccionado(null)
+      } else {
+        setErrorApiEliminar(res.message || 'Error al eliminar el instrumento.')
+      }
+    } catch {
+      setErrorApiEliminar('No se pudo conectar con el servidor.')
+    } finally {
+      setGuardandoEliminar(false)
+    }
+  }
+
+  // ─── Helpers métricas en wizard crear ─────────────────────────
+  function validarMetricaCrear() {
+    const errs = {}
+    if (!formMetrica.name.trim()) errs.name = 'El nombre es obligatorio.'
+    if (formMetrica.metric_type === 'categorical' && !formMetrica.options.trim()) {
+      errs.options = 'Las opciones son obligatorias para tipo categórico.'
+    }
+    if (
+      formMetrica.metric_type === 'numeric' &&
+      formMetrica.min_value !== '' &&
+      formMetrica.max_value !== '' &&
+      parseFloat(formMetrica.min_value) >= parseFloat(formMetrica.max_value)
+    ) {
+      errs.max_value = 'El valor máximo debe ser mayor que el mínimo.'
+    }
+    return errs
+  }
+
+  function agregarMetricaCrear() {
+    const errs = validarMetricaCrear()
+    if (Object.keys(errs).length > 0) { setErroresMetrica(errs); return }
+    setMetricasCrear((prev) => [...prev, { ...formMetrica, _tempId: Date.now() }])
+    setFormMetrica(emptyMetricForm())
+    setErroresMetrica({})
+  }
+
+  function quitarMetricaCrear(tempId) {
+    setMetricasCrear((prev) => prev.filter((m) => m._tempId !== tempId))
+  }
+
   // ─── Formatear fechas ──────────────────────────────────────────
   function formatearFecha(fecha) {
     if (!fecha) return <span style={{ color: 'var(--color-text-tertiary)' }}>—</span>
@@ -418,13 +545,15 @@ function GestionInstrumentos({ token }) {
       label: 'Acciones',
       render: (_, fila) => (
         <ActionsMenu actions={[
-          { label: 'Editar',    icon: Pencil, onClick: () => abrirModalEditar(fila) },
+          { label: 'Ver detalles', icon: Eye,    onClick: () => navigate(`/instruments/${fila.id}`, { state: { instrumento: fila } }) },
+          { label: 'Editar',       icon: Pencil, onClick: () => abrirModalEditar(fila) },
           {
             label:   fila.status === 'active' ? 'Desactivar' : 'Activar',
             icon:    Power,
             onClick: () => abrirModalEstado(fila),
             variant: fila.status === 'active' ? 'danger' : 'default',
           },
+          { label: 'Eliminar', icon: Trash2, onClick: () => abrirModalEliminar(fila), variant: 'danger' },
         ]} />
       ),
     }] : []),
@@ -522,104 +651,320 @@ function GestionInstrumentos({ token }) {
         />
       )}
 
-      {/* ── Modal: Crear instrumento (RF-M2-01) ── */}
+      {/* ── Modal: Crear instrumento — 2 pasos (RF-M2-01 + RF-M3) ── */}
       <Modal
         open={modalCrear}
         onClose={cerrarModalCrear}
-        title="Nuevo instrumento"
+        title={pasoCrear === 1 ? 'Nuevo instrumento' : 'Métricas del instrumento'}
+        size="md"
         footer={
           <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
-            <Button variant="ghost" onClick={cerrarModalCrear} disabled={guardandoCrear}>
-              Cancelar
-            </Button>
-            <Button onClick={handleCrear} loading={guardandoCrear}>
-              Crear instrumento
+            {pasoCrear === 1 && (
+              <Button variant="ghost" onClick={cerrarModalCrear} disabled={guardandoCrear}>
+                Cancelar
+              </Button>
+            )}
+            {pasoCrear === 2 && (
+              <Button variant="ghost" onClick={() => setPasoCrear(1)} disabled={guardandoCrear}>
+                Atrás
+              </Button>
+            )}
+            <Button
+              onClick={handleCrear}
+              loading={guardandoCrear}
+              disabled={pasoCrear === 2 && metricasCrear.length === 0}
+            >
+              {pasoCrear === 1 ? 'Siguiente' : 'Crear instrumento'}
             </Button>
           </div>
         }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          {errorApiCrear && <Alert variant="error">{errorApiCrear}</Alert>}
+        {/* Indicador de pasos */}
+        <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-5)' }}>
+          {[
+            { n: 1, label: 'Información' },
+            { n: 2, label: 'Métricas' },
+          ].map(({ n, label }) => (
+            <div key={n} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+              <div style={{
+                height: 3,
+                borderRadius: 2,
+                background: pasoCrear >= n ? 'var(--color-primary)' : 'var(--color-border)',
+                transition: 'background 0.2s',
+              }} />
+              <span style={{
+                fontSize: 'var(--font-size-small)',
+                color: pasoCrear === n ? 'var(--color-primary)' : 'var(--color-text-tertiary)',
+                fontWeight: pasoCrear === n ? 'var(--font-weight-medium)' : 'normal',
+              }}>
+                {n}. {label}
+              </span>
+            </div>
+          ))}
+        </div>
 
-          <FormField
-            id="crear-nombre"
-            label="Nombre"
-            required
-            placeholder="Ej. Prueba de Comprensión Lectora"
-            value={formCrear.name}
-            onChange={cambiarCrear('name')}
-            error={erroresCrear.name}
-          />
+        {/* Paso 1 — info del instrumento */}
+        {pasoCrear === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            {errorApiCrear && <Alert variant="error">{errorApiCrear}</Alert>}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-            <label htmlFor="crear-descripcion" className="field-label">
-              Descripción metodológica
-            </label>
-            <textarea
-              id="crear-descripcion"
-              className="input-base"
-              placeholder="Describe el instrumento, su base teórica y contexto de aplicación..."
-              rows={4}
-              value={formCrear.methodological_description}
-              onChange={cambiarCrear('methodological_description')}
-              style={{ height: 'auto', padding: 'var(--space-2) var(--space-3)', resize: 'vertical' }}
+            <FormField
+              id="crear-nombre"
+              label="Nombre"
+              required
+              placeholder="Ej. Prueba de Comprensión Lectora"
+              value={formCrear.name}
+              onChange={cambiarCrear('name')}
+              error={erroresCrear.name}
             />
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
-            {/* Inicio de vigencia — default: hoy */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-              <label htmlFor="crear-inicio" className="field-label">
-                Inicio de vigencia <span style={{ color: 'var(--color-error)' }}>*</span>
+              <label htmlFor="crear-descripcion" className="field-label">
+                Descripción metodológica
               </label>
-              <input
-                id="crear-inicio"
-                type="date"
+              <textarea
+                id="crear-descripcion"
                 className="input-base"
-                value={formCrear.start_date}
-                onChange={handleCambiarStartDate}
+                placeholder="Describe el instrumento, su base teórica y contexto de aplicación..."
+                rows={4}
+                value={formCrear.methodological_description}
+                onChange={cambiarCrear('methodological_description')}
+                style={{ height: 'auto', padding: 'var(--space-2) var(--space-3)', resize: 'vertical' }}
               />
-              {erroresCrear.start_date && (
-                <p className="field-error" role="alert">{erroresCrear.start_date}</p>
-              )}
             </div>
 
-            {/* Fin de vigencia — preset dropdown + picker opcional */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-              <label htmlFor="crear-fin-preset" className="field-label">
-                Fin de vigencia <span style={{ color: 'var(--color-error)' }}>*</span>
-              </label>
-              <select
-                id="crear-fin-preset"
-                className="input-base"
-                value={formCrear.end_date_preset}
-                onChange={(e) => handleCambiarPreset(e.target.value)}
-              >
-                {VIGENCIA_PRESETS.map(({ key, label, meses }) => {
-                  const fechaCalc = meses && formCrear.start_date ? sumarMeses(formCrear.start_date, meses) : null
-                  const texto = fechaCalc ? `${label} — ${fechaLegible(fechaCalc)}` : label
-                  return <option key={key} value={key}>{texto}</option>
-                })}
-              </select>
-              {formCrear.end_date_preset === 'custom' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                <label htmlFor="crear-inicio" className="field-label">
+                  Inicio de vigencia <span style={{ color: 'var(--color-error)' }}>*</span>
+                </label>
                 <input
+                  id="crear-inicio"
                   type="date"
                   className="input-base"
-                  value={formCrear.end_date}
-                  min={formCrear.start_date || undefined}
-                  onChange={(e) => {
-                    setFormCrear((prev) => ({ ...prev, end_date: e.target.value }))
-                    if (erroresCrear.end_date) setErroresCrear((prev) => ({ ...prev, end_date: '' }))
-                  }}
-                  style={{ marginTop: 'var(--space-1)' }}
+                  value={formCrear.start_date}
+                  onChange={handleCambiarStartDate}
                 />
-              )}
-              {erroresCrear.end_date && (
-                <p className="field-error" role="alert">{erroresCrear.end_date}</p>
-              )}
+                {erroresCrear.start_date && (
+                  <p className="field-error" role="alert">{erroresCrear.start_date}</p>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                <label htmlFor="crear-fin-preset" className="field-label">
+                  Fin de vigencia <span style={{ color: 'var(--color-error)' }}>*</span>
+                </label>
+                <select
+                  id="crear-fin-preset"
+                  className="input-base"
+                  value={formCrear.end_date_preset}
+                  onChange={(e) => handleCambiarPreset(e.target.value)}
+                >
+                  {VIGENCIA_PRESETS.map(({ key, label, meses }) => {
+                    const fechaCalc = meses && formCrear.start_date ? sumarMeses(formCrear.start_date, meses) : null
+                    const texto = fechaCalc ? `${label} — ${fechaLegible(fechaCalc)}` : label
+                    return <option key={key} value={key}>{texto}</option>
+                  })}
+                </select>
+                {formCrear.end_date_preset === 'custom' && (
+                  <input
+                    type="date"
+                    className="input-base"
+                    value={formCrear.end_date}
+                    min={formCrear.start_date || undefined}
+                    onChange={(e) => {
+                      setFormCrear((prev) => ({ ...prev, end_date: e.target.value }))
+                      if (erroresCrear.end_date) setErroresCrear((prev) => ({ ...prev, end_date: '' }))
+                    }}
+                    style={{ marginTop: 'var(--space-1)' }}
+                  />
+                )}
+                {erroresCrear.end_date && (
+                  <p className="field-error" role="alert">{erroresCrear.end_date}</p>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Paso 2 — definir métricas */}
+        {pasoCrear === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            {errorApiCrear && <Alert variant="error">{errorApiCrear}</Alert>}
+
+            {/* Lista de métricas añadidas */}
+            {metricasCrear.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                {metricasCrear.map((m) => (
+                  <div key={m._tempId} style={{
+                    background: 'var(--color-surface-raised)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: 'var(--space-3)',
+                    display: 'flex',
+                    gap: 'var(--space-3)',
+                    alignItems: 'flex-start',
+                  }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                      {/* Fila 1: nombre + tipo + obligatoria */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 'var(--font-weight-medium)', fontSize: 'var(--font-size-small)', color: 'var(--color-text-primary)' }}>
+                          {m.name}
+                        </span>
+                        <span style={{
+                          fontSize: 'var(--font-size-small)',
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '1px var(--space-2)',
+                          color: 'var(--color-text-secondary)',
+                        }}>
+                          {TIPO_LABELS[m.metric_type]}
+                        </span>
+                        {m.required ? (
+                          <span style={{
+                            fontSize: 'var(--font-size-small)',
+                            color: 'var(--color-error-text)',
+                            background: 'var(--color-error-bg)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '1px var(--space-2)',
+                          }}>
+                            Obligatoria
+                          </span>
+                        ) : (
+                          <span style={{
+                            fontSize: 'var(--font-size-small)',
+                            color: 'var(--color-text-tertiary)',
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '1px var(--space-2)',
+                          }}>
+                            Opcional
+                          </span>
+                        )}
+                      </div>
+                      {/* Fila 2: detalles tipo-específicos */}
+                      {m.metric_type === 'numeric' && (m.min_value !== '' || m.max_value !== '') && (
+                        <p style={{ fontSize: 'var(--font-size-small)', color: 'var(--color-text-tertiary)', margin: 0 }}>
+                          Rango: {m.min_value !== '' ? m.min_value : '—'} → {m.max_value !== '' ? m.max_value : '—'}
+                        </p>
+                      )}
+                      {m.metric_type === 'categorical' && m.options && (
+                        <p style={{ fontSize: 'var(--font-size-small)', color: 'var(--color-text-tertiary)', margin: 0 }}>
+                          Opciones: {m.options}
+                        </p>
+                      )}
+                      {/* Fila 3: descripción */}
+                      {m.description && (
+                        <p style={{ fontSize: 'var(--font-size-small)', color: 'var(--color-text-secondary)', margin: 0 }}>
+                          {m.description}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-icon"
+                      style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }}
+                      onClick={() => quitarMetricaCrear(m._tempId)}
+                      aria-label={`Quitar ${m.name}`}
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Formulario inline para nueva métrica — siempre visible */}
+            <div style={{
+              border: '1px dashed var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              padding: 'var(--space-4)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-3)',
+            }}>
+              <p style={{ fontSize: 'var(--font-size-small)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-secondary)' }}>
+                {metricasCrear.length === 0 ? 'Define la primera métrica *' : 'Agregar otra métrica'}
+              </p>
+
+              <FormField
+                id="crear-m-nombre"
+                label="Nombre de la métrica"
+                required
+                placeholder="Ej. Velocidad lectora"
+                value={formMetrica.name}
+                onChange={(e) => { setFormMetrica((p) => ({ ...p, name: e.target.value })); if (erroresMetrica.name) setErroresMetrica((p) => ({ ...p, name: '' })) }}
+                error={erroresMetrica.name}
+              />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                <label className="field-label">
+                  Tipo <span style={{ color: 'var(--color-error-text)' }}>*</span>
+                </label>
+                <select
+                  className="input-base"
+                  value={formMetrica.metric_type}
+                  onChange={(e) => setFormMetrica((p) => ({ ...p, metric_type: e.target.value, min_value: '', max_value: '', options: '' }))}
+                >
+                  {METRIC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                <input
+                  id="crear-m-required"
+                  type="checkbox"
+                  checked={formMetrica.required}
+                  onChange={(e) => setFormMetrica((p) => ({ ...p, required: e.target.checked }))}
+                  style={{ width: 16, height: 16, cursor: 'pointer' }}
+                />
+                <label htmlFor="crear-m-required" className="field-label" style={{ margin: 0, cursor: 'pointer' }}>
+                  Campo obligatorio
+                </label>
+              </div>
+
+              {formMetrica.metric_type === 'numeric' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                  <FormField id="crear-m-min" label="Valor mínimo" type="number" placeholder="Sin límite"
+                    value={formMetrica.min_value}
+                    onChange={(e) => setFormMetrica((p) => ({ ...p, min_value: e.target.value }))}
+                  />
+                  <FormField id="crear-m-max" label="Valor máximo" type="number" placeholder="Sin límite"
+                    value={formMetrica.max_value}
+                    onChange={(e) => { setFormMetrica((p) => ({ ...p, max_value: e.target.value })); if (erroresMetrica.max_value) setErroresMetrica((p) => ({ ...p, max_value: '' })) }}
+                    error={erroresMetrica.max_value}
+                  />
+                </div>
+              )}
+
+              {formMetrica.metric_type === 'categorical' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                  <label className="field-label">
+                    Opciones <span style={{ color: 'var(--color-error-text)' }}>*</span>
+                    <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 'normal', marginLeft: 'var(--space-1)' }}>(separadas por coma)</span>
+                  </label>
+                  <textarea
+                    className="input-base"
+                    placeholder="Ej. Bajo, Medio, Alto"
+                    rows={2}
+                    value={formMetrica.options}
+                    onChange={(e) => { setFormMetrica((p) => ({ ...p, options: e.target.value })); if (erroresMetrica.options) setErroresMetrica((p) => ({ ...p, options: '' })) }}
+                    style={{ height: 'auto', padding: 'var(--space-2) var(--space-3)', resize: 'vertical' }}
+                  />
+                  {erroresMetrica.options && <p className="field-error" role="alert">{erroresMetrica.options}</p>}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Button type="button" size="sm" icon={Plus} onClick={agregarMetricaCrear}>
+                  Agregar métrica
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* ── Modal: Editar instrumento (RF-M2-02 + RF-M2-03) ── */}
@@ -720,6 +1065,33 @@ function GestionInstrumentos({ token }) {
                 ? Quedará disponible para recibir nuevas aplicaciones.
               </>
             )}
+          </p>
+        </div>
+      </Modal>
+
+      {/* ── Modal: Eliminar instrumento (soft delete) ── */}
+      <Modal
+        open={modalEliminar}
+        onClose={() => { setModalEliminar(false); setInstrumentoSeleccionado(null) }}
+        size="sm"
+        title="Eliminar instrumento"
+        footer={
+          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+            <Button variant="ghost" onClick={() => { setModalEliminar(false); setInstrumentoSeleccionado(null) }} disabled={guardandoEliminar}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={handleEliminar} loading={guardandoEliminar}>
+              Eliminar
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          {errorApiEliminar && <Alert variant="error">{errorApiEliminar}</Alert>}
+          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-small)' }}>
+            ¿Eliminar el instrumento{' '}
+            <strong style={{ color: 'var(--color-text-primary)' }}>{instrumentoSeleccionado?.name}</strong>?
+            Esta acción lo elimina de la lista. Los registros históricos no se verán afectados.
           </p>
         </div>
       </Modal>
