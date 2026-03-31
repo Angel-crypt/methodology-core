@@ -94,7 +94,7 @@ router.get('/instruments', authMiddleware(), (req, res) => {
     });
   }
 
-  let instruments = store.instruments;
+  let instruments = store.instruments.filter((i) => !i.deleted);
   if (req.query.status) {
     instruments = instruments.filter((i) => i.status === req.query.status);
   }
@@ -186,6 +186,45 @@ router.patch('/instruments/:id', authMiddleware(['administrator']), (req, res) =
       status: instrument.status,
       updated_at: instrument.updated_at,
     },
+  });
+});
+
+// ─── GET /instruments/:id ────────────────────────────────────────────────────
+router.get('/instruments/:id', authMiddleware(), (req, res) => {
+  const instrument = store.instruments.find((i) => i.id === req.params.id && !i.deleted);
+  if (!instrument) {
+    return res.status(404).json({ status: 'error', message: 'Instrumento no encontrado', data: null });
+  }
+  const metricsCount = store.metrics.filter((m) => m.instrument_id === instrument.id).length;
+  return res.status(200).json({
+    status: 'success',
+    message: 'Instrumento recuperado',
+    data: {
+      id: instrument.id,
+      name: instrument.name,
+      methodological_description: instrument.methodological_description,
+      start_date: instrument.start_date,
+      end_date: instrument.end_date,
+      status: instrument.status,
+      created_at: instrument.created_at,
+      metrics_count: metricsCount,
+    },
+  });
+});
+
+// ─── DELETE /instruments/:id  (soft delete) ──────────────────────────────────
+router.delete('/instruments/:id', authMiddleware(['administrator']), (req, res) => {
+  const instrument = store.instruments.find((i) => i.id === req.params.id && !i.deleted);
+  if (!instrument) {
+    return res.status(404).json({ status: 'error', message: 'Instrumento no encontrado', data: null });
+  }
+  instrument.deleted = true;
+  instrument.deleted_at = new Date();
+  instrument.updated_at = new Date();
+  return res.status(200).json({
+    status: 'success',
+    message: 'Instrumento eliminado correctamente',
+    data: { id: instrument.id, name: instrument.name },
   });
 });
 
