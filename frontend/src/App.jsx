@@ -8,6 +8,8 @@ import GestionInstrumentos from './pages/GestionInstrumentos'
 import CambiarPasswordModal from './pages/CambiarPasswordModal'
 import SetupPage from './pages/SetupPage'
 import RegistroOperativoWizardPage from './pages/RegistroOperativoWizardPage'
+import ConfiguracionOperativaPage from './pages/ConfiguracionOperativaPage'
+import DetalleAplicadorPage from './pages/DetalleAplicadorPage'
 import AppLayout from './layouts/AppLayout'
 
 function App() {
@@ -71,6 +73,12 @@ function App() {
     return <AppLayout onLogout={handleLogout} token={token}>{page}</AppLayout>
   }
 
+  const applicatorLayout = (page) => {
+    if (!token) return <Navigate to="/login" replace />
+    if (getRoleFromToken(token) !== 'applicator') return <Navigate to="/instruments" replace />
+    return <AppLayout onLogout={handleLogout} token={token}>{page}</AppLayout>
+  }
+
   return (
     <BrowserRouter
       future={{
@@ -98,15 +106,22 @@ function App() {
         {/* Módulo 2 — Gestión de Instrumentos */}
         <Route path="/instruments" element={authedLayout(<GestionInstrumentos token={token} />)} />
 
-        {/* Módulo 4 — Registro Operativo Anonimizado */}
+        {/* Módulo 4 — Registro Operativo Anonimizado (solo Aplicador) */}
         <Route
           path="/registro-operativo"
-          element={authedLayout(<RegistroOperativoWizardPage token={token} />)}
+          element={applicatorLayout(<RegistroOperativoWizardPage token={token} />)}
         />
 
         {/* Módulo 1 — Gestión de usuarios (solo Administrador) */}
         <Route path="/usuarios/aplicadores" element={adminLayout(<GestionAplicadores token={token} />)} />
         <Route path="/usuarios/investigadores" element={adminLayout(<GestionInvestigadores token={token} />)} />
+        <Route path="/usuarios/aplicadores/:id" element={adminLayout(<DetalleAplicadorPage token={token} />)} />
+        <Route path="/usuarios/investigadores/:id" element={adminLayout(
+          <DetalleAplicadorPage token={token} backTo="/usuarios/investigadores" backLabel="Investigadores" />
+        )} />
+
+        {/* Configuración Operativa (solo Administrador) */}
+        <Route path="/configuracion-operativa" element={adminLayout(<ConfiguracionOperativaPage token={token} />)} />
 
         {/* Redirect raíz */}
         <Route
