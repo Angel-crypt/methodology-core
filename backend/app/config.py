@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
 
     app_name: str = "methodology-backend"
     app_env: str = "development"
@@ -24,6 +27,7 @@ class Settings(BaseSettings):
     keycloak_realm: str = "methodology"
     keycloak_client_id: str = "backend"
     keycloak_client_secret: str = "change_me"
+    keycloak_client_secret_file: str | None = None
 
     magic_link_ttl_seconds: int = 86400
     redis_url: str = "redis://redis:6379/0"
@@ -39,3 +43,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if settings.keycloak_client_secret_file and os.path.exists(settings.keycloak_client_secret_file):
+    settings.keycloak_client_secret = (
+        Path(settings.keycloak_client_secret_file).read_text(encoding="utf-8").strip()
+    )
