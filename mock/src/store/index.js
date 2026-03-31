@@ -78,6 +78,28 @@ const store = {
   subjects: [],       // { id, created_at, context: null | ContextObject }
   applications: [],
   metricValues: [],
+
+  /**
+   * Permisos por aplicador: Map<userId, { mode, education_levels, subject_limit }>
+   * Gestionados por el Administrador desde DetalleAplicadorPage.
+   */
+  userPermissions: new Map(),
+
+  // Configuración global del wizard (admin la gestiona, aplicadores la leen)
+  registroConfig: {
+    education_levels:     ['preschool', 'primary_lower', 'primary_upper', 'secondary', 'unknown'],
+    cohort_mode:          'libre',   // 'libre' | 'restricted'
+    age_cohort_map: {
+      preschool:     '3-6',
+      primary_lower: '6-9',
+      primary_upper: '9-12',
+      secondary:     '12-18',
+      unknown:       '',
+    },
+    school_types:         ['public', 'private', 'unknown'],
+    genders:              ['male', 'female', 'non_binary', 'prefer_not_to_say'],
+    socioeconomic_levels: ['low', 'medium', 'high', 'unknown'],
+  },
 };
 
 /**
