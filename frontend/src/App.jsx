@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
-import GalleryPage from './pages/GalleryPage'
 import GestionAplicadores from './pages/GestionAplicadores'
 import GestionInvestigadores from './pages/GestionInvestigadores'
 import GestionInstrumentos from './pages/GestionInstrumentos'
 import CambiarPasswordModal from './pages/CambiarPasswordModal'
 import SetupPage from './pages/SetupPage'
 import RegistroOperativoWizardPage from './pages/RegistroOperativoWizardPage'
+import MisRegistrosPage from './pages/MisRegistrosPage'
 import ConfiguracionOperativaPage from './pages/ConfiguracionOperativaPage'
 import DetalleAplicadorPage from './pages/DetalleAplicadorPage'
+import InstrumentoDetallePage from './pages/InstrumentoDetallePage'
 import AppLayout from './layouts/AppLayout'
 
 function App() {
@@ -87,9 +88,6 @@ function App() {
       }}
     >
       <Routes>
-        {/* Dev — galería de componentes, sin autenticación */}
-        <Route path="/gallery" element={<GalleryPage />} />
-
         {/* Configuración inicial de cuenta — enlace enviado por el administrador */}
         <Route path="/setup" element={<SetupPage />} />
 
@@ -105,11 +103,16 @@ function App() {
 
         {/* Módulo 2 — Gestión de Instrumentos */}
         <Route path="/instruments" element={authedLayout(<GestionInstrumentos token={token} />)} />
+        <Route path="/instruments/:id" element={authedLayout(<InstrumentoDetallePage token={token} />)} />
 
         {/* Módulo 4 — Registro Operativo Anonimizado (solo Aplicador) */}
         <Route
           path="/registro-operativo"
           element={applicatorLayout(<RegistroOperativoWizardPage token={token} />)}
+        />
+        <Route
+          path="/mis-registros"
+          element={applicatorLayout(<MisRegistrosPage token={token} />)}
         />
 
         {/* Módulo 1 — Gestión de usuarios (solo Administrador) */}
