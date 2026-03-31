@@ -52,22 +52,87 @@ const STEP_LABELS = [
   '4. Métricas',
 ]
 
-function Step1Subject({ onCreate, loading, apiError, subjectId }) {
+function Step1Subject({
+  onCreate,
+  loading,
+  apiError,
+  subjectId,
+  mode,
+  onModeChange,
+  subjectInput,
+  onSubjectInputChange,
+  onLoadExisting,
+  loadingExisting,
+}) {
   return (
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-      <Typography as="h2">Paso 1: Registrar sujeto anonimizado</Typography>
-      <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
-        Este paso genera un identificador anónimo para el sujeto.
-      </Typography>
+      <Typography as="h2">Paso 1: Identificar sujeto</Typography>
 
       {apiError && <Alert variant="error">{apiError}</Alert>}
 
       {subjectId ? (
-        <Alert variant="success">Sujeto registrado correctamente. UUID: {subjectId}</Alert>
+        <Alert variant="success">
+          Sujeto listo. UUID: <span style={{ fontFamily: 'monospace' }}>{subjectId}</span>
+        </Alert>
       ) : (
-        <Button onClick={onCreate} loading={loading}>
-          Registrar nuevo sujeto
-        </Button>
+        <>
+          {/* Toggle de modo */}
+          <div className="date-mode-toggle">
+            <button
+              type="button"
+              className={`date-mode-btn${mode === 'new' ? ' date-mode-btn--active' : ''}`}
+              onClick={() => onModeChange('new')}
+            >
+              Nuevo sujeto
+            </button>
+            <button
+              type="button"
+              className={`date-mode-btn${mode === 'existing' ? ' date-mode-btn--active' : ''}`}
+              onClick={() => onModeChange('existing')}
+            >
+              Sujeto existente
+            </button>
+          </div>
+
+          {mode === 'new' && (
+            <>
+              <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
+                Genera un nuevo identificador anónimo para este sujeto.
+              </Typography>
+              <Button onClick={onCreate} loading={loading}>
+                Registrar nuevo sujeto
+              </Button>
+            </>
+          )}
+
+          {mode === 'existing' && (
+            <>
+              <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
+                Ingresa el UUID de un sujeto ya registrado para añadirle una nueva aplicación de instrumento.
+              </Typography>
+              <label className="field-label">
+                UUID del sujeto
+                <input
+                  className="input-base"
+                  type="text"
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  value={subjectInput}
+                  onChange={(e) => onSubjectInputChange(e.target.value.trim())}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </label>
+              <div>
+                <Button
+                  onClick={onLoadExisting}
+                  loading={loadingExisting}
+                  disabled={!subjectInput}
+                >
+                  Cargar sujeto
+                </Button>
+              </div>
+            </>
+          )}
+        </>
       )}
     </section>
   )
@@ -90,6 +155,7 @@ function Step2Context({
   cohortMode,
   ageCohortOptions,
   isValid,
+  alreadySaved,
 }) {
   const cohortRestricted = cohortMode === 'restricted'
   const badge = BADGE_COHORT[cohortMode] ?? BADGE_COHORT.libre
@@ -103,11 +169,16 @@ function Step2Context({
 
       {apiError && <Alert variant="error">{apiError}</Alert>}
       {validationError && <Alert variant="warning">{validationError}</Alert>}
+      {alreadySaved && (
+        <Alert variant="info">
+          Paso guardado. Puedes revisar la información, pero ya no puede modificarse.
+        </Alert>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
         <label className="field-label">
           Tipo de institución *
-          <select className="input-base" value={contextData.school_type} onChange={(e) => onChange('school_type', e.target.value)}>
+          <select className="input-base" value={contextData.school_type} onChange={(e) => onChange('school_type', e.target.value)} disabled={alreadySaved}>
             <option value="">Selecciona...</option>
             {contextOptions.school_type.map((value) => (
               <option key={value} value={value}>{CONTEXT_LABELS.school_type[value] || value}</option>
@@ -117,7 +188,7 @@ function Step2Context({
 
         <label className="field-label">
           Nivel educativo *
-          <select className="input-base" value={contextData.education_level} onChange={(e) => onChange('education_level', e.target.value)}>
+          <select className="input-base" value={contextData.education_level} onChange={(e) => onChange('education_level', e.target.value)} disabled={alreadySaved}>
             <option value="">Selecciona...</option>
             {contextOptions.education_level.map((value) => (
               <option key={value} value={value}>{CONTEXT_LABELS.education_level[value] || value}</option>
@@ -149,7 +220,7 @@ function Step2Context({
               style={{ backgroundColor: 'var(--color-bg-subtle)', cursor: 'not-allowed', color: 'var(--color-text-secondary)' }}
             />
           ) : (
-            <select className="input-base" value={contextData.age_cohort} onChange={(e) => onChange('age_cohort', e.target.value)}>
+            <select className="input-base" value={contextData.age_cohort} onChange={(e) => onChange('age_cohort', e.target.value)} disabled={alreadySaved}>
               <option value="">Selecciona...</option>
               {ageCohortOptions.map((value) => (
                 <option key={value} value={value}>{value}</option>
@@ -160,7 +231,7 @@ function Step2Context({
 
         <label className="field-label">
           Género *
-          <select className="input-base" value={contextData.gender} onChange={(e) => onChange('gender', e.target.value)}>
+          <select className="input-base" value={contextData.gender} onChange={(e) => onChange('gender', e.target.value)} disabled={alreadySaved}>
             <option value="">Selecciona...</option>
             {contextOptions.gender.map((value) => (
               <option key={value} value={value}>{CONTEXT_LABELS.gender[value] || value}</option>
@@ -174,6 +245,7 @@ function Step2Context({
             className="input-base"
             value={contextData.socioeconomic_level}
             onChange={(e) => onChange('socioeconomic_level', e.target.value)}
+            disabled={alreadySaved}
           >
             <option value="">Selecciona...</option>
             {contextOptions.socioeconomic_level.map((value) => (
@@ -185,12 +257,18 @@ function Step2Context({
 
       <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'space-between' }}>
         <Button variant="ghost" onClick={onBack}>Volver</Button>
-        <Button onClick={onSubmit} loading={loading} disabled={!isValid}>
-          Guardar contexto y continuar
+        <Button onClick={onSubmit} loading={loading} disabled={!isValid && !alreadySaved}>
+          {alreadySaved ? 'Continuar →' : 'Guardar contexto y continuar'}
         </Button>
       </div>
     </section>
   )
+}
+
+const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+function fmtISO(iso) {
+  const [y, m, d] = iso.split('-')
+  return `${parseInt(d)} ${MESES_CORTOS[parseInt(m) - 1]} ${y}`
 }
 
 function Step3Application({
@@ -202,6 +280,8 @@ function Step3Application({
   onBack,
   loadingSubmit,
   apiError,
+  validationError,
+  alreadySaved,
 }) {
   const todayISO = new Date().toISOString().split('T')[0]
   const minISO   = addDaysISO(todayISO, -3)
@@ -218,6 +298,8 @@ function Step3Application({
     else onChange('application_date', '')
   }
 
+  const activeInstruments = instruments.filter((i) => i.status === 'active')
+
   return (
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       <Typography as="h2">Paso 3: Registrar aplicación</Typography>
@@ -226,6 +308,12 @@ function Step3Application({
       </Typography>
 
       {apiError && <Alert variant="error">{apiError}</Alert>}
+      {validationError && <Alert variant="warning">{validationError}</Alert>}
+      {alreadySaved && (
+        <Alert variant="info">
+          Paso guardado. Puedes revisar la información, pero ya no puede modificarse.
+        </Alert>
+      )}
 
       {loadingInstruments ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
@@ -235,11 +323,11 @@ function Step3Application({
       ) : (
         <label className="field-label">
           Instrumento *
-          <select className="input-base" value={applicationDraft.instrument_id} onChange={(e) => onChange('instrument_id', e.target.value)}>
+          <select className="input-base" value={applicationDraft.instrument_id} onChange={(e) => onChange('instrument_id', e.target.value)} disabled={alreadySaved}>
             <option value="">Selecciona un instrumento</option>
-            {instruments.map((instrument) => (
+            {activeInstruments.map((instrument) => (
               <option key={instrument.id} value={instrument.id}>
-                {instrument.name} ({instrument.status})
+                {instrument.name}
               </option>
             ))}
           </select>
@@ -254,14 +342,16 @@ function Step3Application({
           <button
             type="button"
             className={`date-mode-btn${dateMode === 'today' ? ' date-mode-btn--active' : ''}`}
-            onClick={() => handleDateMode('today')}
+            onClick={() => !alreadySaved && handleDateMode('today')}
+            disabled={alreadySaved}
           >
             Hoy
           </button>
           <button
             type="button"
             className={`date-mode-btn${dateMode === 'other' ? ' date-mode-btn--active' : ''}`}
-            onClick={() => handleDateMode('other')}
+            onClick={() => !alreadySaved && handleDateMode('other')}
+            disabled={alreadySaved}
           >
             Otra fecha
           </button>
@@ -285,9 +375,10 @@ function Step3Application({
               min={minISO}
               max={maxISO}
               placeholder="Selecciona una fecha (±3 días)"
+              disabled={alreadySaved}
             />
             <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)', marginTop: 'var(--space-1)' }}>
-              Solo se permiten fechas entre {minISO} y {maxISO}.
+              Solo se permiten fechas entre {fmtISO(minISO)} y {fmtISO(maxISO)}.
             </p>
           </>
         )}
@@ -299,14 +390,50 @@ function Step3Application({
         placeholder="Notas de campo"
         value={applicationDraft.notes}
         onChange={(e) => onChange('notes', e.target.value)}
+        disabled={alreadySaved}
       />
 
       <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'space-between' }}>
         <Button variant="ghost" onClick={onBack}>Volver</Button>
-        <Button onClick={onSubmit} loading={loadingSubmit}>Guardar aplicación y continuar</Button>
+        <Button onClick={onSubmit} loading={loadingSubmit}>
+          {alreadySaved ? 'Continuar →' : 'Guardar aplicación y continuar'}
+        </Button>
       </div>
     </section>
   )
+}
+
+function validateMetricField(metric, value) {
+  if (value === '' || value === undefined || value === null) {
+    return metric.required ? 'Campo obligatorio.' : ''
+  }
+  if (metric.metric_type === 'numeric') {
+    const n = Number(value)
+    if (isNaN(n)) return 'Debe ser un número.'
+    if (metric.min_value != null && n < metric.min_value) return `Mínimo permitido: ${metric.min_value}.`
+    if (metric.max_value != null && n > metric.max_value) return `Máximo permitido: ${metric.max_value}.`
+  }
+  return ''
+}
+
+function numericHelper(metric) {
+  const hasMin = metric.min_value != null
+  const hasMax = metric.max_value != null
+  if (hasMin && hasMax) return `Rango: ${metric.min_value} – ${metric.max_value}`
+  if (hasMin) return `Mínimo: ${metric.min_value}`
+  if (hasMax) return `Máximo: ${metric.max_value}`
+  return null
+}
+
+/** Texto de ayuda combinado: descripción opcional + restricción de rango */
+function fieldHelper(metric) {
+  const parts = []
+  if (metric.description) parts.push(metric.description)
+  if (metric.metric_type === 'numeric') {
+    const range = numericHelper(metric)
+    if (range) parts.push(range)
+  }
+  return parts.length ? parts.join(' · ') : undefined
 }
 
 function Step4Metrics({
@@ -315,22 +442,43 @@ function Step4Metrics({
   onMetricChange,
   onBack,
   onSubmit,
+  onErrorToast,
   loadingMetrics,
   loadingSubmit,
   apiError,
-  validationError,
 }) {
-  const requiredCount = metricDefinitions.filter((metric) => metric.required).length
+  const [fieldErrors, setFieldErrors] = useState({})
+  const requiredCount = metricDefinitions.filter((m) => m.required).length
+
+  function handleChange(metric, value) {
+    onMetricChange(metric.id, value)
+    const err = validateMetricField(metric, value)
+    setFieldErrors((prev) => ({ ...prev, [metric.id]: err }))
+  }
+
+  function handleSubmitWithValidation() {
+    const errs = {}
+    let hasError = false
+    metricDefinitions.forEach((m) => {
+      const err = validateMetricField(m, metricValues[m.id] ?? '')
+      if (err) { errs[m.id] = err; hasError = true }
+    })
+    if (hasError) {
+      setFieldErrors(errs)
+      onErrorToast('Hay campos obligatorios sin completar o con valores fuera de rango.')
+      return
+    }
+    onSubmit()
+  }
 
   return (
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       <Typography as="h2">Paso 4: Capturar métricas</Typography>
       <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
-        Ingresa los valores para cada métrica del instrumento. Requeridas: {requiredCount}.
+        Ingresa los valores para cada métrica del instrumento. Obligatorias: {requiredCount}.
       </Typography>
 
       {apiError && <Alert variant="error">{apiError}</Alert>}
-      {validationError && <Alert variant="warning">{validationError}</Alert>}
 
       {loadingMetrics ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
@@ -342,8 +490,16 @@ function Step4Metrics({
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
           {metricDefinitions.map((metric) => {
-            const currentValue = metricValues[metric.id] ?? ''
+            const value = metricValues[metric.id] ?? ''
             const label = `${metric.name}${metric.required ? ' *' : ''}`
+            const fieldErr = fieldErrors[metric.id] || ''
+            // Required-only errors → toast + red border (no inline text)
+            // Range/type errors → inline error text + red border
+            const isRequiredOnly = fieldErr === 'Campo obligatorio.'
+            const inlineError = !isRequiredOnly && fieldErr ? `Error: ${fieldErr}` : undefined
+            const hasRedBorder = !!fieldErr
+
+            const helper = inlineError ? undefined : fieldHelper(metric)
 
             if (metric.metric_type === 'numeric') {
               return (
@@ -352,37 +508,54 @@ function Step4Metrics({
                   id={`metric-${metric.id}`}
                   label={label}
                   type="number"
-                  value={currentValue}
-                  onChange={(e) => onMetricChange(metric.id, e.target.value)}
+                  value={value}
+                  onChange={(e) => handleChange(metric, e.target.value)}
                   placeholder="Valor numérico"
+                  helper={helper}
+                  error={inlineError}
+                  aria-invalid={hasRedBorder && !inlineError ? 'true' : undefined}
                 />
               )
             }
 
             if (metric.metric_type === 'categorical') {
               return (
-                <label key={metric.id} className="field-label">
-                  {label}
-                  <select className="input-base" value={currentValue} onChange={(e) => onMetricChange(metric.id, e.target.value)}>
+                <div key={metric.id} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                  <label className="field-label">{label}</label>
+                  <select
+                    className="input-base"
+                    value={value}
+                    onChange={(e) => handleChange(metric, e.target.value)}
+                    aria-invalid={hasRedBorder ? 'true' : undefined}
+                  >
                     <option value="">Selecciona una opción</option>
-                    {(metric.options || []).map((option) => (
-                      <option key={option} value={option}>{option}</option>
+                    {(metric.options || []).map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
-                </label>
+                  {inlineError && <p className="field-error" role="alert">{inlineError}</p>}
+                  {helper && !inlineError && <p className="field-helper">{helper}</p>}
+                </div>
               )
             }
 
             if (metric.metric_type === 'boolean') {
               return (
-                <label key={metric.id} className="field-label">
-                  {label}
-                  <select className="input-base" value={currentValue} onChange={(e) => onMetricChange(metric.id, e.target.value)}>
+                <div key={metric.id} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                  <label className="field-label">{label}</label>
+                  <select
+                    className="input-base"
+                    value={value}
+                    onChange={(e) => handleChange(metric, e.target.value)}
+                    aria-invalid={hasRedBorder ? 'true' : undefined}
+                  >
                     <option value="">Selecciona</option>
-                    <option value="true">true</option>
-                    <option value="false">false</option>
+                    <option value="true">Sí</option>
+                    <option value="false">No</option>
                   </select>
-                </label>
+                  {inlineError && <p className="field-error" role="alert">{inlineError}</p>}
+                  {helper && !inlineError && <p className="field-helper">{helper}</p>}
+                </div>
               )
             }
 
@@ -391,9 +564,12 @@ function Step4Metrics({
                 key={metric.id}
                 id={`metric-${metric.id}`}
                 label={label}
-                value={currentValue}
-                onChange={(e) => onMetricChange(metric.id, e.target.value)}
+                value={value}
+                onChange={(e) => handleChange(metric, e.target.value)}
                 placeholder="Texto corto"
+                helper={helper}
+                error={inlineError}
+                aria-invalid={hasRedBorder && !inlineError ? 'true' : undefined}
               />
             )
           })}
@@ -402,7 +578,7 @@ function Step4Metrics({
 
       <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'space-between' }}>
         <Button variant="ghost" onClick={onBack}>Volver</Button>
-        <Button onClick={onSubmit} loading={loadingSubmit}>Guardar metricas y finalizar</Button>
+        <Button onClick={handleSubmitWithValidation} loading={loadingSubmit}>Guardar métricas y finalizar</Button>
       </div>
     </section>
   )
@@ -410,8 +586,11 @@ function Step4Metrics({
 
 function RegistroOperativoWizardPage({ token }) {
   const { toasts, toast, dismiss } = useToast()
+  const [isDone, setIsDone] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
   const [maxReachedStep, setMaxReachedStep] = useState(1)
+  const [subjectMode, setSubjectMode] = useState('new')
+  const [subjectInput, setSubjectInput] = useState('')
   const [wizardState, setWizardState] = useState({
     subjectId: '',
     contextData: {
@@ -426,7 +605,7 @@ function RegistroOperativoWizardPage({ token }) {
     metricValues: {},
     applicationDraft: {
       instrument_id: '',
-      application_date: '',
+      application_date: new Date().toISOString().split('T')[0],
       notes: '',
     },
   })
@@ -536,7 +715,7 @@ function RegistroOperativoWizardPage({ token }) {
   }, [currentStep, instruments.length, authHeaders, uiState.loadingInstruments])
 
   useEffect(() => {
-    if (currentStep !== 4 || !wizardState.instrumentId || uiState.loadingMetrics) return
+    if (currentStep !== 4 || !wizardState.instrumentId || metricDefinitions.length > 0 || uiState.loadingMetrics) return
 
     async function loadMetrics() {
       setUiState((prev) => ({ ...prev, loadingMetrics: true }))
@@ -553,7 +732,8 @@ function RegistroOperativoWizardPage({ token }) {
     }
 
     loadMetrics()
-  }, [currentStep, wizardState.instrumentId, authHeaders, uiState.loadingMetrics])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, wizardState.instrumentId, authHeaders, metricDefinitions.length])
 
   async function handleCreateSubject() {
     clearErrors()
@@ -579,6 +759,49 @@ function RegistroOperativoWizardPage({ token }) {
     toast({ type: 'success', title: 'Sujeto creado', message: 'UUID generado correctamente.' })
   }
 
+  async function handleLoadExistingSubject() {
+    clearErrors()
+    setUiState((prev) => ({ ...prev, loadingSubject: true }))
+
+    const response = await fetch(`/api/v1/subjects/${subjectInput}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await parseResponse(response)
+
+    setUiState((prev) => ({ ...prev, loadingSubject: false }))
+
+    if (data.status !== 'success') {
+      setApiError(data.message || 'No se encontró el sujeto.')
+      return
+    }
+
+    const subjectId = data.data.id
+    const ctx = data.data.context
+
+    if (ctx) {
+      // Sujeto con contexto ya registrado: cargar datos y saltar al paso 3
+      setWizardState((prev) => ({
+        ...prev,
+        subjectId,
+        contextData: {
+          school_type:         ctx.school_type         || '',
+          education_level:     ctx.education_level     || '',
+          age_cohort:          ctx.age_cohort          || '',
+          gender:              ctx.gender              || '',
+          socioeconomic_level: ctx.socioeconomic_level || '',
+        },
+      }))
+      setMaxReachedStep(3)
+    } else {
+      // Sujeto sin contexto: permitir registrar el contexto en paso 2
+      setWizardState((prev) => ({ ...prev, subjectId }))
+      setMaxReachedStep(2)
+    }
+
+    setCurrentStep(2)
+    toast({ type: 'success', title: 'Sujeto cargado', message: `UUID: ${subjectId}` })
+  }
+
   function updateContextData(field, value) {
     setWizardState((prev) => {
       const newContext = { ...prev.contextData, [field]: value }
@@ -593,6 +816,7 @@ function RegistroOperativoWizardPage({ token }) {
 
   async function handleSubmitContext() {
     clearErrors()
+    if (maxReachedStep >= 3) { setCurrentStep(3); return }
     const { subjectId, contextData } = wizardState
 
     if (!subjectId) {
@@ -637,6 +861,7 @@ function RegistroOperativoWizardPage({ token }) {
 
   async function handleSubmitApplication() {
     clearErrors()
+    if (maxReachedStep >= 4) { setCurrentStep(4); return }
 
     if (!wizardState.subjectId) {
       setValidationError('Debes completar el paso 1 antes de continuar.')
@@ -769,7 +994,7 @@ function RegistroOperativoWizardPage({ token }) {
     })
 
     if (validationMessages.length > 0) {
-      setValidationError(validationMessages[0])
+      toast({ type: 'warning', title: 'Campos incompletos', message: validationMessages[0] })
       return
     }
 
@@ -790,7 +1015,36 @@ function RegistroOperativoWizardPage({ token }) {
       return
     }
 
-    toast({ type: 'success', title: 'Registro completado', message: 'Se completó el registro operativo.' })
+    setIsDone(true)
+  }
+
+  function handleNuevoRegistro() {
+    setIsDone(false)
+    setCurrentStep(1)
+    setMaxReachedStep(1)
+    setSubjectMode('new')
+    setSubjectInput('')
+    setInstruments([])
+    setMetricDefinitions([])
+    setWizardState({
+      subjectId: '',
+      contextData: {
+        school_type: '',
+        education_level: '',
+        age_cohort: '',
+        gender: '',
+        socioeconomic_level: '',
+      },
+      applicationId: '',
+      instrumentId: '',
+      metricValues: {},
+      applicationDraft: {
+        instrument_id: '',
+        application_date: new Date().toISOString().split('T')[0],
+        notes: '',
+      },
+    })
+    setUiState((prev) => ({ ...prev, apiError: '', validationError: '' }))
   }
 
   function goBack() {
@@ -812,6 +1066,46 @@ function RegistroOperativoWizardPage({ token }) {
           <Spinner />
           <Typography as="small">Cargando configuración...</Typography>
         </div>
+      </main>
+    )
+  }
+
+  if (isDone) {
+    return (
+      <main className="page-container">
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          <Typography as="h1">Registro Operativo Anonimizado</Typography>
+        </div>
+        <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+          <Typography as="h2">Registro completado</Typography>
+          <Alert variant="success">
+            Todos los datos fueron guardados exitosamente.
+          </Alert>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
+              UUID del sujeto anonimizado
+            </Typography>
+            <code style={{
+              display: 'block',
+              padding: 'var(--space-3) var(--space-4)',
+              background: 'var(--color-bg-subtle)',
+              borderRadius: 'var(--radius-md)',
+              fontFamily: 'monospace',
+              fontSize: 'var(--font-size-small)',
+              letterSpacing: '0.03em',
+              wordBreak: 'break-all',
+            }}>
+              {wizardState.subjectId}
+            </code>
+          </div>
+          <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
+            Anota el UUID si necesitas hacer referencia a este sujeto en el futuro.
+          </Typography>
+          <div>
+            <Button onClick={handleNuevoRegistro}>Iniciar nuevo registro</Button>
+          </div>
+        </section>
+        <ToastContainer toasts={toasts} onDismiss={dismiss} />
       </main>
     )
   }
@@ -848,6 +1142,12 @@ function RegistroOperativoWizardPage({ token }) {
           loading={uiState.loadingSubject}
           apiError={uiState.apiError}
           subjectId={wizardState.subjectId}
+          mode={subjectMode}
+          onModeChange={(m) => { setSubjectMode(m); clearErrors() }}
+          subjectInput={subjectInput}
+          onSubjectInputChange={setSubjectInput}
+          onLoadExisting={handleLoadExistingSubject}
+          loadingExisting={uiState.loadingSubject}
         />
       )}
 
@@ -864,6 +1164,7 @@ function RegistroOperativoWizardPage({ token }) {
           cohortMode={cohortMode}
           ageCohortOptions={ageCohortOptions}
           isValid={step2Valid}
+          alreadySaved={maxReachedStep >= 3}
         />
       )}
 
@@ -877,6 +1178,8 @@ function RegistroOperativoWizardPage({ token }) {
           onBack={goBack}
           loadingSubmit={uiState.loadingApplication}
           apiError={uiState.apiError}
+          validationError={uiState.validationError}
+          alreadySaved={maxReachedStep >= 4}
         />
       )}
 
@@ -887,10 +1190,10 @@ function RegistroOperativoWizardPage({ token }) {
           onMetricChange={updateMetricValue}
           onBack={goBack}
           onSubmit={handleSubmitMetrics}
+          onErrorToast={(msg) => toast({ type: 'warning', title: 'Campos incompletos', message: msg })}
           loadingMetrics={uiState.loadingMetrics}
           loadingSubmit={uiState.loadingMetricSubmit}
           apiError={uiState.apiError}
-          validationError={uiState.validationError}
         />
       )}
 
@@ -900,10 +1203,16 @@ function RegistroOperativoWizardPage({ token }) {
 }
 
 Step1Subject.propTypes = {
-  onCreate: PropTypes.func.isRequired,
-  loading: PropTypes.bool.isRequired,
-  apiError: PropTypes.string.isRequired,
-  subjectId: PropTypes.string.isRequired,
+  onCreate:              PropTypes.func.isRequired,
+  loading:               PropTypes.bool.isRequired,
+  apiError:              PropTypes.string.isRequired,
+  subjectId:             PropTypes.string.isRequired,
+  mode:                  PropTypes.string.isRequired,
+  onModeChange:          PropTypes.func.isRequired,
+  subjectInput:          PropTypes.string.isRequired,
+  onSubjectInputChange:  PropTypes.func.isRequired,
+  onLoadExisting:        PropTypes.func.isRequired,
+  loadingExisting:       PropTypes.bool.isRequired,
 }
 
 Step2Context.propTypes = {
@@ -918,6 +1227,7 @@ Step2Context.propTypes = {
   cohortMode: PropTypes.string.isRequired,
   ageCohortOptions: PropTypes.array.isRequired,
   isValid: PropTypes.bool.isRequired,
+  alreadySaved: PropTypes.bool.isRequired,
 }
 
 Step3Application.propTypes = {
@@ -929,6 +1239,8 @@ Step3Application.propTypes = {
   onBack: PropTypes.func.isRequired,
   loadingSubmit: PropTypes.bool.isRequired,
   apiError: PropTypes.string.isRequired,
+  validationError: PropTypes.string.isRequired,
+  alreadySaved: PropTypes.bool.isRequired,
 }
 
 Step4Metrics.propTypes = {
@@ -937,10 +1249,10 @@ Step4Metrics.propTypes = {
   onMetricChange: PropTypes.func.isRequired,
   onBack: PropTypes.func.isRequired,
   onSubmit: PropTypes.func.isRequired,
+  onErrorToast: PropTypes.func.isRequired,
   loadingMetrics: PropTypes.bool.isRequired,
   loadingSubmit: PropTypes.bool.isRequired,
   apiError: PropTypes.string.isRequired,
-  validationError: PropTypes.string.isRequired,
 }
 
 RegistroOperativoWizardPage.propTypes = {
