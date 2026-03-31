@@ -44,8 +44,8 @@ Este documento cubre:
 - Consulta de métricas por instrumento.
 
 Se relaciona con:
-- **M1 – Autenticación:** provee JWT y validación de rol para todos los endpoints.
-- **M2 – Gestión de Instrumentos:** las métricas se asocian a instrumentos existentes en M2.
+- **M1 – Autenticación:** provee JWT, validación de roles y membresía de proyectos.
+- **M2 – Gestión de Instrumentos:** las métricas se asocian a instrumentos existentes en M2, los cuales pertenecen a un proyecto.
 - **M4 – Registro Operativo:** consume las métricas para construir el formulario dinámico y validar los valores capturados.
 
 Quedan **fuera del alcance**: registro de valores de métricas (M4), análisis o interpretación de métricas, gestión de instrumentos (M2).
@@ -59,7 +59,7 @@ Quedan **fuera del alcance**: registro de valores de métricas (M4), análisis o
 | **min_value / max_value** | Rango válido para métricas de tipo `numeric`. Nulo para otros tipos. |
 | **options** | Lista de valores válidos para métricas de tipo `categorical`. Requerida al crear. |
 | **required** | Booleano que indica si la métrica debe ser capturada en toda aplicación del instrumento. |
-| **Unicidad por instrumento** | No se pueden registrar dos métricas con el mismo nombre dentro del mismo instrumento. |
+| **Unicidad por instrumento** | No se pueden registrar dos métricas con el mismo nombre dentro del mismo instrumento. Se permite repetir nombres entre instrumentos distintos. |
 | **Formulario dinámico** | El formulario de captura de M4 se construye leyendo las métricas de M3; varía según tipo y opciones. |
 
 ### 1.4 Referencias
@@ -181,11 +181,11 @@ Proveer al sistema una capa de configuración formal de las variables medibles p
 | Campo | Detalle |
 |---|---|
 | **Actor** | Administrador |
-| **Entidades** | `Metric` (relacionada con `Instrument`) |
-| **Endpoint** | `POST /metrics` |
-| **Entrada** | `instrument_id` (UUID, obligatorio), `name` (string, obligatorio), `metric_type` (enum `MetricType`, obligatorio), `required` (boolean, obligatorio), `description` (string, opcional), `min_value` (number, condicional), `max_value` (number, condicional), `options` (array de strings, condicional) |
-| **Descripción** | El sistema debe permitir al Administrador registrar una nueva métrica asociada a un instrumento existente. El nombre debe ser único dentro del mismo instrumento. Los campos condicionales (`min_value`, `max_value`, `options`) se aplican según las reglas de `MetricType` descritas abajo. |
-| **Resultado** | Métrica registrada con UUID automático y asociada al instrumento. HTTP 201. |
+| **Entidades** | `Metric`, `Instrument` |
+| **Endpoint** | `POST /instruments/{instrument_id}/metrics` |
+| **Entrada** | `name` (string, obligatorio), `metric_type` (enum `MetricType`, obligatorio), `required` (boolean, obligatorio), `description` (string, opcional), `min_value` (number, condicional), `max_value` (number, condicional), `options` (array de strings, condicional) |
+| **Descripción** | El Administrador puede registrar una métrica asociada a un instrumento. El nombre debe ser único dentro del instrumento. Los campos condicionales se aplican según `MetricType`. |
+| **Resultado** | Métrica registrada con UUID. HTTP 201. |
 
 **Reglas de validación por MetricType:**
 
@@ -203,11 +203,10 @@ Proveer al sistema una capa de configuración formal de las variables medibles p
 | Campo | Detalle |
 |---|---|
 | **Actor** | Administrador |
-| **Entidades** | `Metric` (campo `metric_type`, enum `MetricType`) |
-| **Endpoint** | `POST /metrics` · `PATCH /metrics/{id}` |
-| **Entrada** | `metric_type` seleccionado del enum `MetricType` |
-| **Descripción** | El sistema debe permitir declarar el tipo de dato de cada métrica. Al capturar valores en M4, el backend valida que el tipo del valor coincida con el tipo declarado en esta métrica. Al editar el tipo mediante `PATCH`, el sistema debe re-validar los campos dependientes: si se cambia a `numeric` y no hay `min_value`/`max_value`, se aceptan como nulos; si se cambia desde `categorical` a otro tipo, `options` se borra. |
-| **Resultado** | Tipo de dato registrado. Valores de tipo incorrecto en M4 son rechazados. |
+| **Entidades** | `Metric` (campo `metric_type`) |
+| **Endpoint** | `PATCH /instruments/{instrument_id}/metrics/{metric_id}` |
+| **Entrada** | `metric_type` (enum `MetricType`) |
+| **Descripción** | El Administrador puede declarar o cambiar el tipo de dato de una métrica. Al editar, el sistema re-valida los campos dependientes. |
 
 **Tipos de dato válidos (`MetricType`):**
 
@@ -226,10 +225,10 @@ Proveer al sistema una capa de configuración formal de las variables medibles p
 |---|---|
 | **Actor** | Administrador |
 | **Entidades** | `Metric` (campos `min_value`, `max_value`) |
-| **Endpoint** | `PATCH /metrics/{id}` |
+| **Endpoint** | `PATCH /instruments/{instrument_id}/metrics/{metric_id}` |
 | **Entrada** | `min_value` (number), `max_value` (number) |
-| **Descripción** | El sistema debe permitir establecer o actualizar el rango válido **exclusivamente para métricas de tipo `numeric`**. Si se envían `min_value` o `max_value` para una métrica de otro tipo, se retorna HTTP 400. Al capturar valores en M4, cualquier valor numérico fuera de `[min_value, max_value]` es rechazado con mensaje descriptivo. |
-| **Resultado** | Rango registrado. Valores fuera de rango rechazados por M4. HTTP 200. |
+| **Descripción** | El Administrador puede establecer o actualizar el rango válido para métricas de tipo `numeric`. Para otros tipos retorna HTTP 400. |
+| **Resultado** | Rango actualizado. HTTP 200. |
 
 ---
 
@@ -239,23 +238,22 @@ Proveer al sistema una capa de configuración formal de las variables medibles p
 |---|---|
 | **Actor** | Administrador |
 | **Entidades** | `Metric` (campo `required`) |
-| **Endpoint** | `POST /metrics` · `PATCH /metrics/{id}` |
+| **Endpoint** | `PATCH /instruments/{instrument_id}/metrics/{metric_id}` |
 | **Entrada** | `required` (boolean) |
-| **Descripción** | El sistema debe permitir marcar cada métrica como obligatoria u opcional. Si `required = true`, M4 rechaza el registro completo de valores si esa métrica no está presente en el envío. La obligatoriedad puede modificarse mediante `PATCH /metrics/{id}`. |
-| **Resultado** | Obligatoriedad registrada. Registro rechazado por M4 si falta alguna métrica requerida. |
+| **Descripción** | El Administrador puede marcar cada métrica como obligatoria u opcional. Si `required = true`, M4 rechaza el registro si falta esa métrica. |
+| **Resultado** | Obligatoriedad actualizada. HTTP 200. |
 
 ---
 
-### RF-M3-LIST – Consultar métricas por instrumento *(soporte a M4)*
+### RF-M3-LIST – Consultar métricas del instrumento
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador, Investigador, Aplicador |
+| **Actor** | Cualquier usuario autenticado |
 | **Entidades** | `Metric` |
-| **Endpoint** | `GET /metrics?instrument_id={id}` |
-| **Entrada** | Token JWT válido. Query param `instrument_id` (obligatorio). |
-| **Descripción** | El sistema debe devolver todas las métricas de un instrumento. Accesible para todos los roles autenticados. Este endpoint es consumido por M4 para construir el formulario dinámico de captura y para conocer las reglas de validación de cada valor. |
-| **Resultado** | Lista de métricas con todos sus atributos (id, name, metric_type, required, min_value, max_value, options, description). HTTP 200. |
+| **Endpoint** | `GET /instruments/{instrument_id}/metrics` |
+| **Descripción** | Cualquier usuario puede consultar las métricas del instrumento. Consumido por M4 para construir el formulario dinámico. |
+| **Resultado** | Lista de métricas. HTTP 200. |
 
 ---
 
