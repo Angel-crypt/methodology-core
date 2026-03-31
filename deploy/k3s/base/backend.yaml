@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: methodology
+spec:
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: methodology
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: methodology-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+            - |
+              DB_PASSWORD="$(cat /run/secrets/db_primary_password)"
+              REDIS_PASSWORD="$(cat /run/secrets/redis_password)"
+              export DATABASE_URL="postgresql+asyncpg://methodology:${DB_PASSWORD}@postgres-primary:5432/methodology"
+              export REDIS_URL="redis://:${REDIS_PASSWORD}@redis-master:6379/0"
+              exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+          env:
+            - name: KEYCLOAK_URL
+              value: http://keycloak:8080
+            - name: KEYCLOAK_REALM
+              value: methodology
+            - name: KEYCLOAK_CLIENT_ID
+              value: methodology-backend
+            - name: JWT_SECRET_FILE
+              value: /run/secrets/jwt_secret_key
+            - name: MASTER_KEY_SECRET_FILE
+              value: /run/secrets/master_encryption_key
+            - name: KEYCLOAK_CLIENT_SECRET_FILE
+              value: /run/secrets/keycloak_client_secret
+          volumeMounts:
+            - name: secrets
+              mountPath: /run/secrets
+              readOnly: true
+      volumes:
+        - name: secrets
+          secret:
+            secretName: methodology-secrets
+            items:
+              - key: db_primary_password
+                path: db_primary_password
+              - key: redis_password
+                path: redis_password
+              - key: jwt_secret_key
+                path: jwt_secret_key
+              - key: master_encryption_key
+                path: master_encryption_key
+              - key: keycloak_client_secret
+                path: keycloak_client_secret

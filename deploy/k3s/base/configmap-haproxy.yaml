@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-config
+  namespace: methodology
+data:
+  haproxy.cfg: |
+    global
+      log stdout format raw local0
+      maxconn 4096
+      user haproxy
+      group haproxy
+
+    defaults
+      log     global
+      option  dontlognull
+      option  redispatch
+      retries 3
+      timeout connect 5000ms
+      timeout client  50000ms
+      timeout server  50000ms
+
+    listen postgres_write
+      bind :5432
+      mode tcp
+      option tcplog
+      balance roundrobin
+      server postgres_primary postgres-primary:5432 check inter 2000 rise 2 fall 3
+
+    listen postgres_read
+      bind :5433
+      mode tcp
+      option tcplog
+      balance roundrobin
+      server postgres_replica postgres-replica:5432 check inter 2000 rise 2 fall 3
