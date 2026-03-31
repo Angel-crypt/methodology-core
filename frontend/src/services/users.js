@@ -86,7 +86,7 @@ export async function listarTodosUsuarios(token) {
 /**
  * GET /users/sessions
  * Lista todas las sesiones activas de todos los usuarios.
- * Solo Administrador.
+ * Solo Administrador. Usado para indicador de sesión en tablas de usuarios.
  * @param {string} token
  */
 export async function listarTodasLasSesiones(token) {
@@ -130,6 +130,35 @@ export async function resetearPassword(token, id) {
   const res = await fetch(`${BASE}/${id}/reset-password`, {
     method: 'POST',
     headers: headers(token),
+  })
+  return parseResponse(res)
+}
+
+/**
+ * GET /users/:id/permissions
+ * Obtiene los permisos de Registro Operativo de un aplicador.
+ * Solo Administrador.
+ * @param {string} token
+ * @param {string} id UUID del usuario
+ */
+export async function obtenerPermisos(token, id) {
+  const res = await fetch(`${BASE}/${id}/permissions`, { headers: headers(token) })
+  return parseResponse(res)
+}
+
+/**
+ * PUT /users/:id/permissions
+ * Actualiza los permisos de Registro Operativo de un aplicador (patch parcial).
+ * Solo Administrador.
+ * @param {string} token
+ * @param {string} id UUID del usuario
+ * @param {{ mode?: string, education_levels?: string[], subject_limit?: number|null }} body
+ */
+export async function guardarPermisos(token, id, body) {
+  const res = await fetch(`${BASE}/${id}/permissions`, {
+    method: 'PUT',
+    headers: headers(token),
+    body: JSON.stringify(body),
   })
   return parseResponse(res)
 }
