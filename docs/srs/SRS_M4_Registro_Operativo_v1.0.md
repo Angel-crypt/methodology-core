@@ -198,9 +198,20 @@ M3 – Definición de Métricas                                         │
 
 | Tipo | Descripción | Nivel de acceso | Funcionalidades que utiliza |
 |---|---|---|---|
-| **Administrador** | Control total del sistema. | Lectura y escritura. | Puede ejecutar todos los flujos del módulo. |
-| **Profesional Aplicador** | Profesional habilitado para aplicar instrumentos. | Escritura operativa. | Registro de sujetos, contextos, aplicaciones y captura de valores. |
+| **Administrador** | Control total del sistema. | Lectura y escritura. | Puede ejecutar todos los flujos del módulo. Configura los permisos operativos de cada aplicador. |
+| **Profesional Aplicador** | Profesional habilitado para aplicar instrumentos, con acceso parametrizado por el Administrador. | Escritura operativa (sujeta a configuración). | Registro de sujetos, contextos, aplicaciones y captura de valores, dentro de los límites configurados. |
 | **Investigador** | Usuario académico. | Solo lectura. | Consultar sujetos y sus datos contextuales (sin PII). |
+
+> **Acceso parametrizado del Aplicador (SRS General §3.4–3.5):**
+> El Administrador puede configurar tres restricciones individuales por aplicador desde el panel de detalle:
+>
+> | Parámetro | Tipo | Efecto |
+> |---|---|---|
+> | `mode` | `libre` · `restricted` | **Libre:** el aplicador puede registrar sujetos de cualquier nivel educativo habilitado globalmente. **Restringido:** solo puede registrar sujetos de los niveles declarados explícitamente en `education_levels`. |
+> | `education_levels` | Lista de enums | (Solo en modo `restricted`) Lista blanca de niveles educativos que el aplicador puede registrar. Niveles fuera de esta lista son rechazados por el wizard. |
+> | `subject_limit` | Entero · `null` | Máximo de sujetos que el aplicador puede registrar. `null` = sin límite. `POST /subjects` retorna HTTP 422 si el aplicador ya alcanzó su cuota. |
+>
+> La configuración vive en `GET /PUT /users/:id/permissions` (M1) y es consultada por `POST /subjects` y por el wizard de Registro Operativo al iniciar la sesión del aplicador.
 
 ---
 
