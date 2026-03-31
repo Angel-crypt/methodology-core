@@ -658,6 +658,53 @@ router.get('/users/:id/sessions', authMiddleware(['administrator']), (req, res) 
   return res.json({ status: 'success', data: sessions });
 });
 
+// ─── GET /users/:id/permissions ──────────────────────────────────────────────
+router.get('/users/:id/permissions', authMiddleware(['administrator']), (req, res) => {
+  const user = store.users.find((u) => u.id === req.params.id);
+  if (!user) {
+    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
+  }
+
+  const perms = store.userPermissions.get(req.params.id) || {
+    mode: 'libre',
+    education_levels: [],
+    subject_limit: null,
+  };
+
+  return res.json({ status: 'success', data: perms });
+});
+
+// ─── PUT /users/:id/permissions ───────────────────────────────────────────────
+router.put('/users/:id/permissions', authMiddleware(['administrator']), (req, res) => {
+  const user = store.users.find((u) => u.id === req.params.id);
+  if (!user) {
+    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
+  }
+
+  const { mode, education_levels, subject_limit } = req.body;
+
+  if (mode !== undefined && !['libre', 'restricted'].includes(mode)) {
+    return res.status(400).json({ status: 'error', message: 'mode no válido.', data: null });
+  }
+  if (education_levels !== undefined && !Array.isArray(education_levels)) {
+    return res.status(400).json({ status: 'error', message: 'education_levels debe ser un arreglo.', data: null });
+  }
+  if (subject_limit !== undefined && subject_limit !== null && (typeof subject_limit !== 'number' || subject_limit < 1)) {
+    return res.status(400).json({ status: 'error', message: 'subject_limit debe ser un entero positivo o null.', data: null });
+  }
+
+  const current = store.userPermissions.get(req.params.id) || { mode: 'libre', education_levels: [], subject_limit: null };
+  const updated = {
+    mode:             mode             !== undefined ? mode             : current.mode,
+    education_levels: education_levels !== undefined ? education_levels : current.education_levels,
+    subject_limit:    subject_limit    !== undefined ? subject_limit    : current.subject_limit,
+  };
+
+  store.userPermissions.set(req.params.id, updated);
+
+  return res.json({ status: 'success', message: 'Permisos actualizados.', data: updated });
+});
+
 // ─── DELETE /sessions/:jti ─── (GAP-SEG-08) ──────────────────────────────────
 router.delete('/sessions/:jti', authMiddleware(), (req, res) => {
   const { jti } = req.params;

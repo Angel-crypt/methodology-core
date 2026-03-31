@@ -92,9 +92,23 @@ router.post('/subjects', authMiddleware(APPLICATOR_ROLES), (req, res) => {
     return res.status(400).json({ status: 'error', message: 'El cuerpo de la solicitud debe estar vacío', data: null });
   }
 
+  // Verificar subject_limit del aplicador (SRS General §3.4)
+  const perms = store.userPermissions.get(req.user.id);
+  if (perms?.subject_limit != null) {
+    const count = store.subjects.filter((s) => s.created_by === req.user.id).length;
+    if (count >= perms.subject_limit) {
+      return res.status(422).json({
+        status: 'error',
+        message: 'Límite de sujetos registrables alcanzado.',
+        data: null,
+      });
+    }
+  }
+
   const subject = {
     id: uuidv4(),
     created_at: new Date(),
+    created_by: req.user.id,
     context: null,
   };
   store.subjects.push(subject);
