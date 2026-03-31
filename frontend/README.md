@@ -251,19 +251,25 @@ frontend/
 ├── src/
 │   ├── components/
 │   │   ├── app/                 # Librería de componentes del DS — usar siempre estos
+│   │   │   ├── ActionsMenu.jsx  # Dropdown de acciones para filas de tabla (Radix DropdownMenu)
 │   │   │   ├── Alert.jsx        # Alerta estática inline (info/success/warning/error)
 │   │   │   ├── Button.jsx       # Botón DS con variantes y tamaños
 │   │   │   ├── DataTable.jsx    # Tabla de datos con skeleton y empty state
 │   │   │   ├── EmptyState.jsx   # Placeholder de contenido vacío
 │   │   │   ├── FormField.jsx    # Label + input + helper/error accesible
+│   │   │   ├── GlobalSearch.jsx # Búsqueda global con resultados por módulo
 │   │   │   ├── Modal.jsx        # Modal con focus trap via @radix-ui/react-dialog
+│   │   │   ├── PillToggle.jsx   # Toggle tipo pill para filtros de estado
+│   │   │   ├── ProfileDropdown.jsx # Menú de perfil de usuario autenticado
 │   │   │   ├── RoleBadge.jsx    # Badge de rol de usuario (admin/researcher/aplicador)
 │   │   │   ├── Sidebar.jsx      # Barra de navegación lateral con NavLink
 │   │   │   ├── SkeletonRow.jsx  # Fila skeleton animada para tablas
 │   │   │   ├── Spinner.jsx      # Indicador de carga animado
 │   │   │   ├── StatusBadge.jsx  # Badge de estado (active/inactive/pending)
 │   │   │   ├── Toast.jsx        # Notificación toast + ToastContainer
+│   │   │   ├── Tooltip.jsx      # Tooltip accesible con posicionamiento automático
 │   │   │   ├── Typography.jsx   # Texto semántico con tokens DS
+│   │   │   ├── UserAvatar.jsx   # Avatar con iniciales y colores por rol
 │   │   │   ├── useToast.js      # Hook para gestión de toasts
 │   │   │   └── index.js         # ← Barrel export — importar siempre desde aquí
 │   │   └── ui/                  # Primitivos Radix/shadcn (base interna — no usar directamente en páginas)
@@ -464,7 +470,7 @@ import { Button, FormField } from '../components/app'
 
 La documentación completa de cada componente (props, variantes, ejemplos de uso) está en **[`COMPONENTS.md`](../COMPONENTS.md)** en la raíz del repositorio.
 
-Componentes disponibles: `Button`, `FormField`, `Modal`, `DataTable`, `RoleBadge`, `StatusBadge`, `Alert`, `Toast` + `useToast`, `Sidebar`, `EmptyState`, `Spinner`, `Typography`, `SkeletonRow`.
+Componentes disponibles: `ActionsMenu`, `Alert`, `Button`, `DataTable`, `EmptyState`, `FormField`, `GlobalSearch`, `Modal`, `PillToggle`, `ProfileDropdown`, `RoleBadge`, `Sidebar`, `SkeletonRow`, `Spinner`, `StatusBadge`, `Toast` + `ToastContainer` + `useToast`, `Tooltip`, `Typography`, `UserAvatar`.
 
 ---
 
@@ -611,5 +617,5 @@ npm run lint   # verificar que no hay errores de linting
 
 ---
 
-_Última actualización: 2026-03-22_
+_Última actualización: 2026-03-31_
 _Mantener actualizado al introducir nuevos componentes, dependencias o convenciones._
