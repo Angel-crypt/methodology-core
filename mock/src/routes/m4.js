@@ -297,6 +297,50 @@ router.post('/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
   });
 });
 
+// ─── GET /applications/my ─────────────────────────────────────────────────────
+// Devuelve todas las aplicaciones del aplicador autenticado, enriquecidas con
+// nombre del instrumento y valores de métrica capturados.
+router.get('/applications/my', authMiddleware(APPLICATOR_ROLES), (req, res) => {
+  const mySubjectIds = new Set(
+    store.subjects.filter((s) => s.created_by === req.user.id).map((s) => s.id)
+  );
+
+  const myApplications = store.applications.filter((a) => mySubjectIds.has(a.subject_id));
+
+  const result = myApplications.map((app) => {
+    const instrument = store.instruments.find((i) => i.id === app.instrument_id);
+    const values = store.metricValues.filter((v) => v.application_id === app.id);
+
+    return {
+      application_id: app.id,
+      subject_id:     app.subject_id,
+      instrument_id:  app.instrument_id,
+      instrument_name: instrument ? instrument.name : '—',
+      application_date: app.application_date,
+      notes:          app.notes,
+      created_at:     app.created_at,
+      values_count:   values.length,
+      metric_values:  values.map((v) => {
+        const metric = store.metrics.find((m) => m.id === v.metric_id);
+        return {
+          metric_id:   v.metric_id,
+          metric_name: metric ? metric.name : '—',
+          metric_type: metric ? metric.metric_type : '—',
+          value:       v.value,
+        };
+      }),
+    };
+  });
+
+  result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  return res.status(200).json({
+    status:  'success',
+    message: 'Registros recuperados',
+    data:    result,
+  });
+});
+
 // ─── RF-M4-04 · POST /metric-values ──────────────────────────────────────────
 router.post('/metric-values', authMiddleware(APPLICATOR_ROLES), (req, res) => {
   const { application_id, values } = req.body || {};
