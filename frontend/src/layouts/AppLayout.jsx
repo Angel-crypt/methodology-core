@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import PropTypes from 'prop-types'
-import { BookOpen, ClipboardList, Users } from 'lucide-react'
+import { BookOpen, ClipboardList, ClipboardCheck, Settings, Users } from 'lucide-react'
 import { Sidebar, GlobalSearch, ProfileDropdown } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
 
@@ -30,6 +30,16 @@ function getNavSections(role) {
     },
   ]
 
+  if (role === 'applicator') {
+    sections.push({
+      id:    'registro',
+      label: 'REGISTRO',
+      items: [
+        { label: 'Registro Operativo', icon: ClipboardCheck, to: '/registro-operativo' },
+      ],
+    })
+  }
+
   if (role === 'administrator') {
     sections.push({
       id:    'usuarios',
@@ -37,6 +47,13 @@ function getNavSections(role) {
       items: [
         { label: 'Aplicadores',    icon: ClipboardList, to: '/usuarios/aplicadores'   },
         { label: 'Investigadores', icon: Users,         to: '/usuarios/investigadores' },
+      ],
+    })
+    sections.push({
+      id:    'config',
+      label: 'CONFIGURACIÓN',
+      items: [
+        { label: 'Config. Operativa', icon: Settings, to: '/configuracion-operativa' },
       ],
     })
   }
