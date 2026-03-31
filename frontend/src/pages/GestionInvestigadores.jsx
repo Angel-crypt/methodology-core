@@ -14,6 +14,7 @@ import {
   ToastContainer,
   PillToggle,
   Typography,
+  ActionsMenu,
 } from '@/components/app'
 import {
   useGestionUsuarios,
@@ -22,7 +23,6 @@ import {
   getUserStatus,
 } from '@/hooks/useGestionUsuarios'
 import CredencialesModal from '@/pages/CredencialesModal'
-import DetalleUsuarioDrawer from '@/pages/DetalleUsuarioDrawer'
 
 /**
  * GestionInvestigadores — Gestión de Usuarios
@@ -61,9 +61,6 @@ function GestionInvestigadores({ token }) {
     abrirModalEstado,
     handleConfirmarEstado,
     handleResetearPassword,
-    drawerUsuario,
-    abrirDetalle,
-    cerrarDetalle,
     searchQuery,
     setSearchQuery,
     usuariosFiltrados,
@@ -77,7 +74,6 @@ function GestionInvestigadores({ token }) {
   useEffect(() => {
     const s = location.state
     if (!s) return
-    if (s.openDrawer) abrirDetalle(s.openDrawer)
     if (s.openCrear) abrirModalCrear()
     navigate(location.pathname, { replace: true, state: null })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,47 +116,21 @@ function GestionInvestigadores({ token }) {
       label: 'Acciones',
       render: (_, row) => {
         const status = getUserStatus(row)
+        const actions = []
 
         if (status === 'inactive') {
-          return (
-            <div onClick={(e) => e.stopPropagation()}>
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={Power}
-                onClick={() => abrirModalEstado(row)}
-                aria-label={`Activar a ${row.full_name}`}
-              >
-                Activar
-              </Button>
-            </div>
-          )
+          actions.push({ label: 'Activar cuenta', icon: Power, onClick: () => abrirModalEstado(row) })
+        } else {
+          actions.push({
+            label: status === 'pending' ? 'Regenerar contraseña' : 'Restablecer contraseña',
+            icon: RotateCcw,
+            onClick: () => handleResetearPassword(row),
+            disabled: guardandoReset,
+          })
+          actions.push({ label: 'Desactivar cuenta', icon: Power, onClick: () => abrirModalEstado(row), variant: 'danger' })
         }
 
-        // pending o active: mostrar botón de contraseña + desactivar
-        return (
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }} onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={RotateCcw}
-              onClick={() => handleResetearPassword(row)}
-              loading={guardandoReset}
-              aria-label={status === 'pending' ? `Regenerar contraseña de ${row.full_name}` : `Restablecer contraseña de ${row.full_name}`}
-            >
-              {status === 'pending' ? 'Regenerar' : 'Restablecer'}
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              icon={Power}
-              onClick={() => abrirModalEstado(row)}
-              aria-label={`Desactivar a ${row.full_name}`}
-            >
-              Desactivar
-            </Button>
-          </div>
-        )
+        return <ActionsMenu actions={actions} />
       },
     }] : []),
   ]
@@ -180,8 +150,8 @@ function GestionInvestigadores({ token }) {
       </div>
 
       {/* Búsqueda y filtros */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-        <div className="page-search-wrapper">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
+        <div className="page-search-wrapper" style={{ flex: '1 1 200px' }}>
           <Search size={14} className="page-search-icon" aria-hidden="true" />
           <input
             className="page-search-input"
@@ -190,26 +160,20 @@ function GestionInvestigadores({ token }) {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          {FILTROS_ESTADO.map(({ value, label }) => (
-            <PillToggle
-              key={value}
-              selected={filtroEstado === value}
-              onClick={() => setFiltroEstado(value)}
-            >
-              {label}
-            </PillToggle>
-          ))}
-          {esAdmin && (
-            <Button
-              icon={Plus}
-              onClick={abrirModalCrear}
-              style={{ marginLeft: 'auto' }}
-            >
-              Nuevo investigador
-            </Button>
-          )}
-        </div>
+        {FILTROS_ESTADO.map(({ value, label }) => (
+          <PillToggle
+            key={value}
+            selected={filtroEstado === value}
+            onClick={() => setFiltroEstado(value)}
+          >
+            {label}
+          </PillToggle>
+        ))}
+        {esAdmin && (
+          <Button icon={Plus} onClick={abrirModalCrear} style={{ marginLeft: 'auto' }}>
+            Nuevo investigador
+          </Button>
+        )}
       </div>
 
       {/* Tabla / Empty state */}
@@ -234,7 +198,7 @@ function GestionInvestigadores({ token }) {
           data={usuariosFiltrados}
           loading={false}
           emptyMessage="No hay investigadores que coincidan con el filtro."
-          onRowClick={abrirDetalle}
+          onRowClick={(row) => navigate(`/usuarios/investigadores/${row.id}`, { state: { usuario: row } })}
         />
       )}
 
@@ -327,16 +291,6 @@ function GestionInvestigadores({ token }) {
           nombreUsuario={credencialesNuevas.nombreUsuario}
         />
       )}
-
-      {/* Drawer — Detalle de usuario */}
-      <DetalleUsuarioDrawer
-        open={!!drawerUsuario}
-        onClose={cerrarDetalle}
-        usuario={drawerUsuario}
-        formatFecha={formatFecha}
-        token={token}
-        esAdmin={esAdmin}
-      />
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
