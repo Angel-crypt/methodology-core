@@ -306,22 +306,12 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 | **Descripción** | El sistema debe permitir consultar el detalle de un instrumento, incluyendo sus métricas asociadas. Este endpoint es consumido por M3 para gestionar métricas y por cualquier usuario que necesite ver la configuración completa del instrumento. |
 | **Resultado** | Datos completos del instrumento con lista de métricas asociadas. HTTP 200. |
 
-### RF-M2-METRICS – Gestionar métricas del instrumento *(soporte a M3)*
-
-| Campo | Detalle |
-|---|---|
-| **Actor** | Administrador |
-| **Entidades** | `Metric`, `Instrument` |
-| **Endpoints** | `POST /instruments/{id}/metrics` · `PATCH /metrics/{metric_id}` · `DELETE /metrics/{metric_id}` |
-| **Descripción** | El Administrador puede agregar, editar o eliminar métricas asociadas a un instrumento desde la vista de detalle del instrumento. Las métricas se gestionan conforme a los requisitos de M3. |
-| **Resultado** | Métricas actualizadas según la operación. HTTP 201/200/204 según corresponda. |
-
 ### RF-M2-ACTIONS – Acciones estandarizadas en tabla de instrumentos
 
 | Campo | Detalle |
 |---|---|
 | **Actor** | Administrador |
-| **Descripción** | La interfaz de tabla de instrumentos debe proporcionar acciones consistentes: desactivar/activar (soft delete), editar, y agregar métricas. Las acciones siguen el patrón: `PATCH /instruments/{id}/status` para desactivar, `PATCH /instruments/{id}` para editar, `POST /instruments/{id}/metrics` para agregar. |
+| **Descripción** | La interfaz de tabla de instrumentos debe proporcionar acciones consistentes: desactivar/activar (soft delete) y editar. Las acciones siguen el patrón: `PATCH /instruments/{id}/status` para desactivar, `PATCH /instruments/{id}` para editar. La gestión de métricas es responsabilidad de M3 y se accede desde la vista de detalle del instrumento. |
 | **Resultado** | Acciones visibles y accesibles desde la vista tabular. |
 
 ### 7.2 Interfaces de Usuario
