@@ -781,14 +781,14 @@ Estrategia **Blue/Green**: el entorno activo continúa operando mientras el ento
 | RF-M2-02 | HU7 – Descripción metodológica | M2 | `Instrument` | `PATCH /instruments/{id}` |
 | RF-M2-03 | HU8 – Periodo de aplicación | M2 | `Instrument` | `PATCH /instruments/{id}` |
 | RF-M2-04 | HU9 – Activar/desactivar instrumento | M2 | `Instrument` | `PATCH /instruments/{id}/status` |
-| RF-M3-01 | HU10 – Crear métrica | M3 | `Metric`, `Instrument` | `POST /metrics` |
-| RF-M3-02 | HU11 – Tipo de dato | M3 | `Metric` (`MetricType`) | `POST /metrics` |
-| RF-M3-03 | HU12 – Rango válido | M3 | `Metric` | `PATCH /metrics/{id}` |
-| RF-M3-04 | HU13 – Obligatoriedad | M3 | `Metric` | `POST /metrics` · `PATCH /metrics/{id}` |
-| RF-M4-01 | HU14 – Registrar sujeto | M4 | `Subject` | `POST /subjects` |
-| RF-M4-02 | HU15 – Registrar contexto | M4 | `ContextData`, `Subject` | `POST /subjects/{id}/context` |
-| RF-M4-03 | HU16 – Registrar aplicación | M4 | `TestApplication` | `POST /applications` |
-| RF-M4-04 | HU17 – Capturar valores | M4 | `MetricValue` | `POST /metric-values` |
+| RF-M3-01 | HU10 – Crear métrica | M3 | `Metric`, `Instrument` | `POST /instruments/{instrument_id}/metrics` |
+| RF-M3-02 | HU11 – Tipo de dato | M3 | `Metric` (`MetricType`) | `POST /instruments/{instrument_id}/metrics` · `PATCH /instruments/{instrument_id}/metrics/{metric_id}` |
+| RF-M3-03 | HU12 – Rango válido | M3 | `Metric` | `PATCH /instruments/{instrument_id}/metrics/{metric_id}` |
+| RF-M3-04 | HU13 – Obligatoriedad | M3 | `Metric` | `POST /instruments/{instrument_id}/metrics` · `PATCH /instruments/{instrument_id}/metrics/{metric_id}` |
+| RF-M4-01 | HU14 – Registrar sujeto | M4 | `Subject` | `POST /projects/{project_id}/subjects` |
+| RF-M4-02 | HU15 – Registrar contexto | M4 | `ContextData`, `Subject` | `POST /projects/{project_id}/subjects/{subject_id}/context` |
+| RF-M4-03 | HU16 – Registrar aplicación | M4 | `TestApplication` | `POST /projects/{project_id}/applications` |
+| RF-M4-04 | HU17 – Capturar valores | M4 | `MetricValue` | `POST /projects/{project_id}/applications/{application_id}/metric-values` |
 | RF-M5-01 | HU18 – Consultar aplicaciones | M5 | `TestApplication` | `GET /applications` |
 | RF-M5-02 | HU19 – Filtrar por instrumento | M5 | `Instrument` | `GET /applications?instrument_id=` |
 | RF-M5-03 | HU20 – Filtrar por periodo | M5 | `TestApplication` | `GET /applications?start_date=&end_date=` |
