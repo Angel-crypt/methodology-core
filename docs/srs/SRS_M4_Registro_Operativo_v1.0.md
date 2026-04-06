@@ -292,7 +292,7 @@ Permitir la captura estructurada, validada y anonimizada de datos lingüísticos
 |---|---|
 | `school_type` | `public` · `private` · `unknown` |
 | `education_level` | `preschool` · `primary_lower` (1°–3°) · `primary_upper` (4°–6°) · `secondary` · `unknown` |
-| `age_cohort` | String de rango libre. Ej: `"6-8"` · `"9-11"` · `"12-14"` · `"15-17"`. Se recomienda rangos de 2–3 años para anonimización efectiva. |
+| `age_cohort` | String de rango obligatorio. Formato MUST: `"N-N"` (regex `^\d+-\d+$`, máx. 20 chars). Ej: `"6-8"` · `"9-11"` · `"12-14"` · `"15-17"`. El sistema rechaza con HTTP 400 (código `INVALID_AGE_COHORT_FORMAT`) cualquier valor que no cumpla este formato. No se acepta edad exacta. |
 | `gender` | `male` · `female` · `non_binary` · `prefer_not_to_say` |
 | `socioeconomic_level` | `low` · `medium` · `high` · `unknown` |
 | `additional_attributes` | Objeto JSON abierto (clave-valor libre). Para atributos metodológicos futuros. |
@@ -461,6 +461,7 @@ Se considera aceptado si:
 - El sistema valida que el sujeto exista antes de registrar el contexto.
 - HTTP 404 si el sujeto no existe.
 - HTTP 400 si algún valor de atributo está fuera de los enums permitidos.
+- HTTP 400 si `age_cohort` no cumple el formato `^\d+-\d+$` o supera 20 caracteres (código `INVALID_AGE_COHORT_FORMAT`).
 - HTTP 403 si el solicitante es Investigador.
 
 ### HU16 – Registrar aplicación de prueba *(RF-M4-03)*
