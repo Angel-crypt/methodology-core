@@ -26,7 +26,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'mock-server', timestamp: new Date().toISOString() });
 });
 
-// ── 404 genérico (GAP-SEG-05) ────────────────────────────────────────────────
+// 404 genérico para rutas no registradas
 app.use((req, res) => {
   res.status(404).json({
     status: 'error',
@@ -35,7 +35,7 @@ app.use((req, res) => {
   });
 });
 
-// ── Error handler global (GAP-SYS-01) ───────────────────────────────────────
+// Error handler global: loguea el detalle en servidor, responde con mensaje genérico al cliente
 // Captura errores no controlados; loguea detalle en servidor, responde genérico al cliente.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
@@ -59,7 +59,7 @@ setInterval(() => {
     }
   }
 
-  // Sesiones expiradas (GAP-SEG-08)
+  // Sesiones expiradas
   const prevLen = store.sessions.length;
   store.sessions = store.sessions.filter((s) => s.expires_at > nowSec);
   if (store.sessions.length !== prevLen) {
@@ -85,7 +85,7 @@ app.listen(PORT, () => {
   console.log(`  Admin:  admin@mock.local  /  Admin123!`);
   console.log('  Todos los datos son en memoria (se pierden al reiniciar).');
 
-  // Advertencia de seguridad si se usa JWT_SECRET por defecto (GAP-SEG-02)
+  // Advertencia de seguridad si se usa JWT_SECRET por defecto
   if (JWT_SECRET === DEFAULT_SECRET) {
     console.warn('');
     console.warn('  ╔═══════════════════════════════════════════════╗');
