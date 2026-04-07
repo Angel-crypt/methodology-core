@@ -14,7 +14,7 @@ import {
 } from '@/services/instruments'
 
 function mockFetch(responseBody, status = 200) {
-  return vi.spyOn(global, 'fetch').mockResolvedValue(
+  return vi.spyOn(globalThis, 'fetch').mockResolvedValue(
     new Response(JSON.stringify(responseBody), {
       status,
       headers: { 'Content-Type': 'application/json' },
