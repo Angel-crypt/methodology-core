@@ -37,7 +37,7 @@ function DetalleUsuarioDrawer({ open, onClose, usuario, formatFecha, token, esAd
       })
       .catch(() => setErrorSesiones(true))
       .finally(() => setCargandoSesiones(false))
-  }, [open, usuario?.id, esAdmin, token])
+  }, [open, usuario, esAdmin, token])
 
   if (!usuario) return null
 
