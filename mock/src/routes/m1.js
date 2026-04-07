@@ -1,21 +1,9 @@
 /**
  * M1 – Autenticación y Control de Acceso
- * Contratos: RF-M1-01..06, RF-M1-LIST
- *
- * Cambios aplicados (GAP-M1-01..M1-09, GAP-SEG-05..10):
- *   - Mensajes genéricos en español (GAP-SEG-05)
- *   - Audit log: LOGIN, LOGIN_FALLIDO, RATE_LIMIT_ACTIVADO, LOGOUT,
- *                CAMBIO_CONTRASENA, CONSULTA_USUARIOS (GAP-M1-03, RNF-SEC-12)
- *   - JWT con pwd_changed_at en payload (GAP-SEG-07)
- *   - Sesiones activas: creación en login, limpieza en logout (GAP-SEG-08)
- *   - GET /users → array directo + paginación máx 50 (GAP-M1-02, GAP-SEG-09)
- *   - POST /users → validación de email + campos estrictos (GAP-M1-06, GAP-SEG-04)
- *   - PATCH /users/:id/status → protección contra autodesactivación (GAP-SEG-03)
- *   - PATCH /users/:id/status → respuesta incluye email + updated_at (GAP-M1-01)
- *   - GET /audit-log (nuevo endpoint, solo administrador)
- *   - GET /users/me/sessions (nuevo endpoint) (GAP-SEG-08)
- *   - DELETE /sessions/:jti (nuevo endpoint) (GAP-SEG-08)
- *   - POST /auth/password-recovery + POST /auth/password-reset (GAP-SEG-11)
+ * Rutas: POST /auth/login|logout|password-recovery|password-reset|setup,
+ *        GET /auth/setup/:token, POST/GET /users, PATCH /users/:id/status,
+ *        PATCH /users/me/password, POST /users/:id/reset-password,
+ *        GET /audit-log, GET/DELETE /sessions
  */
 const crypto = require('crypto');
 const express = require('express');
@@ -58,7 +46,7 @@ function generateSetupToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// ─── RF-M1-03 · POST /auth/login ────────────────────────────────────────────
+// POST /auth/login
 router.post('/auth/login', (req, res) => {
   const { email, password } = req.body || {};
 
@@ -106,7 +94,7 @@ router.post('/auth/login', (req, res) => {
   const iat = Math.floor(Date.now() / 1000);
   const exp = iat + JWT_EXPIRES_IN;
 
-  // Incluir pwd_changed_at en payload para referencia del cliente (GAP-SEG-07)
+  // pwd_changed_at en payload: el middleware lo compara con iat para invalidar tokens anteriores al cambio de contraseña
   const pwdChangedAt = user.password_changed_at
     ? Math.floor(user.password_changed_at.getTime() / 1000)
     : null;
@@ -117,7 +105,7 @@ router.post('/auth/login', (req, res) => {
     { algorithm: 'HS256', noTimestamp: true }
   );
 
-  // Registrar sesión activa (GAP-SEG-08)
+  // Registrar sesión activa para permitir gestión de sesiones por el usuario
   store.sessions.push({
     jti,
     user_id: user.id,
@@ -141,11 +129,11 @@ router.post('/auth/login', (req, res) => {
   });
 });
 
-// ─── RF-M1-04 · POST /auth/logout ───────────────────────────────────────────
+// POST /auth/logout
 router.post('/auth/logout', authMiddleware(), (req, res) => {
   store.revokedTokens.set(req.user.jti, req.user.exp);
 
-  // Eliminar sesión del store (GAP-SEG-08)
+  // Eliminar sesión del store para que no aparezca en GET /sessions
   store.sessions = store.sessions.filter((s) => s.jti !== req.user.jti);
 
   addAuditEvent('LOGOUT', req.user.id, req.ip, null);
@@ -153,7 +141,7 @@ router.post('/auth/logout', authMiddleware(), (req, res) => {
   return res.status(200).json({ status: 'success', message: 'Sesión cerrada correctamente', data: null });
 });
 
-// ─── POST /auth/password-recovery ─── Mock: devuelve token directamente (GAP-SEG-11)
+// POST /auth/password-recovery
 // NOTA DE SEGURIDAD: En producción, enviar token por email y NO exponerlo en la respuesta.
 router.post(
   '/auth/password-recovery',
@@ -192,7 +180,7 @@ router.post(
   }
 );
 
-// ─── POST /auth/password-reset ─── (GAP-SEG-11)
+// POST /auth/password-reset
 router.post(
   '/auth/password-reset',
   validateStrictInput(['recovery_token', 'new_password']),
@@ -228,7 +216,7 @@ router.post(
   }
 );
 
-// ─── RF-M1-01 · POST /users ─────────────────────────────────────────────────
+// POST /users
 // El admin NO provee contraseña en el cuerpo — el servidor genera el setup token.
 // En producción: _mock_setup_token no se expone; se entrega por canal seguro.
 router.post(
@@ -292,9 +280,7 @@ router.post(
   }
 );
 
-// ─── RF-M1-LIST · GET /users ────────────────────────────────────────────────
-// GAP-M1-02: respuesta es array directo (no {users:[...]})
-// GAP-SEG-09: paginación máx 50, audit_log por acceso
+// GET /users — respuesta paginada (máx 50), con audit log por acceso
 router.get('/users', authMiddleware(['administrator']), (req, res) => {
   // Validación de filtros
   if (req.query.role && !VALID_ROLES.includes(req.query.role)) {
@@ -311,7 +297,7 @@ router.get('/users', authMiddleware(['administrator']), (req, res) => {
     users = users.filter((u) => u.role === req.query.role);
   }
 
-  // Paginación (GAP-SEG-09): máximo 50 por página
+  // Paginación: máximo 50 usuarios por página para proteger el sistema de consultas masivas
   const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
   const offset = (page - 1) * limit;
@@ -336,8 +322,8 @@ router.get('/users', authMiddleware(['administrator']), (req, res) => {
   });
 });
 
-// ─── RF-M1-06 · PATCH /users/me/password ────────────────────────────────────
-// NOTA: debe ir ANTES de /users/:id/status para que "me" no sea capturado por :id
+// PATCH /users/me/password
+// Debe ir ANTES de /users/:id/status para que "me" no sea capturado por :id
 // allowPending=true: el usuario en estado "pending" PUEDE cambiar su contraseña (es el flujo forzado)
 router.patch('/users/me/password', authMiddleware([], { allowPending: true }), (req, res) => {
   const { current_password, new_password } = req.body || {};
@@ -379,7 +365,7 @@ router.patch('/users/me/password', authMiddleware([], { allowPending: true }), (
   });
 });
 
-// ─── RF-M1-02 · PATCH /users/:id/status ────────────────────────────────────
+// PATCH /users/:id/status
 router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) => {
   const { active } = req.body || {};
 
@@ -387,7 +373,7 @@ router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) 
     return res.status(400).json({ status: 'error', message: 'El campo active debe ser un booleano', data: null });
   }
 
-  // Protección contra autodesactivación (GAP-SEG-03)
+  // Un admin no puede desactivar su propia cuenta (evitar quedar sin acceso al sistema)
   if (!active && req.user.id === req.params.id) {
     return res.status(403).json({
       status: 'error',
@@ -416,7 +402,6 @@ router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) 
   user.active = active;
   user.updated_at = new Date();
 
-  // GAP-M1-01: respuesta incluye email y updated_at
   return res.status(200).json({
     status: 'success',
     message: 'Estado del usuario actualizado',
@@ -424,7 +409,7 @@ router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) 
   });
 });
 
-// ─── RF-M1-RESET · POST /users/:id/reset-password ────────────────────────────
+// POST /users/:id/reset-password
 // Funciona en estado "pending" (regenerar) y "active" (restablecer → vuelve a pending).
 // NOTA DE SEGURIDAD: Solo en mock se devuelve la contraseña en texto plano.
 // En producción: nunca exponer en API; entregar por canal seguro fuera de banda.
@@ -473,7 +458,7 @@ router.post('/users/:id/reset-password', authMiddleware(['administrator']), (req
   });
 });
 
-// ─── RF-M1-SETUP · GET /auth/setup/:token ────────────────────────────────────
+// GET /auth/setup/:token
 // Valida un setup token y devuelve los datos públicos del usuario (sin secretos).
 // Endpoint público — no requiere JWT. El frontend lo usa para mostrar nombre y email
 // en la pantalla de configuración de contraseña.
@@ -506,7 +491,7 @@ router.get('/auth/setup/:token', (req, res) => {
   });
 });
 
-// ─── RF-M1-SETUP · POST /auth/setup ──────────────────────────────────────────
+// POST /auth/setup
 // El usuario establece su contraseña usando el setup token.
 // Endpoint público — no requiere JWT (el token actúa como credencial temporal).
 // Token single-use: se invalida inmediatamente tras su uso.
@@ -560,7 +545,7 @@ router.post(
   }
 );
 
-// ─── GET /audit-log ─── Solo administrador (GAP-M1-03, RNF-SEC-12) ──────────
+// GET /audit-log — solo administrador; soporta filtros por event, user_id, from, to
 router.get('/audit-log', authMiddleware(['administrator']), (req, res) => {
   let entries = store.auditLog;
 
@@ -621,8 +606,8 @@ router.get('/users/:id', authMiddleware(['administrator']), (req, res) => {
   return res.json({ status: 'success', data: safeUser });
 });
 
-// ─── GET /users/me/sessions ─── (GAP-SEG-08) ─────────────────────────────────
-// IMPORTANTE: debe ir ANTES de /users/:id/sessions para que "me" no sea capturado por :id
+// GET /users/me/sessions
+// Debe ir ANTES de /users/:id/sessions para que "me" no sea capturado por :id
 router.get('/users/me/sessions', authMiddleware(), (req, res) => {
   const nowSec = Math.floor(Date.now() / 1000);
   const sessions = store.sessions
@@ -705,7 +690,7 @@ router.put('/users/:id/permissions', authMiddleware(['administrator']), (req, re
   return res.json({ status: 'success', message: 'Permisos actualizados.', data: updated });
 });
 
-// ─── DELETE /sessions/:jti ─── (GAP-SEG-08) ──────────────────────────────────
+// DELETE /sessions/:jti — cierra una sesión específica del usuario autenticado
 router.delete('/sessions/:jti', authMiddleware(), (req, res) => {
   const { jti } = req.params;
 

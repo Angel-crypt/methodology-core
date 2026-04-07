@@ -1,14 +1,9 @@
 /**
  * M2 – Gestión de Instrumentos
- * Contratos: RF-M2-01, RF-M2-02_RF-M2-03, RF-M2-04, RF-M2-LIST
+ * Rutas: POST/GET /instruments, PATCH /instruments/:id, PATCH /instruments/:id/status,
+ *        GET/DELETE /instruments/:id
  *
- * Cambios aplicados (GAP-M2-01..M2-05):
- *   - datesAreValid: rechaza fechas inválidas (NaN) (GAP-M2-04)
- *   - POST /instruments: rechaza methodological_description vacío (GAP-M2-02)
- *   - PATCH /instruments/:id: rechaza body vacío (GAP-M2-03)
- *   - PATCH /instruments/:id/status: respuesta {id, name, status} (GAP-M2-01)
- *   - GET /instruments: valida enum de status (GAP-M2-05)
- *   - Mensajes genéricos en español (GAP-SEG-05)
+ * El store usa is_active: boolean directamente — no hay conversión interna.
  */
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
@@ -17,12 +12,9 @@ const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
-const VALID_STATUSES = ['active', 'inactive'];
-
 /**
  * Valida la coherencia entre start_date y end_date.
- * Rechaza fechas inválidas (NaN) y end_date <= start_date.
- * GAP-M2-04: la versión anterior aceptaba fechas inválidas.
+ * Rechaza fechas con formato inválido (NaN) y end_date <= start_date.
  */
 function datesAreValid(start_date, end_date) {
   if (start_date || end_date) {
@@ -36,14 +28,14 @@ function datesAreValid(start_date, end_date) {
   return true;
 }
 
-// ─── RF-M2-01 · POST /instruments ───────────────────────────────────────────
+// POST /instruments
 router.post('/instruments', authMiddleware(['administrator']), (req, res) => {
   const { name, methodological_description, start_date, end_date } = req.body || {};
 
   if (!name) {
     return res.status(400).json({ status: 'error', message: 'El campo name es obligatorio', data: null });
   }
-  // GAP-M2-02: rechazar descripción vacía (string vacío)
+  // Rechazar descripción vacía (string vacío no aporta valor)
   if (methodological_description !== undefined && methodological_description !== null
       && typeof methodological_description === 'string' && methodological_description.trim() === '') {
     return res.status(400).json({ status: 'error', message: 'methodological_description no puede ser una cadena vacía', data: null });
@@ -62,7 +54,7 @@ router.post('/instruments', authMiddleware(['administrator']), (req, res) => {
     methodological_description: methodological_description || null,
     start_date: start_date || null,
     end_date: end_date || null,
-    status: 'active',
+    is_active: true,
     created_at: now,
     updated_at: now,
   };
@@ -77,26 +69,19 @@ router.post('/instruments', authMiddleware(['administrator']), (req, res) => {
       methodological_description: instrument.methodological_description,
       start_date: instrument.start_date,
       end_date: instrument.end_date,
-      status: instrument.status,
+      is_active: instrument.is_active,
       created_at: instrument.created_at,
     },
   });
 });
 
-// ─── RF-M2-LIST · GET /instruments ──────────────────────────────────────────
+// GET /instruments — filtro opcional ?is_active=true|false
 router.get('/instruments', authMiddleware(), (req, res) => {
-  // GAP-M2-05: validar enum de status
-  if (req.query.status && !VALID_STATUSES.includes(req.query.status)) {
-    return res.status(400).json({
-      status: 'error',
-      message: `Estado de filtro inválido. Valores aceptados: ${VALID_STATUSES.join(' | ')}`,
-      data: null,
-    });
-  }
-
   let instruments = store.instruments.filter((i) => !i.deleted);
-  if (req.query.status) {
-    instruments = instruments.filter((i) => i.status === req.query.status);
+
+  if (req.query.is_active !== undefined) {
+    const activeFilter = req.query.is_active === 'true';
+    instruments = instruments.filter((i) => i.is_active === activeFilter);
   }
 
   return res.status(200).json({
@@ -108,43 +93,42 @@ router.get('/instruments', authMiddleware(), (req, res) => {
       methodological_description: i.methodological_description,
       start_date: i.start_date,
       end_date: i.end_date,
-      status: i.status,
+      is_active: i.is_active,
     })),
   });
 });
 
-// ─── RF-M2-04 · PATCH /instruments/:id/status ───────────────────────────────
-// NOTA: debe ir ANTES de /instruments/:id para evitar que ":id" capture "xxx/status"
+// PATCH /instruments/:id/status
+// Debe ir ANTES de /instruments/:id para que Express no capture "status" como :id
 router.patch('/instruments/:id/status', authMiddleware(['administrator']), (req, res) => {
-  const { status } = req.body || {};
+  const { is_active } = req.body || {};
 
-  if (!VALID_STATUSES.includes(status)) {
+  if (typeof is_active !== 'boolean') {
     return res.status(400).json({
       status: 'error',
-      message: `Estado inválido. Valores aceptados: ${VALID_STATUSES.join(' | ')}`,
+      message: 'El campo is_active es obligatorio y debe ser un booleano',
       data: null,
     });
   }
 
-  const instrument = store.instruments.find((i) => i.id === req.params.id);
+  const instrument = store.instruments.find((i) => i.id === req.params.id && !i.deleted);
   if (!instrument) {
     return res.status(404).json({ status: 'error', message: 'Instrumento no encontrado', data: null });
   }
 
-  instrument.status = status;
+  instrument.is_active = is_active;
   instrument.updated_at = new Date();
 
-  // GAP-M2-01: respuesta incluye {id, name, status} (no updated_at)
   return res.status(200).json({
     status: 'success',
     message: 'Estado del instrumento actualizado',
-    data: { id: instrument.id, name: instrument.name, status: instrument.status },
+    data: { id: instrument.id, name: instrument.name, is_active: instrument.is_active },
   });
 });
 
-// ─── RF-M2-02 + RF-M2-03 · PATCH /instruments/:id ──────────────────────────
+// PATCH /instruments/:id
 router.patch('/instruments/:id', authMiddleware(['administrator']), (req, res) => {
-  // GAP-M2-03: rechazar body vacío
+  // Rechazar body vacío — si no se envía nada no hay qué actualizar
   if (!req.body || Object.keys(req.body).length === 0) {
     return res.status(400).json({ status: 'error', message: 'El cuerpo de la solicitud no puede estar vacío', data: null });
   }
@@ -156,7 +140,7 @@ router.patch('/instruments/:id', authMiddleware(['administrator']), (req, res) =
     return res.status(404).json({ status: 'error', message: 'Instrumento no encontrado', data: null });
   }
 
-  // GAP-M2-02: rechazar descripción vacía en actualización
+  // Rechazar descripción vacía en actualización (string vacío no aporta valor)
   if (methodological_description !== undefined && methodological_description !== null
       && typeof methodological_description === 'string' && methodological_description.trim() === '') {
     return res.status(400).json({ status: 'error', message: 'methodological_description no puede ser una cadena vacía', data: null });
@@ -183,13 +167,13 @@ router.patch('/instruments/:id', authMiddleware(['administrator']), (req, res) =
       methodological_description: instrument.methodological_description,
       start_date: instrument.start_date,
       end_date: instrument.end_date,
-      status: instrument.status,
+      is_active: instrument.is_active,
       updated_at: instrument.updated_at,
     },
   });
 });
 
-// ─── GET /instruments/:id ────────────────────────────────────────────────────
+// GET /instruments/:id
 router.get('/instruments/:id', authMiddleware(), (req, res) => {
   const instrument = store.instruments.find((i) => i.id === req.params.id && !i.deleted);
   if (!instrument) {
@@ -205,14 +189,14 @@ router.get('/instruments/:id', authMiddleware(), (req, res) => {
       methodological_description: instrument.methodological_description,
       start_date: instrument.start_date,
       end_date: instrument.end_date,
-      status: instrument.status,
+      is_active: instrument.is_active,
       created_at: instrument.created_at,
       metrics_count: metricsCount,
     },
   });
 });
 
-// ─── DELETE /instruments/:id  (soft delete) ──────────────────────────────────
+// DELETE /instruments/:id (soft delete)
 router.delete('/instruments/:id', authMiddleware(['administrator']), (req, res) => {
   const instrument = store.instruments.find((i) => i.id === req.params.id && !i.deleted);
   if (!instrument) {
