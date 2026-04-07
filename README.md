@@ -2,6 +2,11 @@
 
 Herramienta academica para registrar metricas linguisticas de forma estructurada, trazable y anonima.
 
+## Inventario y estado del proyecto
+
+Ver [`docs/INVENTARIO.md`](docs/INVENTARIO.md) para una descripción completa de qué existe,
+qué está implementado, todos los endpoints, páginas y componentes.
+
 ## Desarrollo por componente
 
 - Backend: `backend/README.md`
