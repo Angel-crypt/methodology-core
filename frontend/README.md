@@ -1,42 +1,66 @@
 # Frontend
 
-Frontend React + Vite del sistema.
+React 18 + Vite + React Router v6. SPA que consume la API REST del mock (desarrollo) o el backend real (producción).
 
-## Requisitos
-
-- Node.js 20+
-- npm
-
-## Desarrollo local
+## Arranque rápido
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev    # Puerto 5173, proxy /api/v1 → localhost:3000
 ```
 
-## Build
+En desarrollo, `/api/v1` se redirige automáticamente al mock server (ver `vite.config.js`).
+
+## Comandos
 
 ```bash
-cd frontend
-npm run build
+npm run dev          # Servidor de desarrollo con HMR
+npm run build        # Build de producción (dist/)
+npm run lint         # ESLint
+npm test             # Vitest (una ejecución)
+npm run test:watch   # Vitest en modo watch
+npm run test:coverage
 ```
 
-## Lint
+## Tests
 
-```bash
-cd frontend
-npm run lint
+Framework: **Vitest** + React Testing Library + MSW (Mock Service Worker).
+
+- Setup global: `src/test/setup.js`
+- Handlers de API para tests: `src/test/handlers.js`
+- Tests unitarios: `src/__tests__/`
+
+## Estructura
+
+```
+src/
+├── pages/           # Una página por ruta (ver docs/INVENTARIO.md §4)
+├── components/
+│   └── app/         # Design system: botones, modales, tablas, etc.
+├── services/        # Llamadas a la API REST
+├── layouts/
+│   └── AppLayout.jsx  # Shell con Sidebar
+├── styles/
+│   └── tokens/      # Variables CSS (colores, espaciado, tipografía)
+├── test/            # Setup MSW compartido entre tests
+└── __tests__/       # Tests por módulo
 ```
 
-## Nota de despliegue
+## Variables de entorno
 
-El despliegue en contenedores se realiza desde `deploy/k3s/` en el repositorio raiz.
-Las variables `VITE_*` se definen como argumentos de build de la imagen frontend.
+El frontend solo usa variables `VITE_*` (expuestas en build time). En desarrollo no se necesita ninguna — el proxy de Vite redirige a `localhost:3000`.
 
-Desde raiz tambien puedes usar:
+## Despliegue
+
+El build se empaqueta como imagen Docker y se despliega en k3s:
 
 ```bash
+# Desde la raíz del repositorio
 make frontend-install
 make frontend-dev
+make k3s-deploy-mock   # modo mock (sin backend real)
+make k3s-deploy-real   # modo producción
 ```
+
+Ver `docs/INVENTARIO.md` para descripción completa de todas las páginas, rutas y componentes.
