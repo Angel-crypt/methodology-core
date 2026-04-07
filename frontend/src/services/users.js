@@ -25,8 +25,7 @@ function headers(token) {
 }
 
 /**
- * RF-M1-LIST — GET /users
- * Accesible solo por Administrador.
+ * Lista usuarios filtrados por rol y estado. Solo Administrador.
  * @param {string} token
  * @param {'applicator'|'researcher'|'administrator'} role
  * @param {'true'|'false'|''} activeFilter — '' para todos
@@ -39,10 +38,9 @@ export async function listarUsuarios(token, role, activeFilter = '') {
 }
 
 /**
- * RF-M1-01 — POST /users
- * Solo Administrador. El role viene fijo desde la página que lo llama.
- * El servidor genera la contraseña temporal internamente (CSPRNG).
- * La respuesta incluye _mock_temp_password solo en el mock.
+ * Crea un usuario. Solo Administrador.
+ * El servidor genera el setup token internamente; la respuesta incluye
+ * _mock_setup_token solo en el mock (en producción se envía por email).
  * @param {string} token
  * @param {{ full_name: string, email: string, role: string }} body
  */
@@ -56,9 +54,7 @@ export async function crearUsuario(token, body) {
 }
 
 /**
- * RF-M1-02 — PATCH /users/:id/status
- * Activa o desactiva una cuenta de usuario.
- * Solo Administrador.
+ * Activa o desactiva una cuenta de usuario. Solo Administrador.
  * @param {string} token
  * @param {string} id UUID del usuario
  * @param {boolean} active nuevo estado
@@ -119,10 +115,8 @@ export async function obtenerUsuario(token, id) {
 }
 
 /**
- * RF-M1-RESET — POST /users/:id/reset-password
- * Genera una nueva contraseña temporal para el usuario (pending o active).
- * Solo Administrador.
- * Respuesta incluye _mock_temp_password (solo en mock).
+ * Restablece la contraseña de un usuario (genera un nuevo setup link).
+ * Solo Administrador. El usuario queda en estado must_change_password=true.
  * @param {string} token
  * @param {string} id UUID del usuario
  */

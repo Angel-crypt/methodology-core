@@ -1,10 +1,9 @@
 /**
  * services/instruments.js
- * Módulo 2 — Gestión de Instrumentos
  *
- * Encapsula todas las llamadas a la API REST del módulo.
+ * Todas las llamadas a la API de instrumentos y sus métricas.
  * Base path: /api/v1/instruments
- * Todas las peticiones requieren Authorization: Bearer {token}
+ * Cada función requiere un JWT válido.
  */
 
 const BASE = '/api/v1/instruments'
@@ -29,20 +28,20 @@ async function parseResponse(res) {
 }
 
 /**
- * RF-M2-LIST — GET /instruments
- * Accesible por todos los roles autenticados.
+ * Lista instrumentos. Acepta un filtro de estado opcional.
  * @param {string} token
  * @param {'active'|'inactive'|''} statusFilter
  */
 export async function listarInstrumentos(token, statusFilter = '') {
-  const url = statusFilter ? `${BASE}?status=${statusFilter}` : BASE
+  let url = BASE
+  if (statusFilter === 'active') url = `${BASE}?is_active=true`
+  else if (statusFilter === 'inactive') url = `${BASE}?is_active=false`
   const res = await fetch(url, { headers: headers(token) })
   return parseResponse(res)
 }
 
 /**
- * RF-M2-01 — POST /instruments
- * Solo Administrador.
+ * Crea un nuevo instrumento.
  * @param {string} token
  * @param {{ name: string, methodological_description?: string, start_date?: string, end_date?: string }} body
  */
@@ -56,11 +55,9 @@ export async function crearInstrumento(token, body) {
 }
 
 /**
- * RF-M2-02 + RF-M2-03 — PATCH /instruments/:id
- * Edita descripción metodológica y/o periodo de vigencia.
- * Solo Administrador.
+ * Edita la descripción y/o el período de vigencia de un instrumento.
  * @param {string} token
- * @param {string} id UUID del instrumento
+ * @param {string} id
  * @param {{ methodological_description?: string, start_date?: string, end_date?: string }} body
  */
 export async function editarInstrumento(token, id, body) {
@@ -73,33 +70,27 @@ export async function editarInstrumento(token, id, body) {
 }
 
 /**
- * RF-M2-04 — PATCH /instruments/:id/status
  * Activa o desactiva un instrumento.
- * Solo Administrador.
  * @param {string} token
- * @param {string} id UUID del instrumento
+ * @param {string} id
  * @param {'active'|'inactive'} status
  */
 export async function cambiarEstadoInstrumento(token, id, status) {
   const res = await fetch(`${BASE}/${id}/status`, {
     method: 'PATCH',
     headers: headers(token),
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ is_active: status === 'active' }),
   })
   return parseResponse(res)
 }
 
-/**
- * RF-M3 — GET /instruments/:id
- */
+/** Obtiene un instrumento por ID, incluyendo el conteo de métricas. */
 export async function obtenerInstrumento(token, id) {
   const res = await fetch(`${BASE}/${id}`, { headers: headers(token) })
   return parseResponse(res)
 }
 
-/**
- * RF-M3 — DELETE /instruments/:id  (soft delete)
- */
+/** Elimina un instrumento (soft delete). */
 export async function eliminarInstrumento(token, id) {
   const res = await fetch(`${BASE}/${id}`, {
     method: 'DELETE',
@@ -108,19 +99,20 @@ export async function eliminarInstrumento(token, id) {
   return parseResponse(res)
 }
 
-/**
- * RF-M3-LIST — GET /metrics?instrument_id=...
- */
+/** Lista todas las métricas de un instrumento. */
 export async function listarMetricas(token, instrumentId) {
-  const res = await fetch(`/api/v1/metrics?instrument_id=${instrumentId}`, { headers: headers(token) })
+  const res = await fetch(`${BASE}/${instrumentId}/metrics`, { headers: headers(token) })
   return parseResponse(res)
 }
 
 /**
- * RF-M3-01 — POST /metrics
+ * Crea una nueva métrica asociada a un instrumento.
+ * @param {string} token
+ * @param {string} instrumentId
+ * @param {{ name: string, data_type: string, required?: boolean, min?: number, max?: number }} body
  */
-export async function crearMetrica(token, body) {
-  const res = await fetch('/api/v1/metrics', {
+export async function crearMetrica(token, instrumentId, body) {
+  const res = await fetch(`${BASE}/${instrumentId}/metrics`, {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify(body),
@@ -129,10 +121,13 @@ export async function crearMetrica(token, body) {
 }
 
 /**
- * RF-M3-02b — PATCH /metrics/:id
+ * Edita una métrica existente.
+ * @param {string} token
+ * @param {string} instrumentId
+ * @param {string} metricId
  */
-export async function editarMetrica(token, id, body) {
-  const res = await fetch(`/api/v1/metrics/${id}`, {
+export async function editarMetrica(token, instrumentId, metricId, body) {
+  const res = await fetch(`${BASE}/${instrumentId}/metrics/${metricId}`, {
     method: 'PATCH',
     headers: headers(token),
     body: JSON.stringify(body),
@@ -140,11 +135,9 @@ export async function editarMetrica(token, id, body) {
   return parseResponse(res)
 }
 
-/**
- * RF-M3 — DELETE /metrics/:id
- */
-export async function eliminarMetrica(token, id) {
-  const res = await fetch(`/api/v1/metrics/${id}`, {
+/** Elimina una métrica de un instrumento. */
+export async function eliminarMetrica(token, instrumentId, metricId) {
+  const res = await fetch(`${BASE}/${instrumentId}/metrics/${metricId}`, {
     method: 'DELETE',
     headers: headers(token),
   })
