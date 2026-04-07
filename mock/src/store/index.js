@@ -85,8 +85,14 @@ const store = {
    */
   userPermissions: new Map(),
 
+  // Proyectos: [{ id, name, created_at }]
+  projects: [
+    { id: 'project-default', name: 'Proyecto por defecto', created_at: new Date() },
+  ],
+
   // Configuración global del wizard (admin la gestiona, aplicadores la leen)
   registroConfig: {
+    project_id:           'project-default', // proyecto activo para el registro
     education_levels:     ['preschool', 'primary_lower', 'primary_upper', 'secondary', 'unknown'],
     cohort_mode:          'libre',   // 'libre' | 'restricted'
     age_cohort_map: {
