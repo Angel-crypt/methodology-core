@@ -1,18 +1,14 @@
 /**
  * Middleware de autenticación JWT + RBAC
- * Implementa la lógica del RF-M1-05 (HU5):
- *   1. Validación de firma HS256
- *   2. Verificación de jti en revoked_tokens
- *   3. Verificación de active=true en users
- *   4. Verificación de password_changed_at (invalida tokens anteriores al cambio)
- *   5. RBAC: rol del token vs. roles permitidos
+ * Pasos de validación en orden:
+ *   1. Firma HS256 válida
+ *   2. jti no en revoked_tokens (token no revocado)
+ *   3. Usuario existe y está activo
+ *   4. Token emitido antes del último cambio de contraseña → rechazar
+ *   5. RBAC: rol del token vs. roles requeridos por la ruta
  *
- * Seguridad (GAP-SEG-02):
- *   - JWT_SECRET: primero Docker Secret (/run/secrets/jwt_secret),
- *     luego variable de entorno JWT_SECRET, luego default de desarrollo.
- *   - Producción: sale con exit(1) si se detecta el secret por defecto.
- *   - Mensajes de error genéricos en español (GAP-SEG-05).
- *   - Eventos de audit log: ACCESO_DENEGADO (GAP-SEG-06).
+ * JWT_SECRET: Docker Secret (/run/secrets/jwt_secret) > env JWT_SECRET > default de desarrollo.
+ * En producción: termina el proceso si se detecta el secret por defecto.
  */
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
@@ -31,7 +27,7 @@ if (fs.existsSync(DOCKER_SECRET_PATH)) {
   JWT_SECRET = process.env.JWT_SECRET || DEFAULT_SECRET;
 }
 
-// Bloqueo en producción si se usa el secret por defecto (GAP-SEG-02)
+// Bloqueo en producción si se usa el secret por defecto
 if (process.env.NODE_ENV === 'production' && JWT_SECRET === DEFAULT_SECRET) {
   console.error('[SEGURIDAD CRÍTICA] JWT_SECRET por defecto detectado en entorno de producción.');
   console.error('Configure JWT_SECRET como variable de entorno o Docker Secret antes de iniciar.');
@@ -74,8 +70,8 @@ function authMiddleware(roles = [], { allowPending = false } = {}) {
       return res.status(401).json({ status: 'error', message: 'No autorizado', data: null });
     }
 
-    // (4) Rechazar tokens emitidos antes del cambio de contraseña (GAP-SEG-07)
-    // Fuente autoritativa: store (no payload, para detectar cambios posteriores a emisión)
+    // (4) Rechazar tokens emitidos antes del cambio de contraseña.
+    // Se consulta el store (no el payload) para detectar cambios que ocurrieron después de emitir el token.
     if (user.password_changed_at) {
       const changedAtSec = Math.floor(user.password_changed_at.getTime() / 1000);
       if (payload.iat < changedAtSec) {
