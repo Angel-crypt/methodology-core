@@ -14,17 +14,17 @@ import InstrumentoDetallePage from './pages/InstrumentoDetallePage'
 import AppLayout from './layouts/AppLayout'
 
 function App() {
-  const [token, setToken] = useState(() => localStorage.getItem('access_token') || '')
+  const [token, setToken] = useState(() => sessionStorage.getItem('access_token') || '')
   const [mustChangePassword, setMustChangePassword] = useState(
-    () => localStorage.getItem('must_change_password') === 'true'
+    () => sessionStorage.getItem('must_change_password') === 'true'
   )
 
   function handleLogin(tk, mustChange = false) {
-    localStorage.setItem('access_token', tk)
+    sessionStorage.setItem('access_token', tk)
     if (mustChange) {
-      localStorage.setItem('must_change_password', 'true')
+      sessionStorage.setItem('must_change_password', 'true')
     } else {
-      localStorage.removeItem('must_change_password')
+      sessionStorage.removeItem('must_change_password')
     }
     setToken(tk)
     setMustChangePassword(mustChange)
@@ -41,8 +41,8 @@ function App() {
         // best effort — cerrar sesión local aunque falle la revocación
       }
     }
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('must_change_password')
+    sessionStorage.removeItem('access_token')
+    sessionStorage.removeItem('must_change_password')
     setToken('')
     setMustChangePassword(false)
   }
