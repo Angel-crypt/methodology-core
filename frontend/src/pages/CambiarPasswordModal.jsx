@@ -4,7 +4,7 @@ import { Modal, FormField, Button, Alert } from '@/components/app'
 
 /**
  * CambiarPasswordModal
- * Permite al usuario autenticado cambiar su contraseña (RF-M1-06).
+ * Permite al usuario autenticado cambiar su contraseña.
  * Tras el cambio exitoso llama onSuccess — el servidor invalida todas
  * las sesiones previas via password_changed_at, por lo que onSuccess
  * debe cerrar la sesión local.

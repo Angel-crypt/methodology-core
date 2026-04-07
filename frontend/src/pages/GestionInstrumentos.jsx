@@ -74,8 +74,6 @@ function emptyMetricForm() {
 
 /**
  * GestionInstrumentos — Módulo 2
- * Cubre: RF-M2-01, RF-M2-02, RF-M2-03, RF-M2-04, RF-M2-LIST
- *
  * Props:
  *   token string — JWT para autenticar llamadas a la API
  */
@@ -396,7 +394,7 @@ function GestionInstrumentos({ token }) {
   }
 
   async function handleCambiarEstado() {
-    const nuevoEstado = instrumentoSeleccionado.status === 'active' ? 'inactive' : 'active'
+    const nuevoEstado = instrumentoSeleccionado.is_active ? 'inactive' : 'active'
     setGuardandoEstado(true)
     setErrorApiEstado('')
 
@@ -404,9 +402,9 @@ function GestionInstrumentos({ token }) {
       const res = await cambiarEstadoInstrumento(token, instrumentoSeleccionado.id, nuevoEstado)
       if (res.status === 'success') {
         setInstrumentos((prev) =>
-          prev.map((i) => (i.id === res.data.id ? { ...i, status: res.data.status } : i))
+          prev.map((i) => (i.id === res.data.id ? { ...i, is_active: res.data.is_active } : i))
         )
-        const etiqueta = res.data.status === 'active' ? 'activado' : 'desactivado'
+        const etiqueta = res.data.is_active ? 'activado' : 'desactivado'
         toast({ type: 'success', title: 'Estado actualizado', message: `El instrumento fue ${etiqueta}.` })
         cerrarModalEstado()
       } else {
@@ -548,10 +546,10 @@ function GestionInstrumentos({ token }) {
           { label: 'Ver detalles', icon: Eye,    onClick: () => navigate(`/instruments/${fila.id}`, { state: { instrumento: fila } }) },
           { label: 'Editar',       icon: Pencil, onClick: () => abrirModalEditar(fila) },
           {
-            label:   fila.status === 'active' ? 'Desactivar' : 'Activar',
+            label:   fila.is_active ? 'Desactivar' : 'Activar',
             icon:    Power,
             onClick: () => abrirModalEstado(fila),
-            variant: fila.status === 'active' ? 'danger' : 'default',
+            variant: fila.is_active ? 'danger' : 'default',
           },
           { label: 'Eliminar', icon: Trash2, onClick: () => abrirModalEliminar(fila), variant: 'danger' },
         ]} />
@@ -567,7 +565,7 @@ function GestionInstrumentos({ token }) {
   ]
 
   // ─── Variables del modal de estado ────────────────────────────
-  const estaActivo = instrumentoSeleccionado?.status === 'active'
+  const estaActivo = instrumentoSeleccionado?.is_active === true
   const accionEstado = estaActivo ? 'Desactivar' : 'Activar'
   const varianteBotonEstado = estaActivo ? 'danger' : 'primary'
 
@@ -651,7 +649,7 @@ function GestionInstrumentos({ token }) {
         />
       )}
 
-      {/* ── Modal: Crear instrumento — 2 pasos (RF-M2-01 + RF-M3) ── */}
+      {/* Modal: Crear instrumento (formulario en 2 pasos: datos + métricas) */}
       <Modal
         open={modalCrear}
         onClose={cerrarModalCrear}
@@ -967,7 +965,7 @@ function GestionInstrumentos({ token }) {
         )}
       </Modal>
 
-      {/* ── Modal: Editar instrumento (RF-M2-02 + RF-M2-03) ── */}
+      {/* Modal: Editar instrumento */}
       <Modal
         open={modalEditar}
         onClose={cerrarModalEditar}
@@ -1027,7 +1025,7 @@ function GestionInstrumentos({ token }) {
         </div>
       </Modal>
 
-      {/* ── Modal: Cambiar estado (RF-M2-04) ── */}
+      {/* Modal: Cambiar estado del instrumento (activo / inactivo) */}
       <Modal
         open={modalEstado}
         onClose={cerrarModalEstado}

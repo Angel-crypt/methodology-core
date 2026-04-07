@@ -25,9 +25,7 @@ import {
 import CredencialesModal from '@/pages/CredencialesModal'
 
 /**
- * GestionInvestigadores — Gestión de Usuarios
- * Cubre: RF-M1-LIST, RF-M1-01, RF-M1-02, RF-M1-RESET para role=researcher
- *
+ * GestionInvestigadores — Gestión de Usuarios (rol: investigador)
  * Props:
  *   token string — JWT para autenticar llamadas a la API
  */

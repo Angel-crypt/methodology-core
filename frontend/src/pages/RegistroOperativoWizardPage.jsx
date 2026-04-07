@@ -298,7 +298,7 @@ function Step3Application({
     else onChange('application_date', '')
   }
 
-  const activeInstruments = instruments.filter((i) => i.status === 'active')
+  const activeInstruments = instruments.filter((i) => i.is_active)
 
   return (
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -719,7 +719,7 @@ function RegistroOperativoWizardPage({ token }) {
 
     async function loadMetrics() {
       setUiState((prev) => ({ ...prev, loadingMetrics: true }))
-      const response = await fetch(`/api/v1/metrics?instrument_id=${wizardState.instrumentId}`, { headers: authHeaders })
+      const response = await fetch(`/api/v1/instruments/${wizardState.instrumentId}/metrics`, { headers: authHeaders })
       const data = await parseResponse(response)
       setUiState((prev) => ({ ...prev, loadingMetrics: false }))
 
@@ -739,7 +739,14 @@ function RegistroOperativoWizardPage({ token }) {
     clearErrors()
     setUiState((prev) => ({ ...prev, loadingSubject: true }))
 
-    const response = await fetch('/api/v1/subjects', {
+    const projectId = operativoConfig?.project_id
+    if (!projectId) {
+      setApiError('No hay un proyecto activo configurado. Contacta al administrador.')
+      setUiState((prev) => ({ ...prev, loadingSubject: false }))
+      return
+    }
+
+    const response = await fetch(`/api/v1/projects/${projectId}/subjects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     })

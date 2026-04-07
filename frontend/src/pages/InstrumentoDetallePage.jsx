@@ -420,7 +420,7 @@ function InstrumentoDetallePage({ token }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
           <Typography as="h1">{instrumento?.name || '—'}</Typography>
-          {instrumento?.status && <StatusBadge status={instrumento.status} />}
+          {instrumento?.is_active != null && <StatusBadge status={instrumento.is_active ? 'active' : 'inactive'} />}
         </div>
       </div>
 

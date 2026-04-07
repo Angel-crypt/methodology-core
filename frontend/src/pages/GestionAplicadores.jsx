@@ -25,9 +25,7 @@ import {
 import CredencialesModal from '@/pages/CredencialesModal'
 
 /**
- * GestionAplicadores — Gestión de Usuarios
- * Cubre: RF-M1-LIST, RF-M1-01, RF-M1-02, RF-M1-RESET para role=applicator
- *
+ * GestionAplicadores — Gestión de Usuarios (rol: aplicador)
  * Props:
  *   token string — JWT para autenticar llamadas a la API
  */
