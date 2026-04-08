@@ -70,7 +70,7 @@ function App() {
 
   const adminLayout = (page) => {
     if (!token) return <Navigate to="/login" replace />
-    if (getRoleFromToken(token) !== 'administrator') return <Navigate to="/instruments" replace />
+    if (getRoleFromToken(token) !== 'superadmin') return <Navigate to="/instruments" replace />
     return <AppLayout onLogout={handleLogout} token={token}>{page}</AppLayout>
   }
 
