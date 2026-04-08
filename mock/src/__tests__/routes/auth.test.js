@@ -35,7 +35,7 @@ describe('M1 — POST /auth/login (must_change_password)', () => {
   let app
 
   beforeEach(() => {
-    store.users = store.users.filter((u) => u.email === 'admin@mock.local')
+    store.users = store.users.filter((u) => u.role === 'superadmin')
     store.revokedTokens = new Map()
     store.loginAttempts = new Map()
     store.sessions = []
