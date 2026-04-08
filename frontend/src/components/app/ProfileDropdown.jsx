@@ -12,7 +12,7 @@ import { jwtRoleToDisplay } from '@/lib/utils'
  *
  * Props:
  *   fullName          string
- *   role              'administrator'|'researcher'|'applicator' — rol JWT
+ *   role              'superadmin'|'researcher'|'applicator' — rol JWT
  *   email             string
  *   onChangePassword  () => void — abre CambiarPasswordModal
  */
@@ -66,7 +66,7 @@ function ProfileDropdown({ fullName, role, email, onChangePassword }) {
 
 ProfileDropdown.propTypes = {
   fullName:         PropTypes.string.isRequired,
-  role:             PropTypes.oneOf(['administrator', 'researcher', 'applicator']).isRequired,
+  role:             PropTypes.oneOf(['superadmin', 'researcher', 'applicator']).isRequired,
   email:            PropTypes.string.isRequired,
   onChangePassword: PropTypes.func.isRequired,
 }

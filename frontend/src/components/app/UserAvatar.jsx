@@ -7,12 +7,12 @@ import { Crown, Search, ClipboardList } from 'lucide-react'
  *
  * Props:
  *   fullName  string — nombre completo del usuario (para la inicial)
- *   role      'administrator'|'researcher'|'applicator' — rol JWT
+ *   role      'superadmin'|'researcher'|'applicator' — rol JWT
  *   size      'sm' (32px) | 'md' (40px)
  */
 
 const ROLE_CONFIG = {
-  administrator: {
+  superadmin: {
     bg:   'var(--purple-600)',
     color: 'var(--purple-50)',
     Icon: Crown,
@@ -60,7 +60,7 @@ function UserAvatar({ fullName = '', role = 'researcher', size = 'sm' }) {
 
 UserAvatar.propTypes = {
   fullName: PropTypes.string,
-  role:     PropTypes.oneOf(['administrator', 'researcher', 'applicator']),
+  role:     PropTypes.oneOf(['superadmin', 'researcher', 'applicator']),
   size:     PropTypes.oneOf(['sm', 'md']),
 }
 

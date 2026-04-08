@@ -222,7 +222,7 @@ function GlobalSearch({ token }) {
                       ? 'pending'
                       : 'active'
                   const roleKey =
-                    user.role === 'administrator' ? 'admin'
+                    user.role === 'superadmin' ? 'admin'
                     : user.role === 'applicator' ? 'aplicador'
                     : 'researcher'
                   return (
