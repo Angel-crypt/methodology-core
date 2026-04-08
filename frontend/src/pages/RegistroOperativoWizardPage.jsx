@@ -699,7 +699,7 @@ function RegistroOperativoWizardPage({ token }) {
 
     async function loadInstruments() {
       setUiState((prev) => ({ ...prev, loadingInstruments: true }))
-      const response = await fetch('/api/v1/instruments', { headers: authHeaders })
+      const response = await fetch('/api/v1/instruments?is_active=true', { headers: authHeaders })
       const data = await parseResponse(response)
       setUiState((prev) => ({ ...prev, loadingInstruments: false }))
 

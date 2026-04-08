@@ -85,7 +85,7 @@ function GestionAplicadores({ token }) {
       key: 'role',
       label: 'Rol',
       render: (value) => (
-        <RoleBadge role={value === 'administrator' ? 'admin' : value === 'applicator' ? 'aplicador' : 'researcher'} />
+        <RoleBadge role={value === 'superadmin' ? 'admin' : value === 'applicator' ? 'aplicador' : 'researcher'} />
       ),
     },
     {

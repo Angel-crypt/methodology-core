@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import PropTypes from 'prop-types'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Power, RotateCw, BookOpen, Search, Trash2, Eye } from 'lucide-react'
+import { Plus, Pencil, Power, RotateCw, BookOpen, Search, Trash2, Eye, X } from 'lucide-react'
 import {
   Button,
   DataTable,
@@ -23,6 +23,7 @@ import {
   cambiarEstadoInstrumento,
   eliminarInstrumento,
   crearMetrica,
+  listarTags,
 } from '@/services/instruments'
 
 const DESCRIPTION_COL_MAX_WIDTH = 300
@@ -81,7 +82,7 @@ function GestionInstrumentos({ token }) {
   // ─── Rol del usuario desde el JWT ─────────────────────────────
   const esAdmin = useMemo(() => {
     try {
-      return JSON.parse(atob(token.split('.')[1])).role === 'administrator'
+      return JSON.parse(atob(token.split('.')[1])).role === 'superadmin'
     } catch {
       return false
     }
@@ -109,6 +110,9 @@ function GestionInstrumentos({ token }) {
     start_date: '',
     end_date: '',
     end_date_preset: '3m',
+    tags: [],
+    tagInput: '',
+    min_days_between_applications: 0,
   })
   const [erroresCrear, setErroresCrear] = useState({})
   const [errorApiCrear, setErrorApiCrear] = useState('')
@@ -119,7 +123,14 @@ function GestionInstrumentos({ token }) {
     methodological_description: '',
     start_date: '',
     end_date: '',
+    tags: [],
+    tagInput: '',
+    min_days_between_applications: 0,
   })
+
+  // ─── Catálogo y filtro de tags ─────────────────────────────────
+  const [tagCatalog, setTagCatalog] = useState([])
+  const [tagFilter, setTagFilter] = useState([])
   const [erroresEditar, setErroresEditar] = useState({})
   const [errorApiEditar, setErrorApiEditar] = useState('')
   const [guardandoEditar, setGuardandoEditar] = useState(false)
@@ -145,7 +156,7 @@ function GestionInstrumentos({ token }) {
   const cargarInstrumentos = useCallback(async () => {
     setCargando(true)
     try {
-      const res = await listarInstrumentos(token, filtroEstado)
+      const res = await listarInstrumentos(token, filtroEstado, tagFilter)
       if (res.status === 'success') {
         setInstrumentos(res.data)
       } else {
@@ -156,11 +167,27 @@ function GestionInstrumentos({ token }) {
     } finally {
       setCargando(false)
     }
-  }, [token, filtroEstado, toast])
+  }, [token, filtroEstado, tagFilter, toast])
 
   useEffect(() => {
     cargarInstrumentos()
   }, [cargarInstrumentos])
+
+  // ─── Cargar catálogo de tags ───────────────────────────────────
+  const cargarTags = useCallback(async () => {
+    try {
+      const res = await listarTags(token)
+      if (res.status === 'success' && Array.isArray(res.data)) {
+        setTagCatalog(res.data)
+      }
+    } catch {
+      // silencioso: el catálogo es solo para sugerencias, no es crítico
+    }
+  }, [token])
+
+  useEffect(() => {
+    cargarTags()
+  }, [cargarTags])
 
   // ─── Filtrado client-side por búsqueda ─────────────────────────
   const instrumentosFiltrados = useMemo(() => {
@@ -191,6 +218,9 @@ function GestionInstrumentos({ token }) {
       start_date: fechaInicio,
       end_date: sumarMeses(fechaInicio, 3),
       end_date_preset: '3m',
+      tags: [],
+      tagInput: '',
+      min_days_between_applications: 0,
     })
     setErroresCrear({})
     setErrorApiCrear('')
@@ -199,6 +229,28 @@ function GestionInstrumentos({ token }) {
     setFormMetrica(emptyMetricForm())
     setErroresMetrica({})
     setModalCrear(true)
+  }
+
+  // ─── Helpers del chip-input de tags ────────────────────────────
+  function addTagCrear(raw) {
+    const norm = (raw || '').trim().toLowerCase()
+    if (!norm) return
+    setFormCrear((prev) =>
+      prev.tags.includes(norm)
+        ? { ...prev, tagInput: '' }
+        : { ...prev, tags: [...prev.tags, norm], tagInput: '' }
+    )
+  }
+  function removeTagCrear(tag) {
+    setFormCrear((prev) => ({ ...prev, tags: prev.tags.filter((t) => t !== tag) }))
+  }
+  function handleTagInputKeyDownCrear(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      addTagCrear(formCrear.tagInput)
+    } else if (e.key === 'Backspace' && formCrear.tagInput === '' && formCrear.tags.length > 0) {
+      removeTagCrear(formCrear.tags[formCrear.tags.length - 1])
+    }
   }
 
   function cambiarCrear(campo) {
@@ -260,6 +312,8 @@ function GestionInstrumentos({ token }) {
       name: formCrear.name.trim(),
       start_date: formCrear.start_date,
       end_date: formCrear.end_date,
+      tags: formCrear.tags,
+      min_days_between_applications: Number(formCrear.min_days_between_applications) || 0,
     }
     if (formCrear.methodological_description.trim()) {
       body.methodological_description = formCrear.methodological_description.trim()
@@ -308,7 +362,16 @@ function GestionInstrumentos({ token }) {
 
   function cerrarModalCrear() {
     setModalCrear(false)
-    setFormCrear({ name: '', methodological_description: '', start_date: '', end_date: '', end_date_preset: '3m' })
+    setFormCrear({
+      name: '',
+      methodological_description: '',
+      start_date: '',
+      end_date: '',
+      end_date_preset: '3m',
+      tags: [],
+      tagInput: '',
+      min_days_between_applications: 0,
+    })
     setErroresCrear({})
     setErrorApiCrear('')
     setPasoCrear(1)
@@ -606,6 +669,29 @@ function GestionInstrumentos({ token }) {
           </PillToggle>
         ))}
 
+        {/* Filtro por tags: toggle por chip del catálogo */}
+        {tagCatalog.length > 0 && (
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', flexWrap: 'wrap' }}
+            aria-label="Filtrar por etiquetas"
+          >
+            {tagCatalog.map((t) => {
+              const active = tagFilter.includes(t)
+              return (
+                <PillToggle
+                  key={t}
+                  selected={active}
+                  onClick={() =>
+                    setTagFilter((prev) => (active ? prev.filter((x) => x !== t) : [...prev, t]))
+                  }
+                >
+                  #{t}
+                </PillToggle>
+              )
+            })}
+          </div>
+        )}
+
         <Button
           variant="ghost"
           size="sm"
@@ -782,6 +868,90 @@ function GestionInstrumentos({ token }) {
                 )}
               </div>
             </div>
+
+            {/* Etiquetas: chip-input con sugerencias del catálogo */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+              <label htmlFor="crear-tags" className="field-label">
+                Etiquetas
+              </label>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 'var(--space-1)',
+                  padding: 'var(--space-1) var(--space-2)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--color-surface)',
+                  alignItems: 'center',
+                }}
+              >
+                {formCrear.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-1)',
+                      padding: '2px var(--space-2)',
+                      background: 'var(--color-info-bg)',
+                      color: 'var(--color-info-text)',
+                      borderRadius: 'var(--radius-pill)',
+                      fontSize: 'var(--font-size-small)',
+                    }}
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      className="btn btn-icon"
+                      style={{ padding: 0, height: 'auto', color: 'inherit' }}
+                      onClick={() => removeTagCrear(tag)}
+                      aria-label={`Quitar ${tag}`}
+                    >
+                      <X size={12} aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  id="crear-tags"
+                  list="crear-tags-suggestions"
+                  className="input-base"
+                  style={{ flex: 1, minWidth: 120, border: 'none', boxShadow: 'none', padding: 'var(--space-1)' }}
+                  placeholder={formCrear.tags.length === 0 ? 'Añade etiquetas (Enter o coma)' : ''}
+                  value={formCrear.tagInput}
+                  onChange={(e) => setFormCrear((prev) => ({ ...prev, tagInput: e.target.value }))}
+                  onKeyDown={handleTagInputKeyDownCrear}
+                  onBlur={() => formCrear.tagInput && addTagCrear(formCrear.tagInput)}
+                />
+                <datalist id="crear-tags-suggestions">
+                  {tagCatalog
+                    .filter((t) => !formCrear.tags.includes(t))
+                    .map((t) => (
+                      <option key={t} value={t} />
+                    ))}
+                </datalist>
+              </div>
+              <p className="field-helper">
+                Las etiquetas ayudan a agrupar instrumentos por dominio o nivel.
+              </p>
+            </div>
+
+            {/* Días mínimos entre aplicaciones */}
+            <FormField
+              id="crear-min-days"
+              label="Días mínimos entre aplicaciones"
+              type="number"
+              min="0"
+              step="1"
+              value={formCrear.min_days_between_applications}
+              onChange={(e) =>
+                setFormCrear((prev) => ({
+                  ...prev,
+                  min_days_between_applications: e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0),
+                }))
+              }
+              helper="0 = sin restricción. Bloquea aplicaciones repetidas dentro de la ventana."
+            />
           </div>
         )}
 

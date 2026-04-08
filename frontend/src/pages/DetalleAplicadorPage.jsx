@@ -224,7 +224,7 @@ function DetalleAplicadorPage({ token, backTo = '/usuarios/aplicadores', backLab
   }
 
   const status  = getUserStatus(usuario)
-  const roleKey = usuario.role === 'administrator' ? 'admin'
+  const roleKey = usuario.role === 'superadmin' ? 'admin'
                 : usuario.role === 'applicator'    ? 'aplicador'
                 : 'researcher'
 

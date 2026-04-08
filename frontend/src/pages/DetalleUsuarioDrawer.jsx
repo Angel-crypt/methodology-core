@@ -48,7 +48,7 @@ function DetalleUsuarioDrawer({ open, onClose, usuario, formatFecha, token, esAd
       : 'active'
 
   const roleKey =
-    usuario.role === 'administrator' ? 'admin'
+    usuario.role === 'superadmin' ? 'admin'
     : usuario.role === 'applicator'  ? 'aplicador'
     : 'researcher'
 
