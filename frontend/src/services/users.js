@@ -121,7 +121,7 @@ export async function obtenerUsuario(token, id) {
  * @param {string} id UUID del usuario
  */
 export async function resetearPassword(token, id) {
-  const res = await fetch(`${BASE}/${id}/reset-password`, {
+  const res = await fetch(`${BASE}/${id}/magic-link`, {
     method: 'POST',
     headers: headers(token),
   })
