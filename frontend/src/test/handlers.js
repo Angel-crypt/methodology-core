@@ -13,7 +13,7 @@ export const handlers = [
       status: 'success',
       data: {
         access_token: 'mock-jwt-token',
-        user: { id: 'user-1', email: 'admin@mock.local', role: 'superadmin' },
+        user: { id: 'user-1', email: 'super@methodology.local', role: 'superadmin' },
       },
     })
   ),
@@ -32,9 +32,11 @@ export const handlers = [
 
   http.post(`${API}/auth/oidc/callback`, () =>
     HttpResponse.json({
-      access_token: 'mock-oidc-jwt-token',
-      token_type: 'Bearer',
-      expires_in: 3600,
+      status: 'success',
+      data: {
+        access_token: 'mock-oidc-jwt-token',
+        must_change_password: false,
+      },
     })
   ),
 
@@ -43,7 +45,7 @@ export const handlers = [
     HttpResponse.json({
       status: 'success',
       data: [
-        { id: 'user-1', email: 'admin@mock.local', role: 'superadmin', status: 'active' },
+        { id: 'user-1', email: 'super@methodology.local', role: 'superadmin', status: 'active' },
         { id: 'user-2', email: 'app@mock.local', role: 'applicator', status: 'active' },
       ],
     })
@@ -64,8 +66,28 @@ export const handlers = [
     HttpResponse.json({ status: 'success', data: null })
   ),
 
-  http.post(`${API}/users/:id/reset-password`, () =>
-    HttpResponse.json({ status: 'success', data: { setup_token: 'new-token' } })
+  http.post(`${API}/users/:id/magic-link`, () =>
+    HttpResponse.json({ status: 'success', data: { _mock_magic_link: '/api/v1/auth/activate/mock-token' } })
+  ),
+
+  http.get(`${API}/auth/activate/:token`, () =>
+    new HttpResponse(null, { status: 302, headers: { location: '/login?activated=1' } })
+  ),
+
+  // ── CF-009 — Solicitudes de cambio de correo ────────────────────────────────
+  http.post(`${API}/users/me/email-change-request`, () =>
+    HttpResponse.json(
+      { status: 'success', message: 'Solicitud enviada. El administrador la revisará.', data: { id: 'req-1' } },
+      { status: 201 }
+    )
+  ),
+
+  http.get(`${API}/users/email-change-requests`, () =>
+    HttpResponse.json({ status: 'success', data: [] })
+  ),
+
+  http.delete(`${API}/users/email-change-requests/:id`, () =>
+    new HttpResponse(null, { status: 204 })
   ),
 
   // ── M2 — Instrumentos ──────────────────────────────────────────────────────
