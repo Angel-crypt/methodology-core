@@ -78,7 +78,7 @@ Base URL: `http://localhost:3000/api/v1`
 
 El servidor expone también `GET /health` (sin prefijo `/api/v1`).
 
-Usuario pre-sembrado: `admin@mock.local` / `Admin123!`
+Superadmin pre-sembrado: leído de `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (defaults de desarrollo: `super@methodology.local` / `metodologia-bootstrap-cambiar-pronto`).
 
 ### M1 — Autenticación
 
