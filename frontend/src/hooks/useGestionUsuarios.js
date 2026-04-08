@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useToast } from '@/components/app'
+import { useAuth } from '@/contexts/AuthContext'
 import { listarUsuarios, crearUsuario, cambiarEstadoUsuario, resetearPassword, listarTodasLasSesiones } from '@/services/users'
 
 export const FILTROS_ESTADO = [
@@ -37,18 +38,12 @@ export function getUserStatus(user) {
  * Encapsula todo el estado y los handlers compartidos por
  * GestionAplicadores y GestionInvestigadores.
  *
- * @param {{ token: string, role: string, labelSingular: string }} params
+ * @param {{ role: string, labelSingular: string }} params
  *   labelSingular — ej. 'aplicador' o 'investigador' (para mensajes de UI)
  */
-export function useGestionUsuarios({ token, role, labelSingular }) {
-  // ─── Rol del usuario desde el JWT ─────────────────────────────
-  const esAdmin = (() => {
-    try {
-      return JSON.parse(atob(token.split('.')[1])).role === 'superadmin'
-    } catch {
-      return false
-    }
-  })()
+export function useGestionUsuarios({ role, labelSingular }) {
+  const { token, role: authRole } = useAuth()
+  const esAdmin = authRole === 'superadmin'
 
   // ─── Estado principal ──────────────────────────────────────────
   const [usuarios, setUsuarios] = useState([])
@@ -182,10 +177,10 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
       if (data.status === 'success') {
         setModalCrear(false)
         setFormCrear(FORM_INICIAL)
-        // Mostrar setup link al admin una sola vez (TTL 24h, single-use)
+        // Mostrar magic link al admin una sola vez (TTL 24h, single-use)
         setCredencialesNuevas({
           email: data.data.email,
-          setupToken: data.data._mock_setup_token,
+          magicLink: data.data._mock_magic_link,
           nombreUsuario: data.data.full_name,
         })
         setModalCredenciales(true)
@@ -250,10 +245,10 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     try {
       const data = await resetearPassword(token, usuario.id)
       if (data.status === 'success') {
-        // Mostrar setup link al admin (TTL 24h, single-use)
+        // Mostrar magic link al admin (TTL 24h, single-use)
         setCredencialesNuevas({
           email: usuario.email,
-          setupToken: data.data._mock_setup_token,
+          magicLink: data.data._mock_magic_link,
           nombreUsuario: usuario.full_name,
         })
         setModalCredenciales(true)
