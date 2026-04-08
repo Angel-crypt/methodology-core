@@ -1,5 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { ChevronDown, KeyRound } from 'lucide-react'
+import { ChevronDown, KeyRound, Mail } from 'lucide-react'
 import PropTypes from 'prop-types'
 import UserAvatar from './UserAvatar'
 import RoleBadge from './RoleBadge'
@@ -16,7 +16,7 @@ import { jwtRoleToDisplay } from '@/lib/utils'
  *   email             string
  *   onChangePassword  () => void — abre CambiarPasswordModal
  */
-function ProfileDropdown({ fullName, role, email, onChangePassword }) {
+function ProfileDropdown({ fullName, role, email, onChangePassword, onRequestEmailChange }) {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -58,6 +58,17 @@ function ProfileDropdown({ fullName, role, email, onChangePassword }) {
             <KeyRound size={14} aria-hidden="true" />
             Cambiar contraseña
           </DropdownMenu.Item>
+
+          {/* Solicitar cambio de correo — solo para roles no-superadmin */}
+          {role !== 'superadmin' && onRequestEmailChange && (
+            <DropdownMenu.Item
+              className="profile-dropdown__item"
+              onSelect={onRequestEmailChange}
+            >
+              <Mail size={14} aria-hidden="true" />
+              Solicitar cambio de correo
+            </DropdownMenu.Item>
+          )}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
@@ -65,10 +76,11 @@ function ProfileDropdown({ fullName, role, email, onChangePassword }) {
 }
 
 ProfileDropdown.propTypes = {
-  fullName:         PropTypes.string.isRequired,
-  role:             PropTypes.oneOf(['superadmin', 'researcher', 'applicator']).isRequired,
-  email:            PropTypes.string.isRequired,
-  onChangePassword: PropTypes.func.isRequired,
+  fullName:             PropTypes.string.isRequired,
+  role:                 PropTypes.oneOf(['superadmin', 'researcher', 'applicator']).isRequired,
+  email:                PropTypes.string.isRequired,
+  onChangePassword:     PropTypes.func.isRequired,
+  onRequestEmailChange: PropTypes.func,
 }
 
 export default ProfileDropdown
