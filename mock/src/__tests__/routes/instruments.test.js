@@ -19,7 +19,7 @@ function buildApp() {
 
 function adminToken() {
   return jwt.sign(
-    { user_id: 'admin-1', role: 'administrator', email: 'admin@test.com', jti: 'jti-test' },
+    { user_id: 'admin-1', role: 'superadmin', email: 'admin@test.com', jti: 'jti-test' },
     JWT_SECRET,
     { expiresIn: '1h' }
   )
@@ -33,7 +33,7 @@ describe('M2 — PATCH /instruments/:id/status (T001 — BUG-006)', () => {
     // Limpiar store y crear instrumento de prueba
     store.instruments = []
     store.revokedTokens = new Map()
-    store.users = [{ id: 'admin-1', role: 'administrator', email: 'admin@test.com', active: true }]
+    store.users = [{ id: 'admin-1', role: 'superadmin', email: 'admin@test.com', active: true }]
 
     store.instruments.push({
       id: 'inst-test-1',
@@ -107,7 +107,7 @@ describe('M2 — DELETE /instruments/:id (T011 — G7)', () => {
       { id: 'inst-del-1', name: 'Para eliminar', is_active: true, deleted: false, created_at: new Date(), updated_at: new Date() },
     ]
     store.revokedTokens = new Map()
-    store.users = [{ id: 'admin-1', role: 'administrator', email: 'admin@test.com', active: true }]
+    store.users = [{ id: 'admin-1', role: 'superadmin', email: 'admin@test.com', active: true }]
     app = buildApp()
   })
 
@@ -147,7 +147,7 @@ describe('M2 — GET /instruments con filtro is_active', () => {
       { id: 'i2', name: 'Inactivo', is_active: false, deleted: false },
     ]
     store.revokedTokens = new Map()
-    store.users = [{ id: 'admin-1', role: 'administrator', email: 'admin@test.com', active: true }]
+    store.users = [{ id: 'admin-1', role: 'superadmin', email: 'admin@test.com', active: true }]
     app = buildApp()
   })
 

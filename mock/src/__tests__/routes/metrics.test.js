@@ -18,7 +18,7 @@ function buildApp() {
 
 function adminToken() {
   return jwt.sign(
-    { user_id: 'admin-1', role: 'administrator', email: 'admin@test.com', jti: 'jti-m3' },
+    { user_id: 'admin-1', role: 'superadmin', email: 'admin@test.com', jti: 'jti-m3' },
     JWT_SECRET,
     { expiresIn: '1h' }
   )
@@ -44,7 +44,7 @@ describe('M3 — /instruments/:id/metrics (rutas canónicas)', () => {
     store.metrics = []
     store.revokedTokens = new Map()
     store.users = [
-      { id: 'admin-1', role: 'administrator', email: 'admin@test.com', active: true },
+      { id: 'admin-1', role: 'superadmin', email: 'admin@test.com', active: true },
       { id: 'user-1', role: 'applicator', email: 'user@test.com', active: true },
     ]
     app = buildApp()
@@ -142,7 +142,7 @@ describe('M2 — POST /instruments respuesta con is_active', () => {
   beforeEach(() => {
     store.instruments = []
     store.revokedTokens = new Map()
-    store.users = [{ id: 'admin-1', role: 'administrator', email: 'admin@test.com', active: true }]
+    store.users = [{ id: 'admin-1', role: 'superadmin', email: 'admin@test.com', active: true }]
     app = buildApp()
   })
 
