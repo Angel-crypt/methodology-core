@@ -1,6 +1,6 @@
 # INVENTARIO — methodology-core
 
-> Última actualización: 2026-04-07
+> Última actualización: 2026-04-08
 >
 > Este archivo es la fuente de verdad del estado del proyecto.
 > Un agente o equipo que solo lea este documento debe poder entender qué existe,
@@ -41,11 +41,13 @@ El sistema está dividido en 6 módulos funcionales. Solo M1–M4 tienen impleme
 
 | Rol | Acceso |
 |-----|--------|
-| `administrator` | Acceso total. Gestiona usuarios, instrumentos, métricas y configuración operativa. |
+| `superadmin` | Acceso total. Gestiona usuarios, instrumentos, métricas y configuración operativa. |
 | `applicator` | Solo puede acceder al wizard de registro operativo y ver sus propios registros. |
 | `researcher` | Accede a instrumentos en modo lectura. Vista de consulta pendiente. |
 
 El rol está codificado en el JWT (`role` claim). Las rutas del frontend redirigen si el rol no coincide.
+
+> **Nota CF-031:** El rol `administrator` fue renombrado a `superadmin` en todo el stack (frontend, mock y SRS). No queda ninguna referencia al nombre antiguo en el código.
 
 ---
 
@@ -57,16 +59,16 @@ Base: `frontend/src/pages/`
 |---------|----------|---------------|---------|
 | `LoginPage.jsx` | `/login` | público | Formulario email+password. Llama `POST /auth/login`. Si recibe `must_change_password=true`, abre `CambiarPasswordModal`. |
 | `SetupPage.jsx` | `/setup?token=...` | público | El admin envía un enlace con token de 1 uso. El usuario establece su contraseña aquí. Llama `GET /auth/setup/:token` y `POST /auth/setup`. |
-| `GestionAplicadores.jsx` | `/usuarios/aplicadores` | administrator | Lista, crea, activa/desactiva y restablece contraseña de aplicadores. |
-| `GestionInvestigadores.jsx` | `/usuarios/investigadores` | administrator | Idéntico a `GestionAplicadores.jsx` pero para investigadores. |
-| `DetalleAplicadorPage.jsx` | `/usuarios/aplicadores/:id` | administrator | Detalle de un usuario: datos, sesiones activas y permisos de registro operativo (`mode`, `education_levels`, `subject_limit`). |
+| `GestionAplicadores.jsx` | `/usuarios/aplicadores` | superadmin | Lista, crea, activa/desactiva y restablece contraseña de aplicadores. |
+| `GestionInvestigadores.jsx` | `/usuarios/investigadores` | superadmin | Idéntico a `GestionAplicadores.jsx` pero para investigadores. |
+| `DetalleAplicadorPage.jsx` | `/usuarios/aplicadores/:id` | superadmin | Detalle de un usuario: datos, sesiones activas y permisos de registro operativo (`mode`, `education_levels`, `subject_limit`). |
 | `CambiarPasswordModal.jsx` | — (modal) | autenticado | Modal para cambio de contraseña. Si `forced=true` no puede cerrarse (flujo primer acceso). |
-| `CredencialesModal.jsx` | — (modal) | administrator | Muestra el setup token generado al crear un usuario. Solo UI, no llama API. |
-| `GestionInstrumentos.jsx` | `/instruments` | autenticado | Lista instrumentos con filtro activo/inactivo. Crea, edita, activa/desactiva y elimina instrumentos. Incluye creación de métricas (formulario 2 pasos). |
+| `CredencialesModal.jsx` | — (modal) | superadmin | Muestra el setup token generado al crear un usuario. Solo UI, no llama API. |
+| `GestionInstrumentos.jsx` | `/instruments` | autenticado | Lista instrumentos con filtro activo/inactivo y filtro por tags (CF-029). Crea, edita, activa/desactiva y elimina instrumentos. El wizard de creación incluye chip-input de tags y `min_days_between_applications`. Incluye creación de métricas (formulario 2 pasos). |
 | `InstrumentoDetallePage.jsx` | `/instruments/:id` | autenticado | Detalle de un instrumento: descripción, período, lista de métricas. Permite crear, editar y eliminar métricas. |
-| `RegistroOperativoWizardPage.jsx` | `/registro-operativo` | applicator | Wizard de 4 pasos: selección de instrumento → registro de sujeto → contexto → captura de métricas. Lee `GET /config/operativo` al montar. |
+| `RegistroOperativoWizardPage.jsx` | `/registro-operativo` | applicator | Wizard de 4 pasos: selección de instrumento → registro de sujeto → contexto → captura de métricas. Lee `GET /config/operativo` al montar y solicita instrumentos con `?is_active=true` (CF-002, Privacy by Design). |
 | `MisRegistrosPage.jsx` | `/mis-registros` | applicator | Historial de registros del aplicador autenticado. Llama `GET /applications/my`. |
-| `ConfiguracionOperativaPage.jsx` | `/configuracion-operativa` | administrator | Gestiona la configuración global del wizard (niveles educativos, cohortes de edad, etc.). |
+| `ConfiguracionOperativaPage.jsx` | `/configuracion-operativa` | superadmin | Gestiona la configuración global del wizard (niveles educativos, cohortes de edad, etc.). |
 
 ---
 
@@ -106,14 +108,17 @@ Usuario pre-sembrado: `admin@mock.local` / `Admin123!`
 
 Todos los endpoints de M2 usan `is_active: boolean` — tanto en el store interno como en la API externa. No hay conversión de strings.
 
+Cada instrumento incluye además los campos CF-029: `tags` (array de strings normalizados a lowercase, sin duplicados) y `min_days_between_applications` (entero ≥ 0, default 0).
+
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| POST | `/instruments` | admin | Crea instrumento. Body: `{ name, methodological_description?, start_date?, end_date? }`. Responde con `is_active: true`. |
-| GET | `/instruments` | Bearer | Lista instrumentos. Filtro: `?is_active=true\|false`. Cada objeto incluye `is_active: boolean`. |
-| GET | `/instruments/:id` | Bearer | Detalle de instrumento. Incluye `is_active: boolean` y `metrics_count`. |
-| PATCH | `/instruments/:id` | admin | Edita descripción o período. Responde con `is_active: boolean`. |
-| PATCH | `/instruments/:id/status` | admin | Cambia estado. Body: `{ is_active: boolean }`. |
-| DELETE | `/instruments/:id` | admin | Soft delete. El instrumento queda con `deleted: true`. |
+| POST | `/instruments` | superadmin | Crea instrumento. Body: `{ name, methodological_description?, start_date?, end_date?, tags?, min_days_between_applications? }`. Responde con `is_active: true`. Valida `end_date > start_date`. |
+| GET | `/instruments` | Bearer | Lista instrumentos. Filtros: `?is_active=true\|false` y `?tag=foo` (repetible, OR semántico, case-insensitive). |
+| GET | `/instruments/tags` | Bearer | Catálogo de tags únicos (CF-029). Devuelve array ordenado alfabéticamente, excluye instrumentos eliminados. |
+| GET | `/instruments/:id` | Bearer | Detalle de instrumento. Incluye `is_active: boolean`, `tags`, `min_days_between_applications` y `metrics_count`. |
+| PATCH | `/instruments/:id` | superadmin | Edita descripción, período, tags y/o `min_days_between_applications` (patch parcial). |
+| PATCH | `/instruments/:id/status` | superadmin | Cambia estado. Body: `{ is_active: boolean }`. |
+| DELETE | `/instruments/:id` | superadmin | Soft delete. El instrumento queda con `deleted: true`. |
 
 ### M3 — Métricas
 
@@ -159,7 +164,7 @@ Base: `frontend/src/services/`
 
 | Archivo | Funciones exportadas |
 |---------|---------------------|
-| `instruments.js` | `listarInstrumentos`, `crearInstrumento`, `editarInstrumento`, `cambiarEstadoInstrumento`, `obtenerInstrumento`, `eliminarInstrumento`, `listarMetricas`, `crearMetrica`, `editarMetrica`, `eliminarMetrica` |
+| `instruments.js` | `listarInstrumentos` (acepta `tagFilter`), `listarTags`, `crearInstrumento`, `editarInstrumento`, `cambiarEstadoInstrumento`, `obtenerInstrumento`, `eliminarInstrumento`, `listarMetricas`, `crearMetrica`, `editarMetrica`, `eliminarMetrica` |
 | `users.js` | `listarUsuarios`, `crearUsuario`, `cambiarEstadoUsuario`, `listarTodosUsuarios`, `listarTodasLasSesiones`, `listarSesionesUsuario`, `obtenerUsuario`, `resetearPassword`, `obtenerPermisos`, `guardarPermisos` |
 | `setup.js` | `validarSetupToken`, `completarSetup` |
 
@@ -226,7 +231,7 @@ Base: `frontend/src/services/`
 - Dos jobs paralelos: `frontend` (Vitest) y `mock` (Jest)
 - Se activa en push/PR a `main` y `dev`
 
-**Estado actual: 41 tests, todos en verde.**
+**Estado actual: 76 tests, todos en verde** (43 mock + 33 frontend, tras Sprint 1).
 
 ---
 
@@ -240,7 +245,7 @@ Base: `frontend/src/services/`
 - Gestión de usuarios (crear, activar/desactivar, resetear contraseña)
 - Permisos por aplicador (mode, education_levels, subject_limit)
 - Sesiones activas: ver y cerrar sesiones individuales
-- Gestión de instrumentos: CRUD completo con soft delete
+- Gestión de instrumentos: CRUD completo con soft delete, tags y `min_days_between_applications` (CF-029)
 - Métricas: CRUD completo vía `/instruments/:id/metrics`, tipos `numeric`, `categorical`, `boolean`, `short_text`
 - Wizard de registro operativo: 4 pasos completos (sujeto → contexto → aplicación → métricas)
 - Historial de registros del aplicador (`GET /applications/my`)
