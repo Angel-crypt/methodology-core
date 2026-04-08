@@ -23,7 +23,7 @@ function getNavSections(role) {
   const sections = [
     {
       id:    'gestion',
-      label: role === 'administrator' ? 'GESTIÓN' : null,
+      label: role === 'superadmin' ? 'GESTIÓN' : null,
       items: [
         { label: 'Instrumentos', icon: BookOpen, to: '/instruments' },
       ],
@@ -41,7 +41,7 @@ function getNavSections(role) {
     })
   }
 
-  if (role === 'administrator') {
+  if (role === 'superadmin') {
     sections.push({
       id:    'usuarios',
       label: 'USUARIOS',
@@ -89,7 +89,7 @@ function AppLayout({ children, onLogout, token }) {
   }
 
   const sections = getNavSections(role)
-  const esAdmin  = role === 'administrator'
+  const esAdmin  = role === 'superadmin'
 
   return (
     <div className="app-layout">
