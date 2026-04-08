@@ -13,7 +13,7 @@ export const handlers = [
       status: 'success',
       data: {
         access_token: 'mock-jwt-token',
-        user: { id: 'user-1', email: 'admin@mock.local', role: 'administrator' },
+        user: { id: 'user-1', email: 'admin@mock.local', role: 'superadmin' },
       },
     })
   ),
@@ -43,7 +43,7 @@ export const handlers = [
     HttpResponse.json({
       status: 'success',
       data: [
-        { id: 'user-1', email: 'admin@mock.local', role: 'administrator', status: 'active' },
+        { id: 'user-1', email: 'admin@mock.local', role: 'superadmin', status: 'active' },
         { id: 'user-2', email: 'app@mock.local', role: 'applicator', status: 'active' },
       ],
     })

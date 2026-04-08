@@ -1,12 +1,24 @@
 /**
- * T001 — BUG-006: Contrato API de cambio de estado de instrumento
- * T008 — BUG-004: Filtro is_active=true en listarInstrumentos
- * T030 — Corrección de endpoints de métricas (paths SRS canónicos)
+ * Tests del servicio de instrumentos (frontend → mock).
+ *
+ * Cubre:
+ *   - cambiarEstadoInstrumento envía `{ is_active }` (booleano) a
+ *     PATCH /instruments/:id/status con header de autorización.
+ *   - listarInstrumentos serializa los filtros opcionales `is_active` y `tag`
+ *     (repetible) en el query string.
+ *   - listarTags llama a GET /instruments/tags.
+ *   - crearInstrumento y editarInstrumento incluyen los campos `tags` y
+ *     `min_days_between_applications` en el body cuando se pasan.
+ *   - Los endpoints de métricas usan los paths canónicos
+ *     /instruments/:id/metrics[/:metricId].
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   cambiarEstadoInstrumento,
   listarInstrumentos,
+  listarTags,
+  crearInstrumento,
+  editarInstrumento,
   listarMetricas,
   crearMetrica,
   editarMetrica,
@@ -22,7 +34,7 @@ function mockFetch(responseBody, status = 200) {
   )
 }
 
-describe('cambiarEstadoInstrumento — contrato API (T001 / BUG-006)', () => {
+describe('cambiarEstadoInstrumento — contrato API', () => {
   let fetchSpy
   const TOKEN = 'test-token'
   const INSTRUMENT_ID = 'inst-abc'
@@ -62,7 +74,7 @@ describe('cambiarEstadoInstrumento — contrato API (T001 / BUG-006)', () => {
   })
 })
 
-describe('listarInstrumentos — filtro is_active (T008 / BUG-004)', () => {
+describe('listarInstrumentos — filtro is_active', () => {
   beforeEach(() => vi.restoreAllMocks())
 
   it('sin filtro llama a /instruments sin parámetros', async () => {
@@ -88,7 +100,66 @@ describe('listarInstrumentos — filtro is_active (T008 / BUG-004)', () => {
   })
 })
 
-describe('Métricas — endpoints bajo /instruments/:id/metrics (T030)', () => {
+describe('tags y min_days_between_applications', () => {
+  beforeEach(() => vi.restoreAllMocks())
+
+  it('listarTags → GET /instruments/tags con header de auth', async () => {
+    const spy = mockFetch({ status: 'success', data: ['lectura', 'matemáticas'] })
+    const result = await listarTags('test-token')
+    const [url, options] = spy.mock.calls[0]
+    expect(url).toMatch(/\/instruments\/tags$/)
+    expect(options.headers.Authorization).toBe('Bearer test-token')
+    expect(result.data).toEqual(['lectura', 'matemáticas'])
+  })
+
+  it('listarInstrumentos con filtro de un tag → ?tag=lectura', async () => {
+    const spy = mockFetch({ status: 'success', data: [] })
+    await listarInstrumentos('token', '', ['lectura'])
+    const [url] = spy.mock.calls[0]
+    expect(url).toContain('tag=lectura')
+  })
+
+  it('listarInstrumentos con varios tags → ?tag=...&tag=... (OR semántico)', async () => {
+    const spy = mockFetch({ status: 'success', data: [] })
+    await listarInstrumentos('token', '', ['lectura', 'matemáticas'])
+    const [url] = spy.mock.calls[0]
+    const params = new URL(url, 'http://x').searchParams.getAll('tag')
+    expect(params.sort()).toEqual(['lectura', 'matemáticas'])
+  })
+
+  it('listarInstrumentos combina is_active y tag', async () => {
+    const spy = mockFetch({ status: 'success', data: [] })
+    await listarInstrumentos('token', 'active', ['lectura'])
+    const [url] = spy.mock.calls[0]
+    expect(url).toContain('is_active=true')
+    expect(url).toContain('tag=lectura')
+  })
+
+  it('crearInstrumento envía tags y min_days_between_applications en el body', async () => {
+    const spy = mockFetch({ status: 'success', data: { id: 'i-1' } }, 201)
+    await crearInstrumento('token', {
+      name: 'Test',
+      tags: ['lectura', 'primaria'],
+      min_days_between_applications: 7,
+    })
+    const [, options] = spy.mock.calls[0]
+    const body = JSON.parse(options.body)
+    expect(body.tags).toEqual(['lectura', 'primaria'])
+    expect(body.min_days_between_applications).toBe(7)
+  })
+
+  it('editarInstrumento permite actualizar solo tags', async () => {
+    const spy = mockFetch({ status: 'success', data: null })
+    await editarInstrumento('token', 'i-1', { tags: ['nuevo'] })
+    const [url, options] = spy.mock.calls[0]
+    expect(url).toContain('/instruments/i-1')
+    expect(options.method).toBe('PATCH')
+    const body = JSON.parse(options.body)
+    expect(body).toEqual({ tags: ['nuevo'] })
+  })
+})
+
+describe('Métricas — endpoints bajo /instruments/:id/metrics', () => {
   const TOKEN = 'tok'
   const INSTRUMENT_ID = 'inst-1'
   const METRIC_ID = 'met-1'
