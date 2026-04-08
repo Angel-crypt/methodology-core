@@ -44,7 +44,7 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
   // ─── Rol del usuario desde el JWT ─────────────────────────────
   const esAdmin = (() => {
     try {
-      return JSON.parse(atob(token.split('.')[1])).role === 'administrator'
+      return JSON.parse(atob(token.split('.')[1])).role === 'superadmin'
     } catch {
       return false
     }
