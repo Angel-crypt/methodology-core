@@ -125,6 +125,184 @@ router.post('/auth/login', (req, res) => {
       token_type: 'Bearer',
       expires_in: JWT_EXPIRES_IN,
       must_change_password: user.must_change_password === true,
+      user: { id: user.id, role: user.role },
+    },
+  });
+});
+
+// ─── OIDC simulado ────────────────────────────────────────────────────────────
+// En producción estas rutas serían el IdP real (Google). Aquí el mock simula
+// el flujo authorization_code emitiendo codes propios y vinculando broker_subject.
+
+/**
+ * oidcCodes: Map<code, { email, sub }>
+ * Single-use; se elimina tras el callback.
+ */
+if (!store.oidcCodes) store.oidcCodes = new Map();
+
+// GET /auth/oidc/authorize
+// Emite un code de autorización y redirige al redirect_uri.
+// El email del usuario se resuelve desde store.oidcCodes cuando el test lo registra,
+// o desde el sub generado cuando no hay mapeo previo.
+router.get('/auth/oidc/authorize', (req, res) => {
+  const { redirect_uri, state } = req.query;
+  if (!redirect_uri) {
+    return res.status(400).json({ status: 'error', message: 'redirect_uri requerido', data: null });
+  }
+
+  const code = crypto.randomBytes(16).toString('hex');
+  store.oidcCodes.set(code, null);
+
+  // En tests automatizados el test sobreescribe store.oidcCodes antes de que
+  // el callback sea invocado, por lo que nunca llegan aquí con null.
+  // En el browser (desarrollo manual) redirigimos al simulador de Google SSO
+  // para que el desarrollador seleccione con qué cuenta ingresar.
+  // Redirigimos al selector de usuario bajo /api/v1/ para que Vite lo proxie
+  // a este mismo servidor (evita que el SPA intercepte la URL).
+  const ssoUrl = `/api/v1/auth/oidc/mock-sso?code=${code}&redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state ?? '')}`;
+  return res.redirect(302, ssoUrl);
+});
+
+// GET /auth/oidc/mock-sso
+// Simulador visual de Google SSO para desarrollo manual.
+// Lista los usuarios activos no-superadmin para que el dev elija con cuál entrar.
+router.get('/auth/oidc/mock-sso', (req, res) => {
+  const { code, redirect_uri, state } = req.query;
+  if (!code || !redirect_uri) {
+    return res.status(400).send('Parámetros faltantes.');
+  }
+
+  const candidates = store.users.filter((u) => u.role !== 'superadmin' && u.active);
+
+  const items = candidates.length
+    ? candidates.map((u) => `
+        <a href="/api/v1/auth/oidc/mock-sso/select?code=${encodeURIComponent(code)}&email=${encodeURIComponent(u.email)}&redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state ?? '')}" class="user-btn">
+          <div class="user-email">${u.email}</div>
+          <div class="user-meta">${u.full_name ?? ''} · ${u.role}</div>
+        </a>`).join('')
+    : '<p class="empty">No hay usuarios activos. Activa al menos uno con el magic link primero.</p>';
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mock Google SSO — SPL Dev</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f1f3f4; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.15); padding: 40px 36px; width: 100%; max-width: 400px; }
+    .logo { font-size: 13px; color: #5f6368; margin-bottom: 24px; }
+    h1 { font-size: 22px; color: #202124; margin-bottom: 4px; }
+    .subtitle { font-size: 14px; color: #5f6368; margin-bottom: 28px; }
+    .badge { display: inline-block; background: #fef08a; color: #713f12; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-bottom: 20px; }
+    .user-btn { display: block; padding: 14px 16px; border: 1px solid #dadce0; border-radius: 8px; margin-bottom: 10px; cursor: pointer; text-decoration: none; color: inherit; transition: background .15s; }
+    .user-btn:hover { background: #f8f9fa; }
+    .user-email { font-size: 15px; color: #202124; }
+    .user-meta { font-size: 12px; color: #5f6368; margin-top: 2px; }
+    .empty { color: #5f6368; font-size: 14px; text-align: center; padding: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Google</div>
+    <h1>Iniciar sesión</h1>
+    <p class="subtitle">Selecciona una cuenta para continuar en SPL</p>
+    <div class="badge">🔧 Mock SSO — Solo desarrollo</div>
+    ${items}
+  </div>
+</body>
+</html>`);
+});
+
+// GET /auth/oidc/mock-sso/select
+// Vincula el code al email seleccionado y redirige al callback.
+router.get('/auth/oidc/mock-sso/select', (req, res) => {
+  const { code, email, redirect_uri, state } = req.query;
+  if (!code || !email || !redirect_uri) {
+    return res.status(400).send('Parámetros faltantes.');
+  }
+  if (!store.oidcCodes.has(code)) {
+    return res.status(400).send('Código expirado o inválido.');
+  }
+  store.oidcCodes.set(code, email);
+  const location = `${redirect_uri}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state ?? '')}`;
+  return res.redirect(302, location);
+});
+
+// POST /auth/oidc/callback
+// Valida el code, vincula broker_subject si es primer login, emite JWT.
+router.post('/auth/oidc/callback', (req, res) => {
+  const { code } = req.body || {};
+  const ERR = { status: 'error', message: 'Credenciales inválidas', data: null };
+
+  if (!code || !store.oidcCodes.has(code)) {
+    addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Código inválido o no existe');
+    return res.status(401).json(ERR);
+  }
+
+  const mapping = store.oidcCodes.get(code);
+  store.oidcCodes.delete(code); // single-use
+
+  // mapping puede ser: null | string (email) | { email, sub }
+  let email, incomingSub;
+  if (mapping === null) {
+    addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Code sin email asociado');
+    return res.status(401).json(ERR);
+  } else if (typeof mapping === 'string') {
+    email = mapping;
+    incomingSub = `google-sub-${crypto.randomBytes(8).toString('hex')}`;
+  } else {
+    email = mapping.email;
+    incomingSub = mapping.sub ?? `google-sub-${crypto.randomBytes(8).toString('hex')}`;
+  }
+
+  const user = store.users.find((u) => u.email === email);
+  if (!user || !user.active) {
+    addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, `Usuario no encontrado o inactivo: ${email}`);
+    return res.status(401).json(ERR);
+  }
+
+  // Verificar broker_subject si ya está vinculado
+  if (user.broker_subject && user.broker_subject !== incomingSub) {
+    addAuditEvent('OIDC_SUB_MISMATCH', user.id, req.ip, `Sub esperado: ${user.broker_subject} | recibido: ${incomingSub}`);
+    return res.status(401).json(ERR);
+  }
+
+  // Vincular sub en primer login OIDC
+  if (!user.broker_subject) {
+    user.broker_subject = incomingSub;
+    user.updated_at = new Date();
+  }
+
+  const jti = uuidv4();
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + JWT_EXPIRES_IN;
+
+  const token = jwt.sign(
+    { user_id: user.id, role: user.role, full_name: user.full_name, email: user.email, jti, iat, exp },
+    JWT_SECRET,
+    { algorithm: 'HS256', noTimestamp: true }
+  );
+
+  store.sessions.push({
+    jti,
+    user_id: user.id,
+    ip: req.ip,
+    user_agent: req.headers['user-agent'] || null,
+    created_at: new Date(),
+    expires_at: exp,
+  });
+
+  addAuditEvent('OIDC_LOGIN', user.id, req.ip, `Email: ${email}`);
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      access_token: token,
+      must_change_password: user.must_change_password === true,
+      user: { id: user.id, role: user.role },
     },
   });
 });
@@ -239,8 +417,8 @@ router.post(
       return res.status(409).json({ status: 'error', message: 'El email ya está registrado', data: null });
     }
 
-    // password_hash contiene un placeholder aleatorio que nunca se expone; el usuario
-    // no puede autenticarse con él y lo sobreescribe al completar el setup.
+    // password_hash contiene un placeholder aleatorio; el usuario no puede autenticarse
+    // con él. La identidad se establece en el primer login OIDC (binding de broker_subject).
     const placeholderPwd = crypto.randomBytes(32).toString('hex');
     const user = {
       id: uuidv4(),
@@ -248,20 +426,24 @@ router.post(
       email,
       password_hash: bcrypt.hashSync(placeholderPwd, 12),
       role,
-      active: true,
-      must_change_password: true,
+      active: false,          // inactivo hasta que el usuario active su cuenta con el magic link
+      must_change_password: false,
+      broker_subject: null,
+      token_version: 0,
       created_at: new Date(),
       updated_at: null,
       password_changed_at: null,
     };
     store.users.push(user);
 
-    // Generar setup token (single-use, TTL 24h)
-    const setupToken = generateSetupToken();
-    store.setupTokens.set(setupToken, {
+    // Generar activation token (single-use, TTL 24h)
+    const activationToken = generateSetupToken();
+    store.setupTokens.set(activationToken, {
       userId: user.id,
       expiresAt: Math.floor(Date.now() / 1000) + SETUP_TOKEN_TTL,
     });
+
+    const mockMagicLink = `/api/v1/auth/activate/${activationToken}`;
 
     return res.status(201).json({
       status: 'success',
@@ -272,13 +454,118 @@ router.post(
         email: user.email,
         role: user.role,
         active: user.active,
-        must_change_password: user.must_change_password,
         created_at: user.created_at,
-        _mock_setup_token: setupToken, // ELIMINAR en producción — en prod enviar por email
+        _mock_magic_link: mockMagicLink, // En producción: enviar por email; no exponer en API
       },
     });
   }
 );
+
+// ─── Solicitudes de cambio de correo ──────────────────────────────────────────
+// No autoservicio: el usuario solicita, el superadmin aprueba.
+// Aprobar: PATCH /users/:id/email → invalida broker_subject, incrementa token_version.
+
+// POST /users/me/email-change-request — crear solicitud (usuario autenticado)
+router.post('/users/me/email-change-request', authMiddleware(), (req, res) => {
+  const { new_email, reason = '' } = req.body || {};
+
+  if (!new_email) {
+    return res.status(400).json({ status: 'error', message: 'El campo new_email es obligatorio', data: null });
+  }
+  if (!EMAIL_REGEX.test(new_email)) {
+    return res.status(400).json({ status: 'error', message: 'Formato de correo inválido', data: null });
+  }
+
+  const userId = req.user.id;
+  const existing = store.emailChangeRequests.find((r) => r.user_id === userId);
+  if (existing) {
+    return res.status(409).json({ status: 'error', message: 'Ya tienes una solicitud de cambio de correo pendiente', data: { code: 'PENDING_REQUEST_EXISTS' } });
+  }
+  if (store.users.find((u) => u.email === new_email)) {
+    return res.status(409).json({ status: 'error', message: 'Ese correo ya está registrado', data: { code: 'EMAIL_ALREADY_EXISTS' } });
+  }
+
+  const currentUser = store.users.find((u) => u.id === userId);
+  const req_id = uuidv4();
+  store.emailChangeRequests.push({
+    id: req_id,
+    user_id: userId,
+    current_email: currentUser?.email ?? '',
+    new_email,
+    reason,
+    created_at: new Date(),
+  });
+
+  addAuditEvent('EMAIL_CHANGE_REQUEST', userId, req.ip, `new_email: ${new_email}`);
+
+  return res.status(201).json({
+    status: 'success',
+    message: 'Solicitud enviada. El administrador la revisará.',
+    data: { id: req_id, user_id: userId, new_email, created_at: new Date() },
+  });
+});
+
+// GET /users/email-change-requests — listar solicitudes (solo superadmin)
+router.get('/users/email-change-requests', authMiddleware(['superadmin']), (req, res) => {
+  return res.status(200).json({
+    status: 'success',
+    data: store.emailChangeRequests,
+  });
+});
+
+// DELETE /users/email-change-requests/:id — rechazar/cancelar solicitud (solo superadmin)
+router.delete('/users/email-change-requests/:id', authMiddleware(['superadmin']), (req, res) => {
+  const idx = store.emailChangeRequests.findIndex((r) => r.id === req.params.id);
+  if (idx === -1) {
+    return res.status(404).json({ status: 'error', message: 'Solicitud no encontrada', data: null });
+  }
+  store.emailChangeRequests.splice(idx, 1);
+  return res.status(204).end();
+});
+
+// PATCH /users/:id/email — aprobar cambio de correo (solo superadmin)
+// Invalida broker_subject y revoca sesiones activas del usuario incrementando token_version.
+router.patch('/users/:id/email', authMiddleware(['superadmin']), (req, res) => {
+  const { email } = req.body || {};
+  if (!email || !EMAIL_REGEX.test(email)) {
+    return res.status(400).json({ status: 'error', message: 'Formato de correo inválido', data: null });
+  }
+
+  const user = store.users.find((u) => u.id === req.params.id);
+  if (!user) {
+    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
+  }
+
+  const collision = store.users.find((u) => u.email === email && u.id !== user.id);
+  if (collision) {
+    return res.status(409).json({ status: 'error', message: 'Ese correo ya está registrado', data: { code: 'EMAIL_ALREADY_EXISTS' } });
+  }
+
+  user.email          = email;
+  user.broker_subject = null;
+  user.token_version  = (user.token_version ?? 0) + 1;
+  user.updated_at     = new Date();
+
+  // Eliminar solicitudes pendientes del usuario
+  store.emailChangeRequests = store.emailChangeRequests.filter((r) => r.user_id !== user.id);
+
+  // Revocar sesiones activas del usuario
+  store.sessions = store.sessions.filter((s) => {
+    if (s.user_id === user.id) {
+      store.revokedTokens.set(s.jti, s.expires_at);
+      return false;
+    }
+    return true;
+  });
+
+  addAuditEvent('EMAIL_CAMBIADO', req.user.id, req.ip, `Usuario ${user.id} → ${email}`);
+
+  return res.status(200).json({
+    status: 'success',
+    message: 'Correo actualizado. El usuario fue desconectado.',
+    data: { id: user.id, email: user.email },
+  });
+});
 
 // GET /users — respuesta paginada (máx 50), con audit log por acceso
 router.get('/users', authMiddleware(['superadmin']), (req, res) => {
@@ -412,138 +699,71 @@ router.patch('/users/:id/status', authMiddleware(['superadmin']), (req, res) => 
 // POST /users/:id/reset-password
 // Funciona en estado "pending" (regenerar) y "active" (restablecer → vuelve a pending).
 // NOTA DE SEGURIDAD: Solo en mock se devuelve la contraseña en texto plano.
-// En producción: nunca exponer en API; entregar por canal seguro fuera de banda.
-router.post('/users/:id/reset-password', authMiddleware(['superadmin']), (req, res) => {
+// POST /users/:id/magic-link — reenvío de enlace de activación (solo superadmin)
+// Regenera un magic link para un usuario existente (activo o inactivo).
+// En producción: el enlace se entrega por email; no se expone en la API.
+router.post('/users/:id/magic-link', authMiddleware(['superadmin']), (req, res) => {
   const user = store.users.find((u) => u.id === req.params.id);
   if (!user) {
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
   }
-  if (!user.active) {
-    return res.status(409).json({
-      status: 'error',
-      message: 'No se puede restablecer la contraseña de un usuario inactivo. Actívalo primero.',
-      data: null,
-    });
-  }
 
-  // Se genera un setup link de un solo uso (TTL 24h).
-  // password_hash no se modifica: el usuario puede seguir autenticándose con su contraseña anterior,
-  // pero el middleware lo bloquea (must_change_password=true) hasta que complete el setup.
-  user.must_change_password = true;
-  user.password_changed_at = new Date(); // invalida tokens activos del usuario
-  user.updated_at = new Date();
-
-  const setupToken = generateSetupToken();
-  store.setupTokens.set(setupToken, {
+  const activationToken = generateSetupToken();
+  store.setupTokens.set(activationToken, {
     userId: user.id,
     expiresAt: Math.floor(Date.now() / 1000) + SETUP_TOKEN_TTL,
   });
 
-  addAuditEvent(
-    'RESET_CONTRASENA',
-    req.user.id,
-    req.ip,
-    `Admin ${req.user.id} restableció contraseña de usuario ${user.id}`
-  );
+  const mockMagicLink = `/api/v1/auth/activate/${activationToken}`;
+
+  addAuditEvent('MAGIC_LINK_GENERADO', req.user.id, req.ip, `Para usuario ${user.id}`);
 
   return res.status(200).json({
     status: 'success',
-    message: 'Enlace de configuración generado. El usuario deberá crear su nueva contraseña antes de 24 horas.',
+    message: 'Enlace de activación generado.',
     data: {
       id: user.id,
       email: user.email,
-      must_change_password: true,
-      _mock_setup_token: setupToken, // ELIMINAR en producción — en prod enviar por email
+      _mock_magic_link: mockMagicLink,
     },
   });
 });
 
-// GET /auth/setup/:token
-// Valida un setup token y devuelve los datos públicos del usuario (sin secretos).
-// Endpoint público — no requiere JWT. El frontend lo usa para mostrar nombre y email
-// en la pantalla de configuración de contraseña.
-router.get('/auth/setup/:token', (req, res) => {
+// GET /auth/activate/:token
+// Activa la cuenta del usuario y lo redirige a /login.
+// Endpoint público — no requiere JWT. Token single-use.
+router.get('/auth/activate/:token', (req, res) => {
   const now = Math.floor(Date.now() / 1000);
   const tokenData = store.setupTokens.get(req.params.token);
 
   if (!tokenData || tokenData.expiresAt < now) {
     store.setupTokens.delete(req.params.token);
-    return res.status(404).json({
+    return res.status(410).json({
       status: 'error',
-      message: 'El enlace de configuración es inválido o ha expirado.',
-      data: null,
+      message: 'El enlace de activación es inválido o ha expirado.',
+      data: { code: 'LINK_EXPIRED_OR_USED' },
     });
   }
 
   const user = store.users.find((u) => u.id === tokenData.userId);
   if (!user) {
-    return res.status(404).json({
+    store.setupTokens.delete(req.params.token);
+    return res.status(410).json({
       status: 'error',
-      message: 'El enlace de configuración es inválido o ha expirado.',
-      data: null,
+      message: 'El enlace de activación es inválido o ha expirado.',
+      data: { code: 'LINK_EXPIRED_OR_USED' },
     });
   }
 
-  return res.status(200).json({
-    status: 'success',
-    message: 'Enlace válido',
-    data: { email: user.email, full_name: user.full_name },
-  });
+  user.active = true;
+  user.broker_subject = null;
+  user.updated_at = new Date();
+  store.setupTokens.delete(req.params.token); // single-use
+
+  addAuditEvent('CUENTA_ACTIVADA', user.id, req.ip, `Token de activación usado`);
+
+  return res.redirect(302, '/login?activated=1');
 });
-
-// POST /auth/setup
-// El usuario establece su contraseña usando el setup token.
-// Endpoint público — no requiere JWT (el token actúa como credencial temporal).
-// Token single-use: se invalida inmediatamente tras su uso.
-router.post(
-  '/auth/setup',
-  validateStrictInput(['token', 'password']),
-  (req, res) => {
-    const { token, password } = req.body || {};
-
-    if (!token || !password) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Campos obligatorios: token, password',
-        data: null,
-      });
-    }
-
-    const now = Math.floor(Date.now() / 1000);
-    const tokenData = store.setupTokens.get(token);
-
-    if (!tokenData || tokenData.expiresAt < now) {
-      store.setupTokens.delete(token);
-      return res.status(400).json({
-        status: 'error',
-        message: 'El enlace de configuración es inválido o ha expirado.',
-        data: null,
-      });
-    }
-
-    const user = store.users.find((u) => u.id === tokenData.userId);
-    if (!user) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'El enlace de configuración es inválido o ha expirado.',
-        data: null,
-      });
-    }
-
-    user.password_hash = bcrypt.hashSync(password, 12);
-    user.must_change_password = false;
-    user.password_changed_at = new Date();
-    store.setupTokens.delete(token); // single-use: invalidar inmediatamente
-
-    addAuditEvent('CAMBIO_CONTRASENA', user.id, req.ip, 'Configuración de contraseña vía setup link');
-
-    return res.status(200).json({
-      status: 'success',
-      message: 'Contraseña configurada correctamente. Ya puedes iniciar sesión.',
-      data: null,
-    });
-  }
-);
 
 // GET /audit-log — solo administrador; soporta filtros por event, user_id, from, to
 router.get('/audit-log', authMiddleware(['superadmin']), (req, res) => {
