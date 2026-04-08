@@ -39,7 +39,7 @@ function validateMetricTypeFields(metric_type, min_value, max_value, options) {
 }
 
 // POST /instruments/:instrumentId/metrics
-router.post('/instruments/:instrumentId/metrics', authMiddleware(['administrator']), (req, res) => {
+router.post('/instruments/:instrumentId/metrics', authMiddleware(['superadmin']), (req, res) => {
   const { instrumentId } = req.params;
   const { name, metric_type, required, min_value, max_value, options, description } = req.body || {};
 
@@ -118,7 +118,7 @@ router.get('/instruments/:instrumentId/metrics', authMiddleware(), (req, res) =>
 });
 
 // PATCH /instruments/:instrumentId/metrics/:metricId
-router.patch('/instruments/:instrumentId/metrics/:metricId', authMiddleware(['administrator']), (req, res) => {
+router.patch('/instruments/:instrumentId/metrics/:metricId', authMiddleware(['superadmin']), (req, res) => {
   const { instrumentId, metricId } = req.params;
   const { name, metric_type, required, min_value, max_value, options, description } = req.body || {};
 
@@ -153,7 +153,7 @@ router.patch('/instruments/:instrumentId/metrics/:metricId', authMiddleware(['ad
 });
 
 // DELETE /instruments/:instrumentId/metrics/:metricId
-router.delete('/instruments/:instrumentId/metrics/:metricId', authMiddleware(['administrator']), (req, res) => {
+router.delete('/instruments/:instrumentId/metrics/:metricId', authMiddleware(['superadmin']), (req, res) => {
   const { instrumentId, metricId } = req.params;
   const idx = store.metrics.findIndex((m) => m.id === metricId && m.instrument_id === instrumentId);
   if (idx === -1) {

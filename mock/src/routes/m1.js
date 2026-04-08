@@ -16,7 +16,7 @@ const { validateStrictInput } = require('../middleware/validateStrictInput');
 
 const router = express.Router();
 
-const VALID_ROLES = ['administrator', 'researcher', 'applicator'];
+const VALID_ROLES = ['superadmin', 'researcher', 'applicator'];
 const JWT_EXPIRES_IN = 21600; // 6 horas (segundos)
 
 // Parámetros de rate limiting (CA-HU3-06, AD-08)
@@ -221,7 +221,7 @@ router.post(
 // En producción: _mock_setup_token no se expone; se entrega por canal seguro.
 router.post(
   '/users',
-  authMiddleware(['administrator']),
+  authMiddleware(['superadmin']),
   validateStrictInput(['full_name', 'email', 'role']),
   (req, res) => {
     const { full_name, email, role } = req.body || {};
@@ -281,7 +281,7 @@ router.post(
 );
 
 // GET /users — respuesta paginada (máx 50), con audit log por acceso
-router.get('/users', authMiddleware(['administrator']), (req, res) => {
+router.get('/users', authMiddleware(['superadmin']), (req, res) => {
   // Validación de filtros
   if (req.query.role && !VALID_ROLES.includes(req.query.role)) {
     return res.status(400).json({ status: 'error', message: `Rol de filtro inválido. Valores aceptados: ${VALID_ROLES.join(' | ')}`, data: null });
@@ -366,7 +366,7 @@ router.patch('/users/me/password', authMiddleware([], { allowPending: true }), (
 });
 
 // PATCH /users/:id/status
-router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) => {
+router.patch('/users/:id/status', authMiddleware(['superadmin']), (req, res) => {
   const { active } = req.body || {};
 
   if (typeof active !== 'boolean') {
@@ -387,13 +387,13 @@ router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) 
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
   }
 
-  // Protección: último administrador activo no puede ser desactivado (CA-HU2-05)
-  if (!active && user.role === 'administrator') {
-    const activeAdmins = store.users.filter((u) => u.role === 'administrator' && u.active);
+  // Protección: último superadmin activo no puede ser desactivado (CA-HU2-05)
+  if (!active && user.role === 'superadmin') {
+    const activeAdmins = store.users.filter((u) => u.role === 'superadmin' && u.active);
     if (activeAdmins.length === 1 && activeAdmins[0].id === user.id) {
       return res.status(409).json({
         status: 'error',
-        message: 'No es posible desactivar al único administrador activo',
+        message: 'No es posible desactivar al único superadmin activo',
         data: null,
       });
     }
@@ -413,7 +413,7 @@ router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) 
 // Funciona en estado "pending" (regenerar) y "active" (restablecer → vuelve a pending).
 // NOTA DE SEGURIDAD: Solo en mock se devuelve la contraseña en texto plano.
 // En producción: nunca exponer en API; entregar por canal seguro fuera de banda.
-router.post('/users/:id/reset-password', authMiddleware(['administrator']), (req, res) => {
+router.post('/users/:id/reset-password', authMiddleware(['superadmin']), (req, res) => {
   const user = store.users.find((u) => u.id === req.params.id);
   if (!user) {
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
@@ -546,7 +546,7 @@ router.post(
 );
 
 // GET /audit-log — solo administrador; soporta filtros por event, user_id, from, to
-router.get('/audit-log', authMiddleware(['administrator']), (req, res) => {
+router.get('/audit-log', authMiddleware(['superadmin']), (req, res) => {
   let entries = store.auditLog;
 
   // Filtros opcionales
@@ -581,7 +581,7 @@ router.get('/audit-log', authMiddleware(['administrator']), (req, res) => {
 
 // ─── GET /users/sessions ─── todas las sesiones activas ─────────────────────
 // IMPORTANTE: debe ir ANTES de /users/:id para que "sessions" no sea capturado por :id
-router.get('/users/sessions', authMiddleware(['administrator']), (req, res) => {
+router.get('/users/sessions', authMiddleware(['superadmin']), (req, res) => {
   const nowSec = Math.floor(Date.now() / 1000);
   const sessions = store.sessions
     .filter((s) => s.expires_at > nowSec)
@@ -597,7 +597,7 @@ router.get('/users/sessions', authMiddleware(['administrator']), (req, res) => {
 });
 
 // ─── GET /users/:id ──────────────────────────────────────────────────────────
-router.get('/users/:id', authMiddleware(['administrator']), (req, res) => {
+router.get('/users/:id', authMiddleware(['superadmin']), (req, res) => {
   const user = store.users.find((u) => u.id === req.params.id);
   if (!user) {
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado.', data: null });
@@ -629,7 +629,7 @@ router.get('/users/me/sessions', authMiddleware(), (req, res) => {
 });
 
 // ─── GET /users/:id/sessions ─────────────────────────────────────────────────
-router.get('/users/:id/sessions', authMiddleware(['administrator']), (req, res) => {
+router.get('/users/:id/sessions', authMiddleware(['superadmin']), (req, res) => {
   const nowSec = Math.floor(Date.now() / 1000);
   const sessions = store.sessions
     .filter((s) => s.user_id === req.params.id && s.expires_at > nowSec)
@@ -644,7 +644,7 @@ router.get('/users/:id/sessions', authMiddleware(['administrator']), (req, res) 
 });
 
 // ─── GET /users/:id/permissions ──────────────────────────────────────────────
-router.get('/users/:id/permissions', authMiddleware(['administrator']), (req, res) => {
+router.get('/users/:id/permissions', authMiddleware(['superadmin']), (req, res) => {
   const user = store.users.find((u) => u.id === req.params.id);
   if (!user) {
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
@@ -660,7 +660,7 @@ router.get('/users/:id/permissions', authMiddleware(['administrator']), (req, re
 });
 
 // ─── PUT /users/:id/permissions ───────────────────────────────────────────────
-router.put('/users/:id/permissions', authMiddleware(['administrator']), (req, res) => {
+router.put('/users/:id/permissions', authMiddleware(['superadmin']), (req, res) => {
   const user = store.users.find((u) => u.id === req.params.id);
   if (!user) {
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });

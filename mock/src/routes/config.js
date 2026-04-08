@@ -18,12 +18,12 @@ const {
 } = require('../constants/contextEnums');
 
 // ─── GET /config/operativo ────────────────────────────────────────────────────
-router.get('/config/operativo', authMiddleware(['administrator', 'applicator']), (_req, res) => {
+router.get('/config/operativo', authMiddleware(['superadmin', 'applicator']), (_req, res) => {
   return res.json({ status: 'success', data: store.registroConfig });
 });
 
 // ─── PUT /config/operativo ────────────────────────────────────────────────────
-router.put('/config/operativo', authMiddleware(['administrator']), (req, res) => {
+router.put('/config/operativo', authMiddleware(['superadmin']), (req, res) => {
   const {
     education_levels,
     cohort_mode,

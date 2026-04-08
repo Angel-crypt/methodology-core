@@ -19,7 +19,7 @@ const store = {
       full_name: 'Administrador Mock',
       email: 'admin@mock.local',
       password_hash: bcrypt.hashSync('Admin123!', 12),
-      role: 'administrator',
+      role: 'superadmin',
       active: true,
       must_change_password: false,
       created_at: new Date(),

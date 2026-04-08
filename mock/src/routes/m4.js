@@ -12,7 +12,7 @@ const { validateStrictInput } = require('../middleware/validateStrictInput');
 
 const router = express.Router();
 
-const APPLICATOR_ROLES = ['applicator', 'administrator'];
+const APPLICATOR_ROLES = ['applicator', 'superadmin'];
 
 // Enums definidos en los contratos XML (M4 contextAttributes)
 const VALID_SCHOOL_TYPES = ['public', 'private', 'unknown'];
