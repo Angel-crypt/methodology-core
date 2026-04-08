@@ -1,7 +1,9 @@
 /**
  * In-memory data store
  * Todos los datos se pierden al reiniciar el servidor (comportamiento esperado en un mock).
- * Usuario admin pre-sembrado: admin@mock.local / Admin123!
+ *
+ * Credenciales del SUPERADMIN: definir SUPERADMIN_EMAIL y SUPERADMIN_PASSWORD en .env.
+ * Si no están definidas se usan los defaults de desarrollo; el servidor imprime una advertencia.
  *
  * NOTA DE SEGURIDAD: Este store es efímero e in-memory. En producción usar
  * PostgreSQL + Redis para persistencia y sesiones distribuidas.
@@ -9,19 +11,30 @@
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
-const ADMIN_ID = uuidv4();
+const SUPERADMIN_ID = uuidv4();
+
+const SUPERADMIN_EMAIL_DEFAULT    = 'super@methodology.local';
+const SUPERADMIN_PASSWORD_DEFAULT = 'metodologia-bootstrap-cambiar-pronto';
+
+const superadminEmail    = process.env.SUPERADMIN_EMAIL    || SUPERADMIN_EMAIL_DEFAULT;
+const superadminPassword = process.env.SUPERADMIN_PASSWORD || SUPERADMIN_PASSWORD_DEFAULT;
+
+const usingBootstrapDefaults =
+  !process.env.SUPERADMIN_EMAIL || !process.env.SUPERADMIN_PASSWORD;
 
 const store = {
   // M1 – Autenticación
   users: [
     {
-      id: ADMIN_ID,
-      full_name: 'Administrador Mock',
-      email: 'admin@mock.local',
-      password_hash: bcrypt.hashSync('Admin123!', 12),
+      id: SUPERADMIN_ID,
+      full_name: 'Superadministrador',
+      email: superadminEmail,
+      password_hash: bcrypt.hashSync(superadminPassword, 12),
       role: 'superadmin',
       active: true,
-      must_change_password: false,
+      must_change_password: usingBootstrapDefaults,
+      broker_subject: null,
+      token_version: 0,
       created_at: new Date(),
       updated_at: null,
       password_changed_at: null,
@@ -62,11 +75,16 @@ const store = {
 
   /**
    * Tokens de configuración inicial de cuenta: Map<token, { userId, expiresAt (Unix sec) }>
-   * Generados por el admin al crear un usuario o restablecer su contraseña.
-   * TTL: 24 horas. Single-use: se invalidan tras completar el setup.
-   * En producción: el token se envía por email y no se expone en la API.
+   * Generados por el admin al crear un usuario o al reenviar magic link.
+   * TTL: 24 horas. Single-use: se invalidan tras la activación.
    */
   setupTokens: new Map(),
+
+  /**
+   * Solicitudes de cambio de correo: [{ id, user_id, new_email, reason, created_at }]
+   * Solo el superadmin puede ver y aprobar/rechazar.
+   */
+  emailChangeRequests: [],
 
   // M2 – Instrumentos
   instruments: [],
@@ -107,6 +125,13 @@ const store = {
     socioeconomic_levels: ['low', 'medium', 'high', 'unknown'],
   },
 };
+
+/**
+ * Indica si el servidor arrancó con credenciales de bootstrap por defecto.
+ * Usado en mock/src/index.js para imprimir la advertencia.
+ */
+store._usingBootstrapDefaults = usingBootstrapDefaults;
+store._superadminEmail        = superadminEmail;
 
 /**
  * Registra un evento en el audit log.
