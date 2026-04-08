@@ -1,23 +1,14 @@
+/**
+ * AppLayout — layout raíz para páginas autenticadas.
+ * Lee token, role, logout desde AuthContext; no acepta props de autenticación.
+ */
 import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { BookOpen, ClipboardList, ClipboardCheck, Settings, Users } from 'lucide-react'
 import { Sidebar, GlobalSearch, ProfileDropdown } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function decodeToken(token) {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return {
-      role:     payload.role     ?? null,
-      fullName: payload.full_name ?? '',
-      email:    payload.email    ?? '',
-    }
-  } catch {
-    return { role: null, fullName: '', email: '' }
-  }
-}
+import SolicitarCambioCorreoModal from '@/components/SolicitarCambioCorreoModal'
+import { useAuth } from '@/contexts/AuthContext'
 
 function getNavSections(role) {
   const sections = [
@@ -62,25 +53,27 @@ function getNavSections(role) {
   return sections
 }
 
-// ── Componente ───────────────────────────────────────────────────────────────
+function decodeTokenFields(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return {
+      fullName: payload.full_name ?? '',
+      email:    payload.email    ?? '',
+    }
+  } catch {
+    return { fullName: '', email: '' }
+  }
+}
 
-/**
- * AppLayout
- * Layout raíz para páginas autenticadas.
- * Compone Sidebar lateral colapsable + Topbar con búsqueda y perfil.
- *
- * Props:
- *   children  ReactNode
- *   onLogout  () => void
- *   token     string — JWT activo
- */
-function AppLayout({ children, onLogout, token }) {
-  const { role, fullName, email } = decodeToken(token)
+function AppLayout({ children }) {
+  const { token, role, logout } = useAuth()
+  const { fullName, email } = decodeTokenFields(token)
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('sidebar-collapsed') === 'true'
   )
   const [modalOpen, setModalOpen] = useState(false)
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
 
   function handleToggleSidebar() {
     const next = !sidebarCollapsed
@@ -99,20 +92,20 @@ function AppLayout({ children, onLogout, token }) {
         isCollapsed={sidebarCollapsed}
         onToggle={handleToggleSidebar}
         user={{ fullName, role }}
-        onLogout={onLogout}
+        onLogout={logout}
       />
 
       <div className="app-content">
 
-        {/* Topbar */}
         <header className="topbar">
-          {esAdmin && <GlobalSearch token={token} />}
+          {esAdmin && <GlobalSearch />}
           <div style={{ flex: 1 }} />
           <ProfileDropdown
             fullName={fullName}
             role={role}
             email={email}
             onChangePassword={() => setModalOpen(true)}
+            onRequestEmailChange={role !== 'superadmin' ? () => setEmailModalOpen(true) : undefined}
           />
         </header>
 
@@ -121,8 +114,12 @@ function AppLayout({ children, onLogout, token }) {
         <CambiarPasswordModal
           open={modalOpen}
           onClose={() => setModalOpen(false)}
-          token={token}
-          onSuccess={onLogout}
+          onSuccess={logout}
+        />
+
+        <SolicitarCambioCorreoModal
+          open={emailModalOpen}
+          onClose={() => setEmailModalOpen(false)}
         />
 
       </div>
@@ -132,8 +129,6 @@ function AppLayout({ children, onLogout, token }) {
 
 AppLayout.propTypes = {
   children: PropTypes.node.isRequired,
-  onLogout: PropTypes.func.isRequired,
-  token:    PropTypes.string.isRequired,
 }
 
 export default AppLayout
