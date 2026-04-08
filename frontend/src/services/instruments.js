@@ -28,15 +28,31 @@ async function parseResponse(res) {
 }
 
 /**
- * Lista instrumentos. Acepta un filtro de estado opcional.
+ * Lista instrumentos. Acepta filtros opcionales de estado y de tags
+ * (lista de tags con OR semántico, case-insensitive).
  * @param {string} token
  * @param {'active'|'inactive'|''} statusFilter
+ * @param {string[]} tagFilter
  */
-export async function listarInstrumentos(token, statusFilter = '') {
-  let url = BASE
-  if (statusFilter === 'active') url = `${BASE}?is_active=true`
-  else if (statusFilter === 'inactive') url = `${BASE}?is_active=false`
+export async function listarInstrumentos(token, statusFilter = '', tagFilter = []) {
+  const params = new URLSearchParams()
+  if (statusFilter === 'active') params.set('is_active', 'true')
+  else if (statusFilter === 'inactive') params.set('is_active', 'false')
+  for (const t of tagFilter) {
+    if (typeof t === 'string' && t.trim()) params.append('tag', t.trim().toLowerCase())
+  }
+  const qs = params.toString()
+  const url = qs ? `${BASE}?${qs}` : BASE
   const res = await fetch(url, { headers: headers(token) })
+  return parseResponse(res)
+}
+
+/**
+ * Lista todos los tags únicos del catálogo de instrumentos.
+ * @param {string} token
+ */
+export async function listarTags(token) {
+  const res = await fetch(`${BASE}/tags`, { headers: headers(token) })
   return parseResponse(res)
 }
 

@@ -27,7 +27,7 @@ function headers(token) {
 /**
  * Lista usuarios filtrados por rol y estado. Solo Administrador.
  * @param {string} token
- * @param {'applicator'|'researcher'|'administrator'} role
+ * @param {'applicator'|'researcher'|'superadmin'} role
  * @param {'true'|'false'|''} activeFilter — '' para todos
  */
 export async function listarUsuarios(token, role, activeFilter = '') {
