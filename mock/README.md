@@ -16,7 +16,8 @@ Puerto por defecto: **3000**
 URL base: `http://localhost:3000/api/v1`
 Health check: `GET http://localhost:3000/health`
 
-Usuario pre-sembrado: `admin@mock.local` / `Admin123!`
+Superadmin pre-sembrado: definir `SUPERADMIN_EMAIL` y `SUPERADMIN_PASSWORD` en `.env`.
+Defaults de desarrollo: `super@methodology.local` / `metodologia-bootstrap-cambiar-pronto` (fuerza cambio de contraseña al primer login).
 
 ## Tests
 
