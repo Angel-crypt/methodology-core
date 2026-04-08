@@ -3,7 +3,6 @@
  * Implementa los contratos MockContract M1–M4 con almacenamiento en memoria.
  */
 const express = require('express');
-const fs = require('fs');
 const { store } = require('./store');
 const { JWT_SECRET, DEFAULT_SECRET } = require('./middleware/auth');
 
@@ -82,8 +81,23 @@ app.listen(PORT, () => {
   console.log('╚══════════════════════════════════════════════════╝');
   console.log(`  API:    http://localhost:${PORT}${API}`);
   console.log(`  Health: http://localhost:${PORT}/health`);
-  console.log(`  Admin:  admin@mock.local  /  Admin123!`);
+  console.log(`  Admin:  ${store._superadminEmail}`);
   console.log('  Todos los datos son en memoria (se pierden al reiniciar).');
+
+  if (store._usingBootstrapDefaults) {
+    console.warn('');
+    console.warn('  ╔═══════════════════════════════════════════════╗');
+    console.warn('  ║  ADVERTENCIA — CREDENCIALES POR DEFECTO       ║');
+    console.warn('  ╠═══════════════════════════════════════════════╣');
+    console.warn('  ║  SUPERADMIN_EMAIL y/o SUPERADMIN_PASSWORD     ║');
+    console.warn('  ║  no están definidas. Usando valores de        ║');
+    console.warn('  ║  desarrollo inseguros.                        ║');
+    console.warn('  ║  El superadmin tendrá must_change_password.   ║');
+    console.warn('  ║  En producción: definir ambas variables de    ║');
+    console.warn('  ║  entorno o usar un gestor de secretos.        ║');
+    console.warn('  ╚═══════════════════════════════════════════════╝');
+    console.warn('');
+  }
 
   // Advertencia de seguridad si se usa JWT_SECRET por defecto
   if (JWT_SECRET === DEFAULT_SECRET) {
