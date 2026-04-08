@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import PropTypes from 'prop-types'
 import { ChevronDown, ChevronRight, X } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import { Button, EmptyState, Spinner, Typography, ToastContainer, useToast } from '@/components/app'
 import { listarMisRegistros } from '@/services/registro'
 
@@ -154,7 +155,8 @@ RegistroRow.propTypes = {
   }).isRequired,
 }
 
-function MisRegistrosPage({ token }) {
+function MisRegistrosPage() {
+  const { token } = useAuth()
   const { toasts, toast, dismiss } = useToast()
   const [registros, setRegistros]         = useState([])
   const [cargando, setCargando]           = useState(true)
@@ -307,10 +309,6 @@ function MisRegistrosPage({ token }) {
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
   )
-}
-
-MisRegistrosPage.propTypes = {
-  token: PropTypes.string.isRequired,
 }
 
 export default MisRegistrosPage

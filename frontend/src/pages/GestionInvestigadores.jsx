@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import PropTypes from 'prop-types'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Power, RotateCcw, Search } from 'lucide-react'
 import {
@@ -23,13 +22,9 @@ import {
   getUserStatus,
 } from '@/hooks/useGestionUsuarios'
 import CredencialesModal from '@/pages/CredencialesModal'
+import SolicitudesCambioCorreoPanel from '@/components/SolicitudesCambioCorreoPanel'
 
-/**
- * GestionInvestigadores — Gestión de Usuarios (rol: investigador)
- * Props:
- *   token string — JWT para autenticar llamadas a la API
- */
-function GestionInvestigadores({ token }) {
+function GestionInvestigadores() {
   const {
     esAdmin,
     usuarios,
@@ -63,7 +58,7 @@ function GestionInvestigadores({ token }) {
     setSearchQuery,
     usuariosFiltrados,
     usuariosConSesion,
-  } = useGestionUsuarios({ token, role: 'researcher', labelSingular: 'investigador' })
+  } = useGestionUsuarios({ role: 'researcher', labelSingular: 'investigador' })
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -146,6 +141,9 @@ function GestionInvestigadores({ token }) {
           Cuentas con permisos de consulta y exportación del dataset.
         </Typography>
       </div>
+
+      {/* Panel solicitudes de cambio de correo — solo superadmin */}
+      {esAdmin && <SolicitudesCambioCorreoPanel />}
 
       {/* Búsqueda y filtros */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
@@ -285,7 +283,7 @@ function GestionInvestigadores({ token }) {
           open={modalCredenciales}
           onClose={cerrarModalCredenciales}
           email={credencialesNuevas.email}
-          setupToken={credencialesNuevas.setupToken}
+          magicLink={credencialesNuevas.magicLink}
           nombreUsuario={credencialesNuevas.nombreUsuario}
         />
       )}
@@ -293,10 +291,6 @@ function GestionInvestigadores({ token }) {
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
   )
-}
-
-GestionInvestigadores.propTypes = {
-  token: PropTypes.string.isRequired,
 }
 
 export default GestionInvestigadores

@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import PropTypes from 'prop-types'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Power, RotateCcw, ClipboardList, Search } from 'lucide-react'
 import {
@@ -23,13 +22,9 @@ import {
   getUserStatus,
 } from '@/hooks/useGestionUsuarios'
 import CredencialesModal from '@/pages/CredencialesModal'
+import SolicitudesCambioCorreoPanel from '@/components/SolicitudesCambioCorreoPanel'
 
-/**
- * GestionAplicadores — Gestión de Usuarios (rol: aplicador)
- * Props:
- *   token string — JWT para autenticar llamadas a la API
- */
-function GestionAplicadores({ token }) {
+function GestionAplicadores() {
   const {
     esAdmin,
     usuarios,
@@ -63,7 +58,7 @@ function GestionAplicadores({ token }) {
     setSearchQuery,
     usuariosFiltrados,
     usuariosConSesion,
-  } = useGestionUsuarios({ token, role: 'applicator', labelSingular: 'aplicador' })
+  } = useGestionUsuarios({ role: 'applicator', labelSingular: 'aplicador' })
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -146,6 +141,9 @@ function GestionAplicadores({ token }) {
           Cuentas con permisos de registro de sujetos y captura de métricas.
         </Typography>
       </div>
+
+      {/* Panel solicitudes de cambio de correo — solo superadmin */}
+      {esAdmin && <SolicitudesCambioCorreoPanel />}
 
       {/* Búsqueda y filtros */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
@@ -285,7 +283,7 @@ function GestionAplicadores({ token }) {
           open={modalCredenciales}
           onClose={cerrarModalCredenciales}
           email={credencialesNuevas.email}
-          setupToken={credencialesNuevas.setupToken}
+          magicLink={credencialesNuevas.magicLink}
           nombreUsuario={credencialesNuevas.nombreUsuario}
         />
       )}
@@ -293,10 +291,6 @@ function GestionAplicadores({ token }) {
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
   )
-}
-
-GestionAplicadores.propTypes = {
-  token: PropTypes.string.isRequired,
 }
 
 export default GestionAplicadores

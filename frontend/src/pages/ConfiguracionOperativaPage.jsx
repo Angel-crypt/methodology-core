@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import PropTypes from 'prop-types'
 import { Settings } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import {
   Button,
   Alert,
@@ -69,7 +69,8 @@ const TH_STYLE = {
  * Props:
  *   token  string — JWT activo
  */
-function ConfiguracionOperativaPage({ token }) {
+function ConfiguracionOperativaPage() {
+  const { token } = useAuth()
   const { toasts, toast, dismiss } = useToast()
 
   const [config,       setConfig]       = useState(null)
@@ -371,10 +372,6 @@ function ConfiguracionOperativaPage({ token }) {
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
   )
-}
-
-ConfiguracionOperativaPage.propTypes = {
-  token: PropTypes.string.isRequired,
 }
 
 export default ConfiguracionOperativaPage

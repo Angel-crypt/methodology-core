@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Plus, Pencil, Trash2, Hash } from 'lucide-react'
 import {
   Button,
@@ -215,7 +216,8 @@ function formFromMetrica(m) {
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
-function InstrumentoDetallePage({ token }) {
+function InstrumentoDetallePage() {
+  const { token } = useAuth()
   const { id }       = useParams()
   const navigate     = useNavigate()
   const location     = useLocation()
@@ -640,10 +642,6 @@ function InstrumentoDetallePage({ token }) {
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
   )
-}
-
-InstrumentoDetallePage.propTypes = {
-  token: PropTypes.string.isRequired,
 }
 
 export default InstrumentoDetallePage

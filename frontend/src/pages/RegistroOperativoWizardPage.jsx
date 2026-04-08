@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import PropTypes from 'prop-types'
 import { Button, DatePicker, FormField, Alert, Spinner, Typography, ToastContainer, useToast } from '@/components/app'
+import { useAuth } from '@/contexts/AuthContext'
 
 const AGE_COHORT_REGEX = /^\d+-\d+$/
 
@@ -584,7 +585,8 @@ function Step4Metrics({
   )
 }
 
-function RegistroOperativoWizardPage({ token }) {
+function RegistroOperativoWizardPage() {
+  const { token } = useAuth()
   const { toasts, toast, dismiss } = useToast()
   const [isDone, setIsDone] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
@@ -1260,10 +1262,6 @@ Step4Metrics.propTypes = {
   loadingMetrics: PropTypes.bool.isRequired,
   loadingSubmit: PropTypes.bool.isRequired,
   apiError: PropTypes.string.isRequired,
-}
-
-RegistroOperativoWizardPage.propTypes = {
-  token: PropTypes.string.isRequired,
 }
 
 export default RegistroOperativoWizardPage

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/contexts/AuthContext'
 import { ChevronLeft, Copy, Monitor, Shield } from 'lucide-react'
 import {
   Button,
@@ -45,7 +46,8 @@ const LABEL_STYLE = {
  * Props:
  *   token  string — JWT activo
  */
-function DetalleAplicadorPage({ token, backTo = '/usuarios/aplicadores', backLabel = 'Aplicadores' }) {
+function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'Aplicadores' }) {
+  const { token } = useAuth()
   const { id }       = useParams()
   const location     = useLocation()
   const navigate     = useNavigate()
@@ -582,7 +584,6 @@ function DetalleAplicadorPage({ token, backTo = '/usuarios/aplicadores', backLab
 }
 
 DetalleAplicadorPage.propTypes = {
-  token:     PropTypes.string.isRequired,
   backTo:    PropTypes.string,
   backLabel: PropTypes.string,
 }

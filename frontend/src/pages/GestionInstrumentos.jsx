@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import PropTypes from 'prop-types'
+import { useAuth } from '@/contexts/AuthContext'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Power, RotateCw, BookOpen, Search, Trash2, Eye, X } from 'lucide-react'
 import {
@@ -73,20 +73,9 @@ function emptyMetricForm() {
   return { name: '', metric_type: 'numeric', required: true, description: '', min_value: '', max_value: '', options: '' }
 }
 
-/**
- * GestionInstrumentos — Módulo 2
- * Props:
- *   token string — JWT para autenticar llamadas a la API
- */
-function GestionInstrumentos({ token }) {
-  // ─── Rol del usuario desde el JWT ─────────────────────────────
-  const esAdmin = useMemo(() => {
-    try {
-      return JSON.parse(atob(token.split('.')[1])).role === 'superadmin'
-    } catch {
-      return false
-    }
-  }, [token])
+function GestionInstrumentos() {
+  const { token, role } = useAuth()
+  const esAdmin = useMemo(() => role === 'superadmin', [role])
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -343,7 +332,7 @@ function GestionInstrumentos({ token }) {
         if (m.metric_type === 'categorical') {
           mb.options = m.options.split(',').map((o) => o.trim()).filter(Boolean)
         }
-        await crearMetrica(token, mb)
+        await crearMetrica(token, nuevoId, mb)
       }
 
       setInstrumentos((prev) => [res.data, ...prev])
@@ -596,9 +585,9 @@ function GestionInstrumentos({ token }) {
       render: (valor) => formatearFecha(valor),
     },
     {
-      key: 'status',
+      key: 'is_active',
       label: 'Estado',
-      render: (valor) => <StatusBadge status={valor} />,
+      render: (valor) => <StatusBadge status={valor ? 'active' : 'inactive'} />,
     },
     // Columna de acciones solo visible para administrador (FUNC-02)
     ...(esAdmin ? [{
@@ -1267,10 +1256,6 @@ function GestionInstrumentos({ token }) {
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
   )
-}
-
-GestionInstrumentos.propTypes = {
-  token: PropTypes.string.isRequired,
 }
 
 export default GestionInstrumentos
