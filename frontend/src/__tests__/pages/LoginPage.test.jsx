@@ -1,113 +1,68 @@
 /**
- * Tests de LoginPage.
- *
- * Cubre:
- *   - El DOM no expone credenciales literales (admin@mock.local, Admin123, etc.).
- *   - El callback onLogin recibe (token, mustChangePassword: boolean) tras un
- *     login exitoso, propagando el flag tal como lo devuelve el servidor.
+ * Tests de LoginPage — inicio de sesión con Google (OIDC).
+ * LoginPage solo muestra el botón de Google; no tiene inputs de email/password.
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
-import { server } from '@/test/server'
 import LoginPage from '@/pages/LoginPage'
 
 const noop = () => {}
 
-describe('LoginPage — sin credenciales literales en el DOM', () => {
-  it('no muestra texto "Admin123" en el DOM en ningún entorno', () => {
+describe('LoginPage — estructura del DOM', () => {
+  it('muestra el botón "Iniciar sesión con Google"', () => {
+    render(<LoginPage onLogin={noop} />)
+    expect(screen.getByRole('button', { name: /iniciar sesión con google/i })).toBeInTheDocument()
+  })
+
+  it('muestra texto de ayuda sobre cuentas invitadas', () => {
+    render(<LoginPage onLogin={noop} />)
+    expect(screen.getByText(/invitad/i)).toBeInTheDocument()
+  })
+
+  it('no renderiza input de correo ni contraseña', () => {
+    render(<LoginPage onLogin={noop} />)
+    expect(screen.queryByLabelText(/correo/i)).toBeNull()
+    expect(screen.queryByLabelText(/contraseña/i)).toBeNull()
+  })
+
+  it('no expone textos de credenciales literales en el DOM', () => {
     render(<LoginPage onLogin={noop} />)
     expect(screen.queryByText(/Admin123/)).toBeNull()
-  })
-
-  it('no muestra texto "admin@mock.local" en el DOM', () => {
-    render(<LoginPage onLogin={noop} />)
     expect(screen.queryByText(/admin@mock\.local/)).toBeNull()
-  })
-
-  it('no muestra texto "DEMO_EMAIL" ni "DEMO_PASSWORD" como texto literal', () => {
-    render(<LoginPage onLogin={noop} />)
-    expect(screen.queryByText(/DEMO_EMAIL/)).toBeNull()
-    expect(screen.queryByText(/DEMO_PASSWORD/)).toBeNull()
+    expect(screen.queryByText(/super@methodology\.local/)).toBeNull()
+    expect(screen.queryByText(/__sys-auth/)).toBeNull()
   })
 })
 
-describe('LoginPage — propagación de must_change_password', () => {
-  it('llama a onLogin(token, true) cuando el servidor responde must_change_password=true', async () => {
-    server.use(
-      http.post('/api/v1/auth/login', () =>
-        HttpResponse.json({
-          status: 'success',
-          data: {
-            access_token: 'tk-pendiente',
-            token_type: 'Bearer',
-            expires_in: 3600,
-            must_change_password: true,
-          },
-        })
-      )
-    )
-    const onLogin = vi.fn()
-    const user = userEvent.setup()
-    render(<LoginPage onLogin={onLogin} />)
+describe('LoginPage — comportamiento del botón Google', () => {
+  let originalLocation
 
-    await user.type(screen.getByLabelText(/correo/i), 'pendiente@test.com')
-    await user.type(screen.getByLabelText(/contraseña/i), 'Password1!')
-    await user.click(screen.getByRole('button', { name: /iniciar sesión|entrar|ingresar/i }))
-
-    await vi.waitFor(() => expect(onLogin).toHaveBeenCalled())
-    expect(onLogin).toHaveBeenCalledWith('tk-pendiente', true)
+  beforeEach(() => {
+    originalLocation = window.location
+    delete window.location
+    window.location = { href: '' }
   })
 
-  it('llama a onLogin(token, false) cuando el servidor responde must_change_password=false', async () => {
-    server.use(
-      http.post('/api/v1/auth/login', () =>
-        HttpResponse.json({
-          status: 'success',
-          data: {
-            access_token: 'tk-normal',
-            token_type: 'Bearer',
-            expires_in: 3600,
-            must_change_password: false,
-          },
-        })
-      )
-    )
-    const onLogin = vi.fn()
-    const user = userEvent.setup()
-    render(<LoginPage onLogin={onLogin} />)
-
-    await user.type(screen.getByLabelText(/correo/i), 'normal@test.com')
-    await user.type(screen.getByLabelText(/contraseña/i), 'Password1!')
-    await user.click(screen.getByRole('button', { name: /iniciar sesión|entrar|ingresar/i }))
-
-    await vi.waitFor(() => expect(onLogin).toHaveBeenCalled())
-    expect(onLogin).toHaveBeenCalledWith('tk-normal', false)
+  afterEach(() => {
+    window.location = originalLocation
   })
 
-  it('llama a onLogin con false cuando el servidor omite must_change_password (defensivo)', async () => {
-    server.use(
-      http.post('/api/v1/auth/login', () =>
-        HttpResponse.json({
-          status: 'success',
-          data: {
-            access_token: 'tk-legacy',
-            token_type: 'Bearer',
-            expires_in: 3600,
-          },
-        })
-      )
-    )
-    const onLogin = vi.fn()
+  it('al hacer click redirige al endpoint OIDC authorize', async () => {
     const user = userEvent.setup()
-    render(<LoginPage onLogin={onLogin} />)
+    render(<LoginPage onLogin={noop} />)
 
-    await user.type(screen.getByLabelText(/correo/i), 'legacy@test.com')
-    await user.type(screen.getByLabelText(/contraseña/i), 'Password1!')
-    await user.click(screen.getByRole('button', { name: /iniciar sesión|entrar|ingresar/i }))
+    await user.click(screen.getByRole('button', { name: /iniciar sesión con google/i }))
 
-    await vi.waitFor(() => expect(onLogin).toHaveBeenCalled())
-    expect(onLogin).toHaveBeenCalledWith('tk-legacy', false)
+    expect(window.location.href).toMatch(/\/api\/v1\/auth\/oidc\/authorize/)
+  })
+
+  it('incluye redirect_uri en la URL del authorize', async () => {
+    const user = userEvent.setup()
+    render(<LoginPage onLogin={noop} />)
+
+    await user.click(screen.getByRole('button', { name: /iniciar sesión con google/i }))
+
+    expect(window.location.href).toMatch(/redirect_uri=/)
   })
 })

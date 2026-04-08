@@ -7,6 +7,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/test/server'
+import { AuthProvider } from '@/contexts/AuthContext'
 import RegistroOperativoWizardPage from '@/pages/RegistroOperativoWizardPage'
 
 const APPLICATOR_TOKEN =
@@ -19,6 +20,8 @@ let capturedInstrumentsRequests = []
 
 beforeEach(() => {
   capturedInstrumentsRequests = []
+  sessionStorage.setItem('access_token', APPLICATOR_TOKEN)
+  sessionStorage.setItem('role', 'applicator')
 
   server.use(
     http.get('/api/v1/config/operativo', () =>
@@ -64,6 +67,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks()
+  sessionStorage.clear()
 })
 
 async function avanzarHastaPaso3(user) {
@@ -85,7 +89,7 @@ async function avanzarHastaPaso3(user) {
 describe('RegistroOperativoWizardPage — filtro is_active=true', () => {
   it('GET /api/v1/instruments incluye is_active=true cuando el wizard llega al paso 3', async () => {
     const user = userEvent.setup()
-    render(<RegistroOperativoWizardPage token={APPLICATOR_TOKEN} />)
+    render(<AuthProvider><RegistroOperativoWizardPage /></AuthProvider>)
 
     await avanzarHastaPaso3(user)
 
@@ -100,7 +104,7 @@ describe('RegistroOperativoWizardPage — filtro is_active=true', () => {
 
   it('no se hace ninguna llamada sin el filtro is_active=true', async () => {
     const user = userEvent.setup()
-    render(<RegistroOperativoWizardPage token={APPLICATOR_TOKEN} />)
+    render(<AuthProvider><RegistroOperativoWizardPage /></AuthProvider>)
 
     await avanzarHastaPaso3(user)
 

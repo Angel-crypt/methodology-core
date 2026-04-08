@@ -12,16 +12,21 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router-dom'
 import { server } from '@/test/server'
+import { AuthProvider } from '@/contexts/AuthContext'
 import GestionInstrumentos from '@/pages/GestionInstrumentos'
 
-// JWT mínimo válido para esAdmin: payload base64url = {"role":"superadmin"}
+// JWT mínimo con payload {"role":"superadmin"} decodeable por atob()
 const SUPERADMIN_TOKEN =
   'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic3VwZXJhZG1pbiJ9.sig'
 
 function renderPage() {
+  sessionStorage.setItem('access_token', SUPERADMIN_TOKEN)
+  sessionStorage.setItem('role', 'superadmin')
   return render(
     <MemoryRouter>
-      <GestionInstrumentos token={SUPERADMIN_TOKEN} />
+      <AuthProvider>
+        <GestionInstrumentos />
+      </AuthProvider>
     </MemoryRouter>
   )
 }
@@ -51,6 +56,7 @@ function getDateInputs(dialog) {
 
 describe('GestionInstrumentos — validación start_date < end_date', () => {
   beforeEach(() => {
+    sessionStorage.clear()
     document.body.innerHTML = ''
   })
 
@@ -122,6 +128,9 @@ describe('GestionInstrumentos — validación start_date < end_date', () => {
 
 describe('GestionInstrumentos — tags y min_days en la creación', () => {
   beforeEach(() => {
+    sessionStorage.clear()
+    sessionStorage.setItem('access_token', SUPERADMIN_TOKEN)
+    sessionStorage.setItem('role', 'superadmin')
     document.body.innerHTML = ''
   })
 
@@ -152,7 +161,7 @@ describe('GestionInstrumentos — tags y min_days en la creación', () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter>
-        <GestionInstrumentos token={'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic3VwZXJhZG1pbiJ9.sig'} />
+        <AuthProvider><GestionInstrumentos /></AuthProvider>
       </MemoryRouter>
     )
 
@@ -198,7 +207,7 @@ describe('GestionInstrumentos — tags y min_days en la creación', () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter>
-        <GestionInstrumentos token={'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic3VwZXJhZG1pbiJ9.sig'} />
+        <AuthProvider><GestionInstrumentos /></AuthProvider>
       </MemoryRouter>
     )
 
