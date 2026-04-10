@@ -4,11 +4,12 @@
  */
 import { useState } from 'react'
 import PropTypes from 'prop-types'
-import { BookOpen, ClipboardList, ClipboardCheck, FolderOpen, Users } from 'lucide-react'
+import { BookOpen, ClipboardList, ClipboardCheck, FolderOpen, Users, Building2, Settings } from 'lucide-react'
 import { Sidebar, GlobalSearch, ProfileDropdown } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
 import SolicitarCambioCorreoModal from '@/components/SolicitarCambioCorreoModal'
 import { useAuth } from '@/contexts/AuthContext'
+import { useUser } from '@/contexts/UserContext'
 
 function getNavSections(role) {
   const sections = [
@@ -48,26 +49,24 @@ function getNavSections(role) {
         { label: 'Proyectos', icon: FolderOpen, to: '/proyectos' },
       ],
     })
+    sections.push({
+      id:    'sistema',
+      label: 'SISTEMA',
+      items: [
+        { label: 'Instituciones',       icon: Building2, to: '/instituciones'       },
+        { label: 'Config. de perfil',   icon: Settings,  to: '/configuracion-perfil' },
+      ],
+    })
   }
 
   return sections
 }
 
-function decodeTokenFields(token) {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return {
-      fullName: payload.full_name ?? '',
-      email:    payload.email    ?? '',
-    }
-  } catch {
-    return { fullName: '', email: '' }
-  }
-}
-
 function AppLayout({ children }) {
-  const { token, role, logout } = useAuth()
-  const { fullName, email } = decodeTokenFields(token)
+  const { role, logout } = useAuth()
+  const { user } = useUser()
+  const fullName = user?.full_name ?? ''
+  const email    = user?.email    ?? ''
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('sidebar-collapsed') === 'true'
