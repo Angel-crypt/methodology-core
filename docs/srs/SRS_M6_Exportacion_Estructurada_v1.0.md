@@ -105,7 +105,7 @@ M5 – Consulta Interna                                     │
 
 | Dependencia | Tipo | Detalle |
 |---|---|---|
-| **M1 – Autenticación** | Consumidor | El middleware JWT de M1 debe estar operativo. Solo Investigador y Administrador pueden exportar. |
+| **M1 – Autenticacion** | Consumidor | El middleware JWT de M1 debe estar operativo. Solo Investigador puede exportar. |
 | **M4 – Registro Operativo** | Consumidor | M6 lee `TestApplication`, `MetricValue`, `Subject`, `ContextData`, `Instrument`, `Metric` para construir los archivos. |
 | **M5 – Consulta Interna** | Relacionado | M5 valida la integridad del dataset antes de proceder a la exportación formal. |
 | **PostgreSQL** | Infraestructura | Las consultas de exportación se ejecutan contra la base de datos compartida. |
@@ -113,7 +113,7 @@ M5 – Consulta Interna                                     │
 ### 2.5 Flujo General de Interacción
 
 ```
-Investigador o Administrador
+Investigador
   → Valida el dataset en M5 (revisión previa)
   → GET /export/csv [?instrument_id={}&start_date={}&end_date={}]
        → Sistema genera archivo CSV en memoria
@@ -141,7 +141,7 @@ Investigador o Administrador
 
 | Tipo | Descripción | Nivel de acceso | Funcionalidades que utiliza |
 |---|---|---|---|
-| **Administrador** | Control total del sistema. | Exportación completa y filtrada. | `GET /export/csv`, `GET /export/json`. |
+| **SUPERADMIN** | Control operativo del sistema. | Sin acceso a exportacion. | — |
 | **Investigador** | Usuario académico. | Exportación completa y filtrada. | `GET /export/csv`, `GET /export/json`. |
 | **Aplicador** | Profesional de campo. | Sin acceso a M6. | No puede exportar datos. |
 
@@ -185,7 +185,7 @@ Permitir la extracción del dataset de aplicaciones lingüísticas en formatos e
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Investigador / Administrador |
+| **Actor** | Investigador |
 | **Entidades** | `TestApplication`, `MetricValue`, `Subject`, `ContextData`, `Instrument`, `Metric` |
 | **Endpoint** | `GET /export/csv` |
 | **Entrada** | `instrument_id` (UUID, query param, opcional), `start_date` (date ISO 8601, opcional), `end_date` (date ISO 8601, opcional) |
@@ -220,7 +220,7 @@ Permitir la extracción del dataset de aplicaciones lingüísticas en formatos e
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Investigador / Administrador |
+| **Actor** | Investigador |
 | **Entidades** | `TestApplication`, `MetricValue`, `Subject`, `ContextData`, `Instrument`, `Metric` |
 | **Endpoint** | `GET /export/json` |
 | **Entrada** | `instrument_id` (UUID, query param, opcional), `start_date` (date ISO 8601, opcional), `end_date` (date ISO 8601, opcional) |
@@ -284,7 +284,7 @@ Permitir la extracción del dataset de aplicaciones lingüísticas en formatos e
 |---|---|---|---|
 | RNF-M6-01 | Rendimiento | Los endpoints de exportación generan archivos completos sin timeout. | Exportación de 1,000 aplicaciones en < 10 segundos. |
 | RNF-M6-02 | Rendimiento | Los archivos se generan en memoria sin escritura en disco. | 0 archivos temporales en el sistema de archivos del contenedor. |
-| RNF-M6-03 | Seguridad | Solo Investigador y Administrador pueden exportar. | Aplicador → 403. Sin token → 401. |
+| RNF-M6-03 | Seguridad | Solo Investigador puede exportar. | Aplicador → 403. SUPERADMIN → 403. Sin token → 401. |
 | RNF-M6-04 | Integridad | El módulo es de solo lectura. No modifica ningún dato. | 0 operaciones de escritura en la base de datos originadas por este módulo. |
 | RNF-M6-05 | Integridad | Los archivos exportados no contienen PII de los sujetos. | Solo UUID en `subject_id`. Sin nombre, CURP ni ningún campo identificable en ningún formato. |
 | RNF-M6-06 | Integridad | La estructura del JSON exportado es consistente y documentada. | El JSON cumple el schema definido en §5 RF-M6-02 en el 100% de las exportaciones. |
