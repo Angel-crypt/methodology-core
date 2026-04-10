@@ -93,7 +93,7 @@ const store = {
   metrics: [],
 
   // M4 – Registro Operativo
-  subjects: [],       // { id, created_at, context: null | ContextObject }
+  subjects: [],       // { id, project_id, created_by, created_at, context: null | ContextObject }
   applications: [],
   metricValues: [],
 
@@ -103,16 +103,20 @@ const store = {
    */
   userPermissions: new Map(),
 
-  // Proyectos: [{ id, name, created_at }]
-  projects: [
-    { id: 'project-default', name: 'Proyecto por defecto', created_at: new Date() },
-  ],
+  // M2-PROJECT — Proyectos
+  projects: [],       // { id, name, description, created_by, created_at, updated_at }
+  projectMembers: [], // { id, project_id, user_id, role: 'researcher'|'applicator', added_at }
+  projectInstruments: [], // { id, project_id, instrument_id, added_at }
 
-  // Configuración global del wizard (admin la gestiona, aplicadores la leen)
+  /**
+   * Config operativa por proyecto: Map<project_id, { education_levels, age_cohort_ranges, subject_limit, mode }>
+   */
+  projectConfigs: new Map(),
+
+  // Configuración global del wizard (legado — mantenida para retrocompatibilidad de tests previos)
   registroConfig: {
-    project_id:           'project-default', // proyecto activo para el registro
     education_levels:     ['preschool', 'primary_lower', 'primary_upper', 'secondary', 'unknown'],
-    cohort_mode:          'libre',   // 'libre' | 'restricted'
+    cohort_mode:          'libre',
     age_cohort_map: {
       preschool:     '3-6',
       primary_lower: '6-9',
@@ -132,6 +136,25 @@ const store = {
  */
 store._usingBootstrapDefaults = usingBootstrapDefaults;
 store._superadminEmail        = superadminEmail;
+
+// ── Defaults del sistema para configuración operativa por proyecto ────────────
+const SYSTEM_DEFAULTS_CONFIG = {
+  education_levels: ['Preescolar', 'Primaria menor', 'Primaria mayor', 'Secundaria'],
+  age_cohort_map: {
+    'Preescolar':     '3-6',
+    'Primaria menor': '6-9',
+    'Primaria mayor': '9-12',
+    'Secundaria':     '12-15',
+  },
+  cohort_mode:   'libre',
+  subject_limit: 50,
+  mode:          'normal',
+};
+
+// Exponer los defaults para que projects.js pueda importarlos
+store._systemDefaults = SYSTEM_DEFAULTS_CONFIG;
+
+// Sin proyectos precargados — el administrador los crea desde la UI.
 
 /**
  * Registra un evento en el audit log.
