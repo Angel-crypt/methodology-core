@@ -301,7 +301,6 @@ router.post('/auth/oidc/callback', (req, res) => {
     status: 'success',
     data: {
       access_token: token,
-      must_change_password: user.must_change_password === true,
       user: { id: user.id, role: user.role },
     },
   });
@@ -596,15 +595,11 @@ router.get('/users', authMiddleware(['superadmin']), (req, res) => {
   return res.status(200).json({
     status: 'success',
     message: 'Usuarios recuperados',
-    data: paginatedUsers.map((u) => ({
-      id: u.id,
-      full_name: u.full_name,
-      email: u.email,
-      role: u.role,
-      active: u.active,
-      must_change_password: u.must_change_password === true,
-      created_at: u.created_at,
-    })),
+    data: paginatedUsers.map((u) => {
+      const base = { id: u.id, full_name: u.full_name, email: u.email, role: u.role, active: u.active, created_at: u.created_at };
+      if (u.role === 'superadmin') base.must_change_password = u.must_change_password === true;
+      return base;
+    }),
     meta: { total, page, limit, pages: Math.ceil(total / limit) },
   });
 });
