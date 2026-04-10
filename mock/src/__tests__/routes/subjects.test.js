@@ -76,25 +76,20 @@ describe('M4 — POST /projects/:projectId/subjects (T002 — BUG-003)', () => {
   })
 })
 
-describe('M4 — GET /config/operativo incluye project_id (T002)', () => {
+describe('M4 — GET /config/operativo deprecado (CF-014)', () => {
   let app
 
   beforeEach(() => {
-    // Reset registroConfig con project_id
-    store.registroConfig.project_id = 'project-default'
-    store.revokedTokens = new Map()
-    store.users = [{ id: 'app-1', role: 'applicator', email: 'app@test.com', active: true }]
     app = express()
     app.use(express.json())
     app.use('/api/v1', require('../../routes/config'))
   })
 
-  it('GET /config/operativo devuelve project_id', async () => {
+  it('GET /config/operativo → 410 GONE (usa /projects/:id/config/operativo)', async () => {
     const res = await request(app)
       .get('/api/v1/config/operativo')
-      .set('Authorization', `Bearer ${applicatorToken()}`)
 
-    expect(res.status).toBe(200)
-    expect(res.body.data).toHaveProperty('project_id')
+    expect(res.status).toBe(410)
+    expect(res.body.data.code).toBe('GONE')
   })
 })
