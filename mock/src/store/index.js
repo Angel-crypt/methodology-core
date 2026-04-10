@@ -38,6 +38,11 @@ const store = {
       created_at: new Date(),
       updated_at: null,
       password_changed_at: null,
+      // Perfil extendido (Sprint 4)
+      phone: null,
+      institution: null,
+      terms_accepted_at: null,
+      onboarding_completed: true, // superadmin exento de onboarding
     },
   ],
 
@@ -85,6 +90,16 @@ const store = {
    * Solo el superadmin puede ver y aprobar/rechazar.
    */
   emailChangeRequests: [],
+
+  // M1-EXT — Instituciones (Sprint 4)
+  institutions: [], // { id, name, domain, created_at }
+
+  // M1-EXT — Configuración de perfil requerido (Sprint 4)
+  profileConfig: {
+    require_phone: false,
+    require_institution: true,
+    require_terms: true,
+  },
 
   // M2 – Instrumentos
   instruments: [],
