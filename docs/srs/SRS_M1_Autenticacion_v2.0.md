@@ -35,7 +35,7 @@ El documento está dirigido a:
 ### 1.2 Alcance del Documento
 
 Este documento cubre:
-- Creación de usuarios con rol asignado por el Administrador.
+- Creación de usuarios con rol asignado por el SUPERADMIN.
 - Activación y desactivación de usuarios sin pérdida de historial.
 - Inicio de sesión con emisión de token JWT (exp = 6 h, HS256, `jti` en payload).
 - Cambio de contraseña autenticado con validación de contraseña actual e invalidación automática de sesiones previas.
@@ -119,36 +119,36 @@ La validación de tokens es stateless: el rol se extrae del JWT firmado sin cons
 
 | Módulo dependiente | Dependencia con M1 |
 |---|---|
-| M2 – Gestión de Instrumentos | Requiere token válido con rol Administrador |
-| M3 – Definición de Métricas | Requiere token válido con rol Administrador |
+| M2 – Gestión de Instrumentos | Requiere token válido con rol SUPERADMIN |
+| M3 – Definición de Métricas | Requiere token válido con rol SUPERADMIN |
 | M4 – Registro Operativo | Requiere token válido con rol Profesional Aplicador |
-| M5 – Consulta Interna | Requiere token válido con rol Investigador o Administrador |
-| M6 – Exportación Estructurada | Requiere token válido con rol Investigador o Administrador |
+| M5 – Consulta Interna | Requiere token válido con rol Investigador (detalle) o SUPERADMIN (solo estadisticas agregadas) |
+| M6 – Exportacion Estructurada | Requiere token valido con rol Investigador. SUPERADMIN no exporta datos. |
 
 ### 2.5 Flujo General de Autenticación
 
 ```
-FLUJO DE REGISTRO (Administrador crea usuario):
+FLUJO DE REGISTRO (SUPERADMIN crea usuario):
   POST /users (email, role, organization)
     → Sistema genera user_id (UUID) inmutable
     → Genera Magic Link (hash con expiración)
     → Estado: PENDING
     → Envía Magic Link por correo (en producción)
 
-FLUJO DE ACTIVACIÓN (Usuario usa Magic Link):
-  POST /auth/activate (magic_link_token)
+FLUJO DE ACTIVACION (Usuario usa Magic Link):
+  GET /auth/activate/:token
     → Valida hash del Magic Link (no expirado, no usado)
-    → Vincula identidad externa del broker al user_id
-    → Estado: ACTIVE
-    → Genera JWT de sesión
+    → Marca cuenta como activa y lista para login OIDC
+    → No emite JWT
+    → Redirige a /login para flujo OIDC
 
-FLUJO DE LOGIN (Usuario autenticado):
+FLUJO DE LOGIN (Usuario autenticado por OIDC):
   POST /auth/login (email)
     → Broker (Keycloak) autentica usuario
     → Si email coincide con user_id vinculado:
       → Genera JWT con user_id, role, organization
       → Backend valida estado del usuario (is_active)
-      → Acceso según rol
+      → Acceso segun rol
 
 FLUJO DE CAMBIO DE CORREO:
   PATCH /users/me/email (new_email)
@@ -168,19 +168,19 @@ FLUJO DE CAMBIO DE CORREO:
 ┌─────────────────────────────────────────────────┐
 │  PENDING                                         │
 │  - Esperando activación por Magic Link           │
-│  - Solo puede usar POST /auth/activate           │
-│  - Admin puede: regenerar Magic Link             │
-│                      deshabilitar                │
-│                      eliminar                    │
+│  - Solo puede usar GET /auth/activate/:token     │
+│  - SUPERADMIN puede: regenerar Magic Link        │
+│                       deshabilitar               │
+│                       eliminar                   │
 └─────────────┬───────────────────────────────────┘
-              │ POST /auth/activate exitoso
+               │ GET /auth/activate/:token exitoso
               │ (Magic Link válido
               │  + vinculación con broker)
               ▼
 ┌─────────────────────────────────────────────────┐
 │  ACTIVE                                          │
 │  - Acceso completo según rol                     │
-│  - Admin puede: deshabilitar                    │
+│  - SUPERADMIN puede: deshabilitar               │
 │                 eliminar                        │
 │                 cambiar correo                   │
 │                      (reinicia a PENDING)       │
@@ -192,7 +192,7 @@ FLUJO DE CAMBIO DE CORREO:
               │   │  DISABLED                                │
               │   │  - Sin acceso al sistema                 │
               │   │  - Revocación de sesiones               │
-              │   │  - Admin puede: reactivar (→ ACTIVE)     │
+               │   │  - SUPERADMIN puede: reactivar (→ ACTIVE) |
               │   │                   eliminar (→ DELETED)  │
               │   └──────────────┬───────────────────────────┘
               │                  │
@@ -233,7 +233,7 @@ FLUJO DE CAMBIO DE CORREO:
 
 | Tipo | Descripción | Acceso a este módulo |
 |---|---|---|
-| **Administrador** | Control total del sistema. | Login, logout. Gestión de usuarios (crear, activar/desactivar). |
+| **SUPERADMIN** | Control total del sistema. | Login, logout. Gestión de usuarios (crear, activar/desactivar). |
 | **Investigador** | Usuario académico de consulta. | Login, logout. |
 | **Profesional Aplicador** | Profesional de campo. | Login, logout. |
 
@@ -249,23 +249,23 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | # | Capacidad | HU |
 |---|---|---|
-| 1 | Registro de usuarios con rol asignado por el Administrador | HU1 |
+| 1 | Registro de usuarios con rol asignado por el SUPERADMIN | HU1 |
 | 2 | Activación y desactivación de cuentas sin eliminación de historial | HU2 |
 | 3 | Inicio de sesión con emisión de token JWT (6 h, HS256, jti) | HU3 |
 | 4 | Cierre de sesión con invalidación del token en `revoked_tokens` | HU4 |
 | 5 | Restricción de acciones por rol mediante middleware stateless | HU5 |
 | 6 | Cambio de contraseña autenticado con invalidación automática de sesiones previas | HU6b |
-| 7 | Contraseña temporal en creación con cambio forzado en primer acceso (estado pending) | IT-1 |
-| 8 | Restablecimiento de contraseña temporal por el Administrador | IT-1 |
+| 7 | Magic Link de activacion (sin password) | HU3 |
+| 8 | Password solo para SUPERADMIN (ruta de sistema) | HU4 |
 
 ### 4.3 Fuera del Alcance
 
 | Funcionalidad excluida | Módulo o decisión responsable |
 |---|---|
-| Registro autónomo de usuarios | No contemplado. Solo el Administrador crea cuentas. |
+| Registro autónomo de usuarios | No contemplado. Solo el SUPERADMIN crea cuentas. |
 | Recuperación de contraseña vía email | Fuera del MVP; se delega a canal externo o decisión futura. |
 | Autenticación multifactor (MFA) | Puede incorporarse en iteraciones futuras. |
-| Federación de identidad (OAuth2, SAML, LDAP) | No requerido; credenciales propias en PostgreSQL. |
+| Federacion de identidad (OAuth2, SAML, LDAP) | No requerido; credenciales propias en PostgreSQL. |
 | Auditoría de acciones de negocio | Responsabilidad de cada módulo funcional (M2–M6). |
 | Gestión de permisos granulares por recurso | Roles fijos; sin ACL por objeto. |
 | Historial de sesiones o análisis de actividad | Fuera del MVP. |
@@ -282,11 +282,11 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `User`, `Role`, `MagicLink` |
 | **Endpoint** | `POST /users` |
-| **Entrada** | `full_name` (string, obligatorio), `email` (string, obligatorio, único), `role` (enum: `administrator` · `researcher` · `applicator`), `organization` (string, obligatorio) |
-| **Descripción** | El Administrador registra un nuevo usuario. El sistema genera un `user_id` (UUID) inmutable que representa la identidad del usuario. Se genera un Magic Link de un solo uso que se almacena como hash con TTL (24 h). El usuario se crea en estado **PENDING**. El Magic Link se envía por correo (en producción). La respuesta incluye `_mock_magic_link` (solo en mock). |
+| **Entrada** | `full_name` (string, obligatorio), `email` (string, obligatorio, unico), `role` (enum: `superadmin` · `researcher` · `applicator`), `organization` (string, obligatorio) |
+| **Descripción** | El SUPERADMIN registra un nuevo usuario. El sistema genera un `user_id` (UUID) inmutable que representa la identidad del usuario. Se genera un Magic Link de un solo uso que se almacena como hash con TTL (24 h). El usuario se crea en estado **PENDING**. El Magic Link se envía por correo (en producción). La respuesta incluye `_mock_magic_link` (solo en mock). |
 | **Resultado** | Usuario creado con `user_id`, `email`, `role`, `organization`, `state=PENDING`, `created_at`. HTTP 201. |
 
 **Esquema de tabla `users`:**
@@ -296,7 +296,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | `user_id` | UUID | PK, inmutable, generado automáticamente |
 | `full_name` | VARCHAR | Nombre completo |
 | `email` | VARCHAR | Único, índice. Atributo de autenticación, no identidad. |
-| `role` | ENUM | `administrator` · `researcher` · `applicator` |
+| `role` | ENUM | `superadmin` · `researcher` · `applicator` |
 | `organization` | VARCHAR | Organización a la que pertenece el usuario |
 | `state` | ENUM | `PENDING` · `ACTIVE` · `DISABLED` · `DELETED`. Por defecto `PENDING`. |
 | `broker_subject` | VARCHAR | Identificador externo del broker (Keycloak). Null hasta activación. |
@@ -322,11 +322,11 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `User` (campo `state`) |
 | **Endpoint** | `PATCH /users/{user_id}/status` |
 | **Entrada** | `user_id` (UUID, path param), `state` (enum: `DISABLED`, `DELETED`) |
-| **Descripción** | El Administrador puede deshabilitar o eliminar usuarios. Los estados `PENDING` y `ACTIVE` no se modifican directamente — se gestionan mediante Magic Link y login. Un usuario en `DISABLED` no puede acceder al sistema. Un usuario en `DELETED` es soft delete con trazabilidad. El sistema protege al único Administrador activo: si se intenta deshabilitar al último admin activo, la operación es rechazada con HTTP 409. |
+| **Descripcion** | El SUPERADMIN puede deshabilitar o eliminar usuarios. Los estados `PENDING` y `ACTIVE` no se modifican directamente — se gestionan mediante Magic Link y login. Un usuario en `DISABLED` no puede acceder al sistema. Un usuario en `DELETED` es soft delete con trazabilidad. El sistema protege al unico SUPERADMIN activo: si se intenta deshabilitar al ultimo SUPERADMIN activo, la operacion es rechazada con HTTP 409. |
 | **Resultado** | Campo `state` actualizado. `deleted_at` establecido si es `DELETED`. Sesiones activas revocadas. HTTP 200. |
 
 ---
@@ -337,10 +337,10 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 |---|---|
 | **Actor** | Usuario nuevo (estado PENDING) |
 | **Entidades** | `User`, `MagicLink`, `BrokerIdentity` |
-| **Endpoint** | `POST /auth/activate` |
-| **Entrada** | `magic_link_token` (string) |
-| **Descripción** | El usuario presenta el Magic Link recibido por correo. El sistema valida: (1) token no expirado, (2) token no usado. Si es válido, vincula la identidad del broker (Keycloak) al `user_id`, establece `state=ACTIVE`, marca el Magic Link como usado. En producción, el Magic Link redirige al frontend que envía el token al backend. En mock, el token se devuelve directamente. |
-| **Resultado** | `broker_subject` vinculado, `state=ACTIVE`. JWT emitido. HTTP 200. |
+| **Endpoint** | `GET /auth/activate/:token` |
+| **Entrada** | `token` (path param) |
+| **Descripcion** | El usuario presenta el Magic Link recibido por correo. El sistema valida: (1) token no expirado, (2) token no usado. Si es valido, marca la cuenta como activa y lista para login OIDC. No emite JWT en la activacion. |
+| **Resultado** | `state=ACTIVE`. Redireccion a `/login` para iniciar OIDC. HTTP 200. |
 
 ---
 
@@ -351,7 +351,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | **Actor** | Usuario activo |
 | **Endpoint** | `POST /auth/login` |
 | **Entrada** | `email` (string) |
-| **Descripción** | El sistema delega autenticación al broker (Keycloak). El broker valida credenciales. Si el broker autentica exitosamente y el email coincide con un usuario activo (`state=ACTIVE`), el sistema emite un token JWT con `user_id`, `role`, `organization`. El backend siempre valida el estado del usuario además del JWT del broker. Fallos retornan HTTP 401 genérico. Rate limiting: 5 intentos fallidos en 60 s → bloqueo 5 min. |
+| **Descripcion** | El sistema delega autenticacion al broker (Keycloak) para researcher/applicator. El SUPERADMIN usa login con password en ruta de sistema. Si el broker autentica exitosamente y el email coincide con un usuario activo (`state=ACTIVE`), el sistema emite un token JWT con `user_id`, `role`, `organization`. El backend siempre valida el estado del usuario ademas del JWT del broker. Fallos retornan HTTP 401 generico. Rate limiting: 5 intentos fallidos en 60 s → bloqueo 5 min. |
 | **Resultado** | `{ access_token, token_type: "Bearer", expires_in: 21600, state: "ACTIVE" }`. HTTP 200. |
 
 ---
@@ -386,7 +386,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 **Matriz de permisos (constante centralizada, nunca hardcodeada por endpoint):**
 
-| Acción / Recurso | administrator | researcher | applicator |
+| Acción / Recurso | superadmin | researcher | applicator |
 |---|:---:|:---:|:---:|
 | Crear usuario con rol | ✓ | ✗ | ✗ |
 | Gestionar estado de usuario (disable/delete) | ✓ | ✗ | ✗ |
@@ -395,8 +395,9 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | Gestionar instrumentos metodológicos | ✓ | ✗ | ✗ |
 | Definir métricas | ✓ | ✗ | ✗ |
 | Registrar sujetos y aplicar pruebas | ✓ | ✗ | ✓ |
-| Consultar aplicaciones y resultados | ✓ | ✓ | ✗ |
-| Exportar datos (CSV / JSON) | ✓ | ✓ | ✗ |
+| Consultar aplicaciones y resultados | ✗ | ✓ | ✗ |
+| Exportar datos (CSV / JSON) | ✗ | ✓ | ✗ |
+| Ver estadisticas agregadas | ✓ | ✗ | ✗ |
 | Ver audit_log | ✓ | ✗ | ✗ |
 | Gestionar sesiones activas | ✓ | ✓ (propias) | ✓ (propias) |
 | Cambiar correo | ✓ | ✗ | ✗ |
@@ -407,10 +408,10 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Endpoint** | `GET /users` |
 | **Entrada** | Query params opcionales: `state` (enum), `role` (enum) |
-| **Descripción** | El sistema debe devolver el listado de usuarios registrados. Solo accesible por el Administrador. Incluye el campo `state` (PENDING, ACTIVE, DISABLED, DELETED) para que el frontend pueda derivar el estado de cada usuario. El `user_id` es inmutable y es la clave de identificación. |
+| **Descripción** | El sistema debe devolver el listado de usuarios registrados. Solo accesible por el SUPERADMIN. Incluye el campo `state` (PENDING, ACTIVE, DISABLED, DELETED) para que el frontend pueda derivar el estado de cada usuario. El `user_id` es inmutable y es la clave de identificación. |
 | **Resultado** | Lista de usuarios con user_id, full_name, email, role, organization, state, created_at. HTTP 200. |
 
 ---
@@ -419,11 +420,11 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `User`, `MagicLink`, `revoked_tokens`, `AuditLog` |
 | **Endpoint** | `PATCH /users/{user_id}/email` |
 | **Entrada** | `user_id` (UUID, path param), `new_email` (string, obligatorio) |
-| **Descripción** | El Administrador puede cambiar el correo de un usuario. **Cambio de correo ≠ cambio de usuario**: el `user_id` se conserva inmutable. La operación: (1) invalida todas las sesiones activas (registra todos los `jti` en `revoked_tokens`), (2) rompe el vínculo con el broker (borra `broker_subject`), (3) genera nuevo Magic Link, (4) establece `state=PENDING`. El usuario debe reactivarse usando el nuevo Magic Link. Todo se registra en `AuditLog`. |
+| **Descripción** | El SUPERADMIN puede cambiar el correo de un usuario. **Cambio de correo ≠ cambio de usuario**: el `user_id` se conserva inmutable. La operación: (1) invalida todas las sesiones activas (registra todos los `jti` en `revoked_tokens`), (2) rompe el vínculo con el broker (borra `broker_subject`), (3) genera nuevo Magic Link, (4) establece `state=PENDING`. El usuario debe reactivarse usando el nuevo Magic Link. Todo se registra en `AuditLog`. |
 | **Resultado** | `email` actualizado, `broker_subject` = null, `state=PENDING`, nuevo Magic Link generado. Todas las sesiones previas revocadas. HTTP 200. |
 
 ---
@@ -432,11 +433,11 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `User`, `MagicLink` |
 | **Endpoint** | `POST /users/{user_id}/regenerate-magic-link` |
 | **Entrada** | `user_id` (UUID, path param) |
-| **Descripción** | El Administrador puede regenerar el Magic Link para un usuario en estado PENDING. El Magic Link anterior (si existe y no ha sido usado) se invalida. Se genera un nuevo token con nueva expiración (24h). |
+| **Descripción** | El SUPERADMIN puede regenerar el Magic Link para un usuario en estado PENDING. El Magic Link anterior (si existe y no ha sido usado) se invalida. Se genera un nuevo token con nueva expiración (24h). |
 | **Resultado** | Nuevo Magic Link generado. HTTP 200. |
 
 ---
@@ -445,11 +446,11 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `Project`, `Dataset` |
 | **Endpoint** | `POST /projects` |
 | **Entrada** | `name` (string, obligatorio), `description` (string, opcional) |
-| **Descripción** | El Administrador crea un nuevo proyecto. El sistema genera un `project_id` (UUID) y crea automáticamente un `Dataset` asociado. El creador se agrega automáticamente como miembro del proyecto. |
+| **Descripción** | El SUPERADMIN crea un nuevo proyecto. El sistema genera un `project_id` (UUID) y crea automáticamente un `Dataset` asociado. El creador se agrega automáticamente como miembro del proyecto. |
 | **Resultado** | Proyecto creado con `project_id`, `dataset_id`, `created_at`. Creador agregado como miembro. HTTP 201. |
 
 **Esquema de tabla `projects`:**
@@ -513,11 +514,11 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `Project`, `Instrument` |
 | **Endpoint** | `POST /projects/{project_id}/instruments` |
 | **Entrada** | `instrument_id` (UUID) |
-| **Descripción** | El Administrador asigna un instrumento existente al proyecto. El instrumento debe existir y estar activo. |
+| **Descripción** | El SUPERADMIN asigna un instrumento existente al proyecto. El instrumento debe existir y estar activo. |
 | **Resultado** | Instrumento agregado al proyecto. HTTP 201. |
 
 ---
@@ -526,11 +527,11 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `ProjectMember`, `User` |
 | **Endpoint** | `POST /projects/{project_id}/members` |
 | **Entrada** | `user_id` (UUID), `role_global` (enum: `investigador` · `aplicador`) |
-| **Descripción** | El Administrador agrega un usuario al proyecto con su rol global. El usuario debe existir y tener estado ACTIVE. |
+| **Descripción** | El SUPERADMIN agrega un usuario al proyecto con su rol global. El usuario debe existir y tener estado ACTIVE. |
 | **Resultado** | Miembro agregado con role_global. HTTP 201. |
 
 ---
@@ -539,10 +540,10 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `ProjectMember` |
 | **Endpoint** | `DELETE /projects/{project_id}/members/{user_id}` |
-| **Descripción** | El Administrador remueve un miembro del proyecto. |
+| **Descripción** | El SUPERADMIN remueve un miembro del proyecto. |
 | **Resultado** | Miembro removido. HTTP 204. |
 
 ---
@@ -551,11 +552,11 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `ProjectMember` |
 | **Endpoint** | `PATCH /projects/{project_id}/members/{user_id}/permissions` |
 | **Entrada** | `permissions` (JSONB: `{ instruments: [], metrics: [] }`) |
-| **Descripción** | El Administrador puede agregar filtros finos al miembro. Campos vacíos = acceso a todos. |
+| **Descripción** | El SUPERADMIN puede agregar filtros finos al miembro. Campos vacíos = acceso a todos. |
 | **Resultado** | Permisos actualizados. HTTP 200. |
 
 ---
@@ -572,7 +573,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | RNF-M1-06 | Seguridad | Rate limiting: 5 intentos fallidos en 60 s → bloqueo 5 min. | El audit_log registra `RATE_LIMIT_ACTIVADO`. |
 | RNF-M1-07 | Disponibilidad | Servicio stateless compatible con múltiples réplicas en Swarm. | Sin sesiones en memoria. |
 | RNF-M1-08 | Integridad | `revoked_tokens` no crece indefinidamente. | Cron elimina entradas expiradas. |
-| RNF-M1-09 | Integridad | El único Administrador activo no puede deshabilitarse. | Intento → 409. |
+| RNF-M1-09 | Integridad | El único SUPERADMIN activo no puede deshabilitarse. | Intento → 409. |
 | RNF-M1-10 | Mantenibilidad | Matriz de permisos como constante centralizada. | Sin permisos hardcodeados. |
 | RNF-M1-11 | Consistencia API | Todas las respuestas siguen `{ "status", "message", "data" }`. | 100% de endpoints. |
 | RNF-M1-12 | Seguridad | Separación identidad/autenticación: user_id inmutable, correo可变. | Cambio de correo invalida sesiones, reinicia flujo (PENDING), conserva user_id. |
@@ -629,7 +630,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | R4 | Separación identidad/autenticación | user_id inmutable, correo como atributo de autenticación. |
 | R5 | Broker externo (Keycloak) | La autenticación se delega a Keycloak. El backend valida estado. |
 | R6 | Roles fijos | Los tres roles son fijos. Sin gestión granular de permisos. |
-| R7 | Sin auto-registro | Solo el Administrador crea cuentas. |
+| R7 | Sin auto-registro | Solo el SUPERADMIN crea cuentas. |
 | R8 | Respuesta estándar | Todos los endpoints retornan `{ "status", "message", "data" }` sin excepción. |
 
 ### 8.2 Supuestos
@@ -640,7 +641,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | S2 | Los Docker Secrets están correctamente configurados en el manager node antes del despliegue. |
 | S3 | El balanceador de carga interno de Swarm distribuye tráfico de forma equitativa entre réplicas. |
 | S4 | El reloj está sincronizado (NTP) en todos los nodos del clúster para garantizar consistencia en la validación de `exp`. |
-| S5 | El script de seed para el primer Administrador se ejecuta antes del primer uso del sistema. |
+| S5 | El script de seed para el primer SUPERADMIN se ejecuta antes del primer uso del sistema. |
 
 ---
 
@@ -650,10 +651,10 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | ID | Criterio | Resultado esperado |
 |---|---|---|
-| CA-HU1-01 | El Administrador envía nombre, correo, rol y organización. | Usuario creado con `user_id` inmutable, estado `PENDING`, Magic Link generado. HTTP 201 con `_mock_magic_link`. |
+| CA-HU1-01 | El SUPERADMIN envía nombre, correo, rol y organización. | Usuario creado con `user_id` inmutable, estado `PENDING`, Magic Link generado. HTTP 201 con `_mock_magic_link`. |
 | CA-HU1-02 | Se intenta crear un usuario con correo ya registrado. | HTTP 409 Conflict. No se crea duplicado. |
 | CA-HU1-03 | Se intenta crear un usuario con rol no definido en el sistema. | HTTP 400 Bad Request con mensaje descriptivo. |
-| CA-HU1-04 | Se intenta crear usuario sin estar autenticado como Administrador. | HTTP 403 Forbidden. |
+| CA-HU1-04 | Se intenta crear usuario sin estar autenticado como SUPERADMIN. | HTTP 403 Forbidden. |
 | CA-HU1-05 | El usuario en estado PENDING intenta activarse. | Magic Link válido → `state=ACTIVE`, vinculación con broker. |
 
 **Stack técnico:** `POST /api/v1/users` · tabla `users` (user_id, state) · tabla `magic_links`.
@@ -662,11 +663,11 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | ID | Criterio | Resultado esperado |
 |---|---|---|
-| CA-HU2-01 | El Administrador deshabilita un usuario activo. | `state = DISABLED`. Usuario no puede autenticarse. Historial intacto en BD. |
+| CA-HU2-01 | El SUPERADMIN deshabilita un usuario activo. | `state = DISABLED`. Usuario no puede autenticarse. Historial intacto en BD. |
 | CA-HU2-02 | Un usuario deshabilitado intenta iniciar sesión. | HTTP 401 Unauthorized con mensaje genérico. |
-| CA-HU2-03 | El Administrador reactiva un usuario deshabilitado. | `state = ACTIVE`. Usuario puede iniciar sesión normalmente. |
-| CA-HU2-04 | El Administrador elimina (soft delete) un usuario. | `state = DELETED`, `deleted_at` establecido. Sin acceso. Trazabilidad en audit_log. |
-| CA-HU2-05 | Se intenta deshabilitar al único Administrador activo del sistema. | HTTP 409 Conflict. Operación rechazada. |
+| CA-HU2-03 | El SUPERADMIN reactiva un usuario deshabilitado. | `state = ACTIVE`. Usuario puede iniciar sesión normalmente. |
+| CA-HU2-04 | El SUPERADMIN elimina (soft delete) un usuario. | `state = DELETED`, `deleted_at` establecido. Sin acceso. Trazabilidad en audit_log. |
+| CA-HU2-05 | Se intenta deshabilitar al único SUPERADMIN activo del sistema. | HTTP 409 Conflict. Operación rechazada. |
 
 **Stack técnico:** `PATCH /api/v1/users/{user_id}/status` · El middleware valida `state=ACTIVE` en cada request.
 
@@ -699,9 +700,9 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | ID | Criterio | Resultado esperado |
 |---|---|---|
-| CA-HU5-01 | Investigador intenta acceder a endpoint exclusivo del Administrador (ej. crear usuario). | HTTP 403 Forbidden. La acción no se ejecuta. |
+| CA-HU5-01 | Investigador intenta acceder a endpoint exclusivo del SUPERADMIN (ej. crear usuario). | HTTP 403 Forbidden. La acción no se ejecuta. |
 | CA-HU5-02 | Profesional Aplicador intenta exportar datos. | HTTP 403 Forbidden. |
-| CA-HU5-03 | Administrador accede a cualquier endpoint del sistema. | Acceso permitido según la matriz de permisos de §5. |
+| CA-HU5-03 | SUPERADMIN accede solo a endpoints permitidos por la matriz de permisos. | Acceso permitido segun la matriz de permisos de §5. |
 | CA-HU5-04 | Token manipulado presenta rol no válido en su payload. | Validación de firma HS256 falla antes de evaluar el rol. HTTP 401 Unauthorized. |
 | CA-HU5-05 | El mismo endpoint es invocado por dos roles distintos con permisos diferentes. | Middleware evalúa rol del token y aplica restricción sin consultar BD en cada request. |
 | CA-HU5-06 | Endpoint no requiere autenticación (ej. `/health`). | La solicitud se procesa sin verificar token. Ruta declarada en whitelist explícita. |
@@ -716,7 +717,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 |---|---|---|---|---|
 | HU1 – Crear usuario | CA-HU1-01 a 05 | `POST /api/v1/users` | tabla `users` (user_id, state) | Alto |
 | HU2 – Gestionar estado | CA-HU2-01 a 05 | `PATCH /api/v1/users/{user_id}/status` | tabla `users` (campo `state`) | Alto |
-| HU3 – Login/Activar | CA-HU3-01 a 06 | `POST /api/v1/auth/login` · `POST /auth/activate` | tabla `users` + `magic_links` | Crítico |
+| HU3 – Login/Activar | CA-HU3-01 a 06 | `POST /api/v1/auth/login` · `GET /auth/activate/:token` | tabla `users` + `magic_links` | Critico |
 | HU4 – Logout | CA-HU4-01 a 05 | `POST /api/v1/auth/logout` | tabla `revoked_tokens` | Alto |
 | HU5 – RBAC | CA-HU5-01 a 06 | Middleware transversal | JWT payload (stateless) | Crítico |
 | RF-M1-LIST | — | `GET /api/v1/users` | tabla `users` | Bajo |
@@ -733,11 +734,11 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 ### RF-M1-07 – Consultar Audit Log
 
-**Descripción:** El Administrador puede consultar el registro de auditoría de eventos de seguridad y acceso.
+**Descripción:** El SUPERADMIN puede consultar el registro de auditoría de eventos de seguridad y acceso.
 
 **Endpoint:** `GET /api/v1/audit-log`
 
-**Acceso:** Solo `administrator`.
+**Acceso:** Solo `superadmin`.
 
 **Parámetros opcionales:** `event`, `user_id`, `from`, `to`, `page`, `limit` (máx 50).
 
@@ -745,7 +746,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 
 | Evento | Cuándo se registra |
 |---|---|
-| `USER_CREATED` | Usuario creado por administrador |
+| `USER_CREATED` | Usuario creado por SUPERADMIN |
 | `USER_ACTIVATED` | Usuario activado con Magic Link |
 | `LOGIN` | Login exitoso vía broker |
 | `LOGIN_FAILED` | Autenticación fallida |
@@ -767,7 +768,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 - `GET /api/v1/users/me/sessions` — Lista sesiones activas del usuario autenticado.
 - `DELETE /api/v1/sessions/{jti}` — Revoca una sesión específica por JTI.
 
-**Reglas:** Solo se pueden revocar sesiones propias. Un administrador no puede revocar sesiones de otros usuarios desde este endpoint.
+**Reglas:** Solo se pueden revocar sesiones propias. Un SUPERADMIN no puede revocar sesiones de otros usuarios desde este endpoint.
 
 ---
 
