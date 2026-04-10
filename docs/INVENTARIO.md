@@ -57,18 +57,20 @@ Base: `frontend/src/pages/`
 
 | Archivo | Ruta URL | Rol requerido | Qué hace |
 |---------|----------|---------------|---------|
-| `LoginPage.jsx` | `/login` | público | Formulario email+password. Llama `POST /auth/login`. Si recibe `must_change_password=true`, abre `CambiarPasswordModal`. |
-| `SetupPage.jsx` | `/setup?token=...` | público | El admin envía un enlace con token de 1 uso. El usuario establece su contraseña aquí. Llama `GET /auth/setup/:token` y `POST /auth/setup`. |
+| `LoginPage.jsx` | `/login` | público | Solo boton OIDC para researcher/applicator. Redirige a `/auth/oidc/authorize`. |
+| `SystemLoginPage.jsx` | `/__sys-auth` (configurable) | público | Login email+password solo SUPERADMIN. Llama `POST /auth/login`. |
+| `AuthCallbackPage.jsx` | `/auth/callback` | público | Procesa callback OIDC, valida `state` y guarda JWT. |
+| `SetupPage.jsx` | `/setup?token=...` | público | Activacion por magic link. Llama `GET /auth/activate/:token` y redirige a `/login`. |
 | `GestionAplicadores.jsx` | `/usuarios/aplicadores` | superadmin | Lista, crea, activa/desactiva y restablece contraseña de aplicadores. |
 | `GestionInvestigadores.jsx` | `/usuarios/investigadores` | superadmin | Idéntico a `GestionAplicadores.jsx` pero para investigadores. |
-| `DetalleAplicadorPage.jsx` | `/usuarios/aplicadores/:id` | superadmin | Detalle de un usuario: datos, sesiones activas y permisos de registro operativo (`mode`, `education_levels`, `subject_limit`). |
+| `DetalleUsuarioPage.jsx` | `/usuarios/aplicadores/:id` | superadmin | Detalle de usuario compartido con proyectos asignados. |
 | `CambiarPasswordModal.jsx` | — (modal) | autenticado | Modal para cambio de contraseña. Si `forced=true` no puede cerrarse (flujo primer acceso). |
 | `CredencialesModal.jsx` | — (modal) | superadmin | Muestra el setup token generado al crear un usuario. Solo UI, no llama API. |
 | `GestionInstrumentos.jsx` | `/instruments` | autenticado | Lista instrumentos con filtro activo/inactivo y filtro por tags (CF-029). Crea, edita, activa/desactiva y elimina instrumentos. El wizard de creación incluye chip-input de tags y `min_days_between_applications`. Incluye creación de métricas (formulario 2 pasos). |
 | `InstrumentoDetallePage.jsx` | `/instruments/:id` | autenticado | Detalle de un instrumento: descripción, período, lista de métricas. Permite crear, editar y eliminar métricas. |
-| `RegistroOperativoWizardPage.jsx` | `/registro-operativo` | applicator | Wizard de 4 pasos: selección de instrumento → registro de sujeto → contexto → captura de métricas. Lee `GET /config/operativo` al montar y solicita instrumentos con `?is_active=true` (CF-002, Privacy by Design). |
+| `RegistroOperativoWizardPage.jsx` | `/registro-operativo` | applicator | Wizard con seleccion de proyecto. Solicita instrumentos activos y config por proyecto. |
 | `MisRegistrosPage.jsx` | `/mis-registros` | applicator | Historial de registros del aplicador autenticado. Llama `GET /applications/my`. |
-| `ConfiguracionOperativaPage.jsx` | `/configuracion-operativa` | superadmin | Gestiona la configuración global del wizard (niveles educativos, cohortes de edad, etc.). |
+| `ConfiguracionOperativaPage.jsx` | `/configuracion-operativa` | superadmin | Deprecada; redirige a `/proyectos`. |
 
 ---
 
@@ -86,16 +88,15 @@ Superadmin pre-sembrado: leído de `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (d
 |--------|------|------|-------------|
 | POST | `/auth/login` | no | Login email+password. Responde `{ access_token, token_type, expires_in, must_change_password }`. Rate limiting: 5 intentos fallidos → bloqueo 5 min. |
 | POST | `/auth/logout` | Bearer | Revoca el JTI del token en memoria. |
-| GET | `/auth/setup/:token` | no | Valida un setup token (24h, 1 uso). Devuelve `{ email, full_name }` del usuario. |
-| POST | `/auth/setup` | no | Establece la contraseña usando el setup token. El token queda invalidado. Body: `{ token, password }`. |
-| POST | `/auth/password-recovery` | no | Solicita recuperación de contraseña. **Solo en mock:** devuelve `_mock_recovery_token` en la respuesta. |
-| POST | `/auth/password-reset` | no | Restablece contraseña con recovery token. Body: `{ recovery_token, new_password }`. |
-| POST | `/users` | admin | Crea usuario. Body: `{ full_name, email, role }`. Devuelve `_mock_setup_token` (en prod: se envía por email). |
+| GET | `/auth/activate/:token` | no | Activa cuenta via magic link (single-use). No emite JWT. |
+| POST | `/auth/password-recovery` | no | Recuperacion solo SUPERADMIN. |
+| POST | `/auth/password-reset` | no | Reset solo SUPERADMIN. |
+| POST | `/users` | superadmin | Crea usuario. Devuelve `_mock_magic_link` (mock). |
 | GET | `/users` | admin | Lista usuarios paginada (máx 50/página). Filtros: `?role=`, `?active=`, `?page=`, `?limit=`. |
 | GET | `/users/:id` | admin | Datos completos de un usuario (sin `password_hash`). |
 | PATCH | `/users/me/password` | Bearer | Cambia contraseña propia. Body: `{ current_password, new_password }`. |
 | PATCH | `/users/:id/status` | admin | Activa o desactiva un usuario. Body: `{ active: boolean }`. |
-| POST | `/users/:id/reset-password` | admin | Genera nuevo setup link (invalida el anterior). |
+| POST | `/users/:id/magic-link` | superadmin | Regenera magic link. |
 | GET | `/users/sessions` | admin | Todas las sesiones activas del sistema. |
 | GET | `/users/me/sessions` | Bearer | Sesiones activas del usuario autenticado. |
 | GET | `/users/:id/sessions` | admin | Sesiones activas de un usuario específico. |
@@ -140,7 +141,7 @@ Los endpoints están montados en `/instruments/:id/metrics`. No hay rutas legacy
 | POST | `/subjects/:id/context` | applicator | Registra contexto no identificable. Operación única por sujeto (409 si ya existe). Campos: `school_type, education_level, age_cohort, gender, socioeconomic_level, additional_attributes`. |
 | GET | `/subjects/:id` | Bearer | Recupera sujeto con su contexto. |
 | POST | `/applications` | applicator | Registra aplicación de instrumento a sujeto. Body: `{ subject_id, instrument_id, application_date?, notes? }`. |
-| GET | `/applications/my` | applicator | Historial de aplicaciones del aplicador autenticado, con valores de métrica. |
+| GET | `/applications/my` | applicator | Historial de aplicaciones del aplicador autenticado, con valores de metrica. |
 | POST | `/metric-values` | applicator | Captura valores de métricas. Body: `{ application_id, values: [{ metric_id, value }] }`. Operación atómica. |
 
 ### Configuración Operativa
@@ -239,9 +240,9 @@ Base: `frontend/src/services/`
 
 ### Qué funciona completamente
 
-- Login / logout con JWT (sessionStorage, no localStorage)
-- Primer acceso: setup link enviado por el admin, usuario establece su propia contraseña
-- Cambio de contraseña forzado al primer login
+- Login OIDC para researcher/applicator y login de sistema para SUPERADMIN
+- Magic link de activacion (mock) + onboarding con terminos
+- AuthContext y UserContext (sin prop drilling de token)
 - Gestión de usuarios (crear, activar/desactivar, resetear contraseña)
 - Permisos por aplicador (mode, education_levels, subject_limit)
 - Sesiones activas: ver y cerrar sesiones individuales
@@ -249,16 +250,14 @@ Base: `frontend/src/services/`
 - Métricas: CRUD completo vía `/instruments/:id/metrics`, tipos `numeric`, `categorical`, `boolean`, `short_text`
 - Wizard de registro operativo: 4 pasos completos (sujeto → contexto → aplicación → métricas)
 - Historial de registros del aplicador (`GET /applications/my`)
-- Configuración operativa global del wizard
+- Configuracion operativa por proyecto (global deprecada)
 
 ### Qué está incompleto o ausente
 
 | Funcionalidad | Estado | Ubicación |
 |---------------|--------|-----------|
-| Vista de consulta para investigador/admin (M5 real) | ❌ No implementado | Pendiente P2 |
-| Exportación CSV/JSON (M6) | ❌ No implementado | Pendiente P2 |
-| Autenticación OIDC con Keycloak | ❌ No implementado (usa email+password) | Pendiente T004 |
-| AuthContext (eliminar prop drilling de token) | ❌ No implementado | Pendiente T007 |
+| Vista de consulta para investigador/superadmin (M5 real) | ❌ No implementado | Pendiente P2 |
+| Exportacion CSV/JSON (M6) | ❌ No implementado | Pendiente P2 |
 | `GestionAplicadores` y `GestionInvestigadores` son código duplicado | ⚠️ DRY pendiente | Pendiente T009 |
 
 ---
