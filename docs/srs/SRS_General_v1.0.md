@@ -355,11 +355,11 @@ Estos requisitos aplican a **todos los módulos**. Los SRS específicos de módu
 | RNF-SEC-09 | Ningún registro de sujeto contiene PII. | Revisión de esquema confirma ausencia de PII en `Subject` y `ContextData`. |
 | RNF-SEC-10 | Eventos de seguridad en audit_log con timestamp y usuario. El audit_log almacena el `jti` del token como referencia de sesión; nunca el token JWT completo. | audit_log cubre 100% de eventos: login, logout, intentos fallidos, accesos denegados, cambios de estado, cambio de correo. Ningún registro contiene el JWT completo. |
 | RNF-SEC-11 | Rate limiting transversal: máximo 100 solicitudes por minuto por IP. | Endpoints retornan HTTP 429 al exceder límite. |
-| RNF-SEC-12 | Cifrado de datos sensibles por contexto. Datos cuasi-identificables (ContextData) cifrados con AES-256-GCM usando clave derivada del proyecto (HKDF). Datos críticos (auditoría) almacenados con hash irreversible (blake2b). | Verificación de cifrado en reposo. Clave maestra en Docker Secrets. |
+| RNF-SEC-12 | Cifrado de datos sensibles por contexto. Datos cuasi-identificables (ContextData) cifrados con AES-256-GCM usando clave derivada del proyecto (HKDF). Datos críticos (auditoría) almacenados con hash irreversible (blake2b). | Verificación de cifrado en reposo. Clave maestra en Kubernetes Secrets. |
 | RNF-SEC-13 | Logging estructurado en formato JSON con contexto de auditoría. | Todos los logs incluyen timestamp, user_id, action, project_id, contexto. |
 | RNF-SEC-14 | Proteccion ultimo SUPERADMIN: el sistema impide desactivacion del ultimo usuario con rol superadmin. | Endpoint retorna HTTP 409 si se intenta desactivar el ultimo SUPERADMIN. |
 | RNF-SEC-15 | Aislamiento de datos por proyecto. Cada proyecto tiene clave derivada independiente. | Un proyecto comprometido no afecta datos de otros proyectos. |
-| RNF-SEC-16 | La clave maestra nunca se almacena en código fuente ni variables de entorno. | Solo Docker Secrets. Auditoría de código confirma ausencia. |
+| RNF-SEC-16 | La clave maestra nunca se almacena en código fuente ni variables de entorno. | Solo Kubernetes Secrets. Auditoría de código confirma ausencia. |
 
 ### 5.2 Rendimiento
 
@@ -472,7 +472,7 @@ El sistema implementa **Security & Privacy by Design**. Cada dato se clasifica s
 El sistema implementa cifrado basado en **claves por proyecto**:
 
 ```
-Clave Maestra (Docker Secret)
+Clave Maestra (Kubernetes Secret)
         │
         ▼
    HKDF (derive)
@@ -491,7 +491,7 @@ Clave Maestra (Docker Secret)
 
 | Componente | Descripción |
 |---|---|
-| **Clave Maestra** | Almacenada en Docker Secrets. Nunca en código fuente ni variables de entorno. |
+| **Clave Maestra** | Almacenada en Kubernetes Secrets. Nunca en código fuente ni variables de entorno. |
 | **Derivación** | HKDF (HMAC-based Key Derivation Function) para derivar clave por proyecto. |
 | **Almacenamiento** | Las claves derivadas **no** se almacenan en BD. Se calculan en tiempo de ejecución. |
 | **Aislamiento** | Cada proyecto tiene su propia clave. Los datos de un proyecto no son descifrables con la clave de otro. |
@@ -572,7 +572,7 @@ El sistema implementa **logging estructurado en JSON** para auditoría y complia
 
 - Tokens JWT completos
 - Contraseñas o hashes de contraseñas
-- Secretos o claves (Docker Secrets)
+- Secretos o claves (Kubernetes Secrets)
 - Datos sensibles en claro (ContextData, MetricValue)
 - Tokens de Magic Link
 
@@ -694,7 +694,7 @@ El sistema se considera funcionalmente aceptado cuando el siguiente escenario de
 
 ## 10. Estrategia de Despliegue
 
-El despliegue se realiza en un **clúster Docker Swarm** operado sobre los equipos físicos del equipo de desarrollo, siguiendo los principios de **Security & Privacy by Design** y **Zero Trust**.
+El despliegue se realiza en un **clúster K3s** operado sobre los equipos físicos del equipo de desarrollo, siguiendo los principios de **Security & Privacy by Design** y **Zero Trust**.
 
 > **Documento de referencia:** El detalle completo de la arquitectura de despliegue, incluyendo diagramas de red, segmentación, gestión de secretos y procedimientos, está disponible en: [`docs/architecture/ARQUITECTURA_DESPLIEGUE.md`](docs/architecture/ARQUITECTURA_DESPLIEGUE.md)
 
@@ -706,7 +706,7 @@ El despliegue se realiza en un **clúster Docker Swarm** operado sobre los equip
 | **Defensa en profundidad** | Múltiples capas de seguridad independientes |
 | **Menor privilegio** | Cada servicio tiene permisos mínimos necesarios |
 | **Segmentación de red** | Redes separadas por tier (frontend, backend, data) |
-| **Secretos gestionados** | Docker Secrets exclusivamente, nunca en variables de entorno |
+| **Secretos gestionados** | Kubernetes Secrets exclusivamente, nunca en variables de entorno |
 
 ### 10.2 Topología del Clúster
 
@@ -736,7 +736,7 @@ El despliegue se realiza en un **clúster Docker Swarm** operado sobre los equip
 
 ### 10.5 Gestión de Secretos
 
-Todos los secretos se gestionan via **Docker Secrets**:
+Todos los secretos se gestionan via **Kubernetes Secrets**:
 
 - Credenciales PostgreSQL (principal, réplica, Keycloak)
 - Clave maestra de cifrado (AES-256)
