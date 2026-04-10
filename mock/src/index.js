@@ -20,6 +20,7 @@ app.use(API, require('./routes/m3'));
 app.use(API, require('./routes/m4'));
 app.use(API, require('./routes/projects'));
 app.use(API, require('./routes/config'));
+app.use(`${API}/institutions`, require('./routes/institutions'));
 
 // Health check público (whitelist, sin autenticación – CA-HU5-06)
 app.get('/health', (_req, res) => {
