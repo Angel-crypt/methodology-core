@@ -50,6 +50,8 @@ function GestionInvestigadores() {
     dismiss,
     abrirModalCrear,
     handleChangeCrear,
+    handleEmailBlur,
+    institutionDetected,
     handleGuardarCrear,
     abrirModalEstado,
     handleConfirmarEstado,
@@ -76,6 +78,13 @@ function GestionInvestigadores() {
   const columnas = [
     { key: 'full_name', label: 'Nombre completo' },
     { key: 'email', label: 'Correo electrónico' },
+    {
+      key: 'institution',
+      label: 'Institución',
+      render: (v) => v
+        ? <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)' }}>{v}</span>
+        : <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>—</span>,
+    },
     {
       key: 'role',
       label: 'Rol',
@@ -237,8 +246,23 @@ function GestionInvestigadores() {
             required
             value={formCrear.email}
             onChange={handleChangeCrear('email')}
+            onBlur={handleEmailBlur}
             error={erroresCrear.email}
           />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <FormField
+              id="inv-crear-institucion"
+              label="Institución (opcional)"
+              placeholder="Nombre de la institución"
+              value={formCrear.institution}
+              onChange={handleChangeCrear('institution')}
+            />
+            {institutionDetected && (
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                Institución detectada por dominio: <strong>{institutionDetected}</strong>
+              </span>
+            )}
+          </div>
         </div>
       </Modal>
 
