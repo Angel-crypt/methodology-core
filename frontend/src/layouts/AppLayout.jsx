@@ -4,7 +4,7 @@
  */
 import { useState } from 'react'
 import PropTypes from 'prop-types'
-import { BookOpen, ClipboardList, ClipboardCheck, Settings, Users } from 'lucide-react'
+import { BookOpen, ClipboardList, ClipboardCheck, FolderOpen, Users } from 'lucide-react'
 import { Sidebar, GlobalSearch, ProfileDropdown } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
 import SolicitarCambioCorreoModal from '@/components/SolicitarCambioCorreoModal'
@@ -42,10 +42,10 @@ function getNavSections(role) {
       ],
     })
     sections.push({
-      id:    'config',
-      label: 'CONFIGURACIÓN',
+      id:    'proyectos',
+      label: 'PROYECTOS',
       items: [
-        { label: 'Config. Operativa', icon: Settings, to: '/configuracion-operativa' },
+        { label: 'Proyectos', icon: FolderOpen, to: '/proyectos' },
       ],
     })
   }
