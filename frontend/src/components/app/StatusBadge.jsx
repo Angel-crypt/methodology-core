@@ -1,9 +1,11 @@
 import PropTypes from 'prop-types'
-import { CheckCircle, XCircle, Clock } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Ban } from 'lucide-react'
 
 /**
  * StatusBadge — displays record status with color and icon
- * Props: status ('active'|'inactive'|'pending')
+ * Props:
+ *   status  'active'|'pending'|'inactive'|'disabled'
+ *   label   optional override label
  */
 
 const statusConfig = {
@@ -12,35 +14,39 @@ const statusConfig = {
     Icon: CheckCircle,
     className: 'badge-status badge-status-active',
   },
-  inactive: {
-    label: 'Inactivo',
-    Icon: XCircle,
-    className: 'badge-status badge-status-inactive',
-  },
   pending: {
     label: 'Pendiente',
     Icon: Clock,
     className: 'badge-status badge-status-pending',
   },
+  inactive: {
+    label: 'Inactivo',
+    Icon: XCircle,
+    className: 'badge-status badge-status-inactive',
+  },
+  disabled: {
+    label: 'Desactivado',
+    Icon: Ban,
+    className: 'badge-status badge-status-inactive',
+  },
 }
 
-function StatusBadge({ status }) {
-  const config = statusConfig[status]
-
-  if (!config) return null
+function StatusBadge({ status, label: labelOverride }) {
+  const config = statusConfig[status] ?? statusConfig.inactive
 
   const { label, Icon, className } = config
 
   return (
     <span className={className}>
       <Icon size={12} aria-hidden="true" />
-      {label}
+      {labelOverride ?? label}
     </span>
   )
 }
 
 StatusBadge.propTypes = {
-  status: PropTypes.oneOf(['active', 'inactive', 'pending']).isRequired,
+  status: PropTypes.oneOf(['active', 'pending', 'inactive', 'disabled']).isRequired,
+  label:  PropTypes.string,
 }
 
 export default StatusBadge
