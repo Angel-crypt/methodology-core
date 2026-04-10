@@ -40,13 +40,42 @@ export const handlers = [
     })
   ),
 
+  // ── M1 — Perfil propio ────────────────────────────────────────────────────
+  http.get(`${API}/users/me`, () =>
+    HttpResponse.json({
+      status: 'success',
+      data: {
+        id: 'user-1',
+        full_name: 'Superadministrador',
+        email: 'super@methodology.local',
+        role: 'superadmin',
+        active: true,
+        must_change_password: false,
+        phone: null,
+        institution: null,
+        terms_accepted_at: null,
+        onboarding_completed: true,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: null,
+      },
+    })
+  ),
+
+  http.patch(`${API}/users/me/profile`, () =>
+    HttpResponse.json({ status: 'success', data: { id: 'user-1', full_name: 'Superadministrador', email: 'super@methodology.local', phone: null, institution: null } })
+  ),
+
+  http.post(`${API}/users/me/accept-terms`, () =>
+    HttpResponse.json({ status: 'success', data: { terms_accepted_at: new Date().toISOString() } })
+  ),
+
   // ── M1 — Usuarios ──────────────────────────────────────────────────────────
   http.get(`${API}/users`, () =>
     HttpResponse.json({
       status: 'success',
       data: [
-        { id: 'user-1', email: 'super@methodology.local', role: 'superadmin', active: true, must_change_password: false },
-        { id: 'user-2', email: 'app@mock.local', role: 'applicator', active: true },
+        { id: 'user-1', full_name: 'Superadministrador', email: 'super@methodology.local', role: 'superadmin', active: true, must_change_password: false, institution: null },
+        { id: 'user-2', full_name: 'Aplicador Test', email: 'app@mock.local', role: 'applicator', active: true, institution: null },
       ],
     })
   ),
@@ -209,15 +238,25 @@ export const handlers = [
   ),
 
   // ── M2-PROJECT — Proyectos (CF-013) ────────────────────────────────────────
-  http.get(`${API}/projects`, () =>
-    HttpResponse.json({
+  http.get(`${API}/projects`, ({ request }) => {
+    const url = new URL(request.url)
+    const memberId = url.searchParams.get('member_id')
+    if (memberId) {
+      return HttpResponse.json({
+        status: 'success',
+        data: [
+          { id: 'proj-1', name: 'Estudio Piloto 2026', description: 'Demo', member_count: 1, instrument_count: 2, created_at: '2026-04-01T00:00:00Z', user_role: 'researcher' },
+        ],
+      })
+    }
+    return HttpResponse.json({
       status: 'success',
       data: [
         { id: 'proj-1', name: 'Estudio Piloto 2026', description: 'Demo', member_count: 1, instrument_count: 2, created_at: '2026-04-01T00:00:00Z' },
         { id: 'proj-2', name: 'Cohorte B', description: null, member_count: 0, instrument_count: 0, created_at: '2026-04-02T00:00:00Z' },
       ],
     })
-  ),
+  }),
 
   http.post(`${API}/projects`, () =>
     HttpResponse.json(
@@ -299,5 +338,34 @@ export const handlers = [
 
   http.get(`${API}/config/operativo`, () =>
     new HttpResponse(JSON.stringify({ status: 'error', data: { code: 'GONE' } }), { status: 410 })
+  ),
+
+  // ── Sprint 4 — Instituciones y legal ───────────────────────────────────────
+  http.get(`${API}/institutions`, () =>
+    HttpResponse.json({ status: 'success', data: [] })
+  ),
+
+  http.post(`${API}/institutions`, () =>
+    HttpResponse.json({ status: 'success', data: { id: 'inst-1', name: 'test', domain: null, created_at: new Date().toISOString() } }, { status: 201 })
+  ),
+
+  http.get(`${API}/institutions/resolve`, () =>
+    HttpResponse.json({ status: 'success', data: null })
+  ),
+
+  http.get(`${API}/legal/terms`, () =>
+    HttpResponse.json({ status: 'success', data: { version: '1.0', updated_at: '2026-04-01', content: 'Términos de prueba.' } })
+  ),
+
+  http.get(`${API}/legal/privacy`, () =>
+    HttpResponse.json({ status: 'success', data: { version: '1.0', updated_at: '2026-04-01', content: 'Aviso de privacidad de prueba.' } })
+  ),
+
+  http.get(`${API}/superadmin/profile-config`, () =>
+    HttpResponse.json({ status: 'success', data: { require_phone: true, require_institution: true, require_terms: true } })
+  ),
+
+  http.put(`${API}/superadmin/profile-config`, () =>
+    HttpResponse.json({ status: 'success', data: { require_phone: false, require_institution: true, require_terms: true } })
   ),
 ]
