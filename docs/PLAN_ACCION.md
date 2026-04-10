@@ -1,8 +1,16 @@
 # PLAN DE ACCIÓN — methodology-core
-**Versión:** 4.1
-**Fecha:** 2026-04-08
-**Base:** ANALYSIS_M1-M6 · CONTRADICCIONES_SRS (12 resueltas) · decisiones arquitectónicas vigentes
-**Metodología:** TDD — cada tarea comienza con tests en rojo; implementación mínima que los pone en verde.
+**Versión:** 4.3
+**Fecha:** 2026-04-09
+**Base:** SRS actualizados · `docs/ESTADO_CONSOLIDADO.md` · `docs/AUDITORIA_PENDIENTES.md` · `docs/AUDITORIA_ACTION_PLAN.md` · `docs/PENDIENTES.md`
+**Metodologia:** TDD como objetivo; cuando no aplique o no sea verificable, se documenta en la tarea.
+
+## CRITERIOS MINIMOS DE ACEPTACION (TRANSVERSALES)
+
+- Zero Trust: todo endpoint valida JWT + rol + estado; no confiar en el frontend.
+- Privacy by Design: no PII en Subjects/Applications/Exports; solo `anonymous_code`.
+- Auditoria: operaciones sensibles dejan registro en audit_log.
+- RBAC: SUPERADMIN solo stats; researcher detalle; applicator solo propios.
+- Sesion expirada: redirect a `/login` con mensaje visible.
 
 ---
 
@@ -16,11 +24,11 @@
 | INVENTARIO.md | ✅ Actualizado |
 | CI (GitHub Actions) | ✅ Verde — 41 tests |
 | Credenciales en código | ❌ Pendiente |
-| Autenticación OIDC + SUPERADMIN | ❌ Pendiente |
+| Autenticacion OIDC + SUPERADMIN | ✅ Completa |
 | Gestión de proyectos | ❌ Sin UI |
 | Perfiles de usuario | ❌ Sin modelo ni UI |
-| M5 vista investigador/admin | ❌ Sin UI |
-| M6 exportación | ❌ Sin UI |
+| M5 vista investigador + SUPERADMIN stats | ❌ Sin UI |
+| M6 exportacion (solo investigador) | ❌ Sin UI |
 
 ---
 
@@ -32,7 +40,7 @@ Sprint 1 cerrado. Resumen de lo entregado y lo que sigue pendiente.
 
 | ID | Tarea | Estado | Notas |
 |----|-------|--------|-------|
-| **CF-031** | Renombrado atómico `administrator` → `superadmin` en frontend, mock y middleware | ✅ Cerrado | Barrera atómica. No quedan referencias al nombre antiguo en código vivo. |
+| **CF-031** | Renombrado atómico de rol legacy → `superadmin` en frontend, mock y middleware | ✅ Cerrado | Barrera atómica. No quedan referencias al nombre antiguo en código vivo. |
 | **CF-001** | Eliminadas credenciales hardcoded del flujo de login | ✅ Cerrado | Cubierto por red de regresión (`LoginPage.test.jsx`). |
 | **CF-002** | Wizard M4 solicita instrumentos con `?is_active=true` | ✅ Cerrado | Filtro server-side; el cliente mantiene defensa en profundidad. |
 | **CF-003** | Validación estricta `start_date < end_date` en wizard de creación | ✅ Cerrado | Red de regresión (3 tests). |
@@ -48,34 +56,197 @@ Sprint 1 cerrado. Resumen de lo entregado y lo que sigue pendiente.
 | Rutas canónicas M3 | ✅ | Sin cambios |
 | INVENTARIO.md | ✅ | Actualizado a 2026-04-08 |
 | CI (GitHub Actions) | ✅ | Verde |
-| Rol `superadmin` (CF-031) | ✅ | Renombrado en código vivo. Docs históricos (`BITACORA.md`, `MockContract_M1`, `COMPONENTS.md`, `GUIA_IMPLEMENTACION_MOCK_SERVER.md`) aún mencionan `administrator` — limpieza diferida. |
+| Rol `superadmin` (CF-031) | ✅ | Renombrado en código vivo. Docs historicos (`BITACORA.md`, `MockContract_M1`, `COMPONENTS.md`, `GUIA_IMPLEMENTACION_MOCK_SERVER.md`) aun mencionan el nombre legacy — limpieza diferida. |
 | Filtro Privacy by Design en M4 (CF-002) | ✅ | `RegistroOperativoWizardPage.jsx` solicita `?is_active=true` |
 | Validación de fechas en M2 (CF-003) | ✅ | `validarCrear` rechaza igualdad e inversión |
 | `must_change_password` propagado (CF-004) | ✅ | Aplica al flujo legacy email+password (vigente solo para SUPERADMIN per decisión #3) |
 | Tags + `min_days_between_applications` (CF-029) | ✅ | API mock + servicio + UI completos. Endpoint `GET /instruments/tags` añadido. |
 | Credenciales en código | ✅ | Eliminadas en CF-001 |
-| **Autenticación OIDC + SUPERADMIN (CF-2)** | ❌ | **Próximo bloque crítico.** Researcher/applicator deben pasar a magic link + OIDC; el flujo password actual queda solo para SUPERADMIN en ruta de sistema no listada. `LoginPage` actual debe ser reemplazado por `SystemLoginPage` (CF-005, requiere acuerdo de diseño). |
+| **Autenticación OIDC + SUPERADMIN (CF-2)** | ✅ | Cerrado en Sprint 2. |
 | Magic link de activación (researcher/applicator) | ❌ | Sin implementar — depende de CF-2 |
 | Gestión de proyectos | ❌ | Sin UI ni endpoints |
 | Perfiles de usuario | ❌ | Sin modelo ni UI |
-| M5 vista investigador/admin | ❌ | Sin UI |
-| M6 exportación | ❌ | Sin UI ni endpoints reales |
+| M5 vista investigador + SUPERADMIN stats | ❌ | Sin UI |
+| M6 exportación (solo investigador) | ❌ | Sin UI ni endpoints reales |
 | `AuthContext` (eliminar prop drilling de token) | ❌ | Pendiente — bloqueante leve para Sprint 2 |
 | Limpieza de docs históricos (`BITACORA.md`, contratos XML) | ⚠️ | Diferida — no es código vivo |
 
-### Implicaciones clave para Sprint 2
+### Implicaciones clave para Sprint 3
 
-1. **El password ya no es método de identidad para usuarios normales.** Per decisión arquitectónica #3, researcher y applicator activan cuenta vía magic link y autentican por OIDC/Keycloak. El backend nunca toca passwords de estos roles. El flujo email+password sobrevive solo para SUPERADMIN en una ruta de sistema no listada (`/system/login` o equivalente, a definir en CF-005).
-2. **CF-005 (`SystemLoginPage`) es bloqueante para Sprint 2.** Requiere acordar con el usuario el path exacto, el aspecto visual y si el formulario debe ser totalmente desacoplado del `LoginPage` actual.
-3. **El campo `must_change_password` queda restringido al SUPERADMIN.** Cuando se implemente CF-2 hay que eliminar el flag del payload de login para roles no-superadmin (o garantizar que nunca se les emita).
-4. **Mensajes al usuario en español.** Toda alerta, error o helper visible al usuario debe estar en castellano. Esto aplica a todo el código nuevo a partir de Sprint 2.
-5. **Comentarios de código y tests.** Solo describen *qué hace* el código, no *por qué* se decidió así. La motivación vive en este `PLAN_ACCION.md` y en `INVENTARIO.md`.
+1. **Auth completa.** Sprint 2 cerro los flujos OIDC, magic link, cambio de correo y produccion readiness. Sprint 3 arranca sobre una base de autenticacion estable.
+2. **Proyectos son la siguiente barrera.** CF-010..CF-017 (CRUD proyectos, membresia, config operativa por proyecto, wizard actualizado) son el bloque critico de Sprint 3.
+3. **Mensajes al usuario en español.** Toda alerta, error o helper visible al usuario debe estar en castellano.
+4. **Comentarios de código y tests.** Solo describen *qué hace* el código, no *por qué* se decidió así. La motivación vive en este `PLAN_ACCION.md` y en `INVENTARIO.md`.
+
+---
+
+## ESTADO ACTUAL DE IMPLEMENTACIÓN (Sprint 3 — en progreso — 2026-04-09)
+
+Sprint 3 sin commit final. Trabajo en progreso activo.
+
+### Sprint 3 — entregado (sin commit)
+
+| ID | Tarea | Estado | Notas |
+|----|-------|--------|-------|
+| **CF-010** | Mock: CRUD proyectos (`projects.js`, store) | ✅ Cerrado | `GET/POST /projects`, `GET/PATCH/DELETE /projects/:id`. Store: `projects[]`, `projectMembers[]`, `projectInstruments[]`, `projectConfigs Map`. |
+| **CF-011** | Mock: Membresía e instrumentos de proyecto | ✅ Cerrado | `POST/GET/DELETE /projects/:id/members`, `POST/GET/DELETE /projects/:id/instruments`. Validación rol (`researcher\|applicator`), duplicados (409). |
+| **CF-012** | Mock: Config operativa por proyecto + defaults del sistema | ✅ Cerrado | `GET/PUT /projects/:id/config/operativo`. Schema: `education_levels`, `age_cohort_map` (objeto nivel→rango), `cohort_mode` (`libre\|restringido`), `subject_limit`. `GET /config/system-defaults`. |
+| **CF-013** | Frontend: ProjectsPage + ProjectDetailPage | ✅ Cerrado | `ProjectsPage`: lista, crear (modal con defaults/config), eliminar. `ProjectDetailPage`: tabs Miembros / Instrumentos / Config. Config operativa con tabla de niveles educativos (activar/desactivar), rango de edades, cohorte, límite de sujetos. Dirty-check antes de guardar. |
+| **CF-014** | Deprecar ConfiguracionOperativaPage global | ✅ Cerrado | Ruta `/configuracion-operativa` → `<Navigate to="/proyectos">`. Página existente conservada pero sin acceso. |
+| **CF-015** | Wizard: Paso 0 — selección de proyecto | ✅ Cerrado | Paso previo al registro: el aplicador elige su proyecto. `GET /projects/:id/config/operativo` carga config por proyecto. |
+| **CF-016** | Wizard: "Mis sujetos" condicional | ✅ Cerrado | Tab solo aparece si el aplicador ya tiene sujetos registrados en el proyecto. Carga al seleccionar proyecto, no lazy. |
+| **CF-017** | Wizard: paths canónicos con `project_id` | ✅ Cerrado | `POST /projects/:id/subjects`, `PATCH /subjects/:id/context`, `POST /projects/:id/applications`, `POST /projects/:id/applications/:id/metric-values`. |
+| **CF-018** | Wizard: `contextDirty` + manejo de retry | ✅ Cerrado | `PATCH` si ya guardado y modificado; `POST` si primera vez. Botón "Actualizar contexto y continuar" en paso 2. |
+
+### Bugs adicionales resueltos en Sprint 3
+
+| Bug | Fix |
+|-----|-----|
+| `cargandoPermisos`/`permisosResumen` undefined en `DetalleAplicadorPage` | Bloque "Permisos actuales" eliminado (permisos son ahora por proyecto, no por usuario) |
+| `cohortMode` siempre `'libre'` pese a config `restringido` | Leía `operativoConfig?.mode` — corregido a `operativoConfig?.cohort_mode === 'restringido'` |
+| Cohortes de edad no cargaban | Leía `age_cohort_ranges` (inexistente) — corregido a valores únicos de `age_cohort_map` |
+| `education_level` rechazado por API (envía `'Primaria menor'` en lugar de `'primary_lower'`) | `EDUCATION_LEVEL_NAME_TO_KEY` mapea nombres del config a claves de enum API. Auto-assign restringido usa reverse-map |
+| "Sujeto existente" eliminado del wizard | Solo aplicadores; flujo simplificado a Nuevo / Mis sujetos |
+| `must_change_password` en investigators/applicators | Campo solo enviado desde API para `superadmin`. `getUserStatus`, `useGestionUsuarios`, `AuthCallbackPage` limpados |
+| Agregar miembro mostraba email y pedía rol | Selector muestra "Nombre — Rol". Rol tomado del usuario, no elegido manualmente |
+| Proyecto sin instrumentos → wizard se colgaba en "Cargando..." | Al seleccionar proyecto se cargan sus instrumentos. Si vacío: bloqueo con mensaje claro antes de paso 1 |
+| Errores técnicos de enum API visibles al usuario | `handleSubmitContext` transforma mensajes de validación a texto en español |
+
+### Tabla agregada de áreas (Sprint 3)
+
+| Área | Estado | Detalle |
+|------|--------|---------|
+| Infraestructura de testing | ✅ | Tests actualizados para proyectos, config por proyecto, wizard |
+| Gestión de proyectos (CF-010..CF-014) | ✅ | CRUD, membresía, instrumentos, config operativa por proyecto |
+| Wizard M4 actualizado (CF-015..CF-018) | ✅ | Paso 0 proyecto, "Mis sujetos", paths canónicos, contexto dirty |
+| Config operativa global (legado) | ✅ | Deprecada — redirect a /proyectos |
+| `must_change_password` limpiado | ✅ | Solo superadmin en toda la pila |
+| **Perfiles, instituciones, onboarding** | ✅ | Sprint 4 — ver sección siguiente |
+| **M5 — Consulta investigador + SUPERADMIN stats** | ❌ | **Próximo bloque — Sprint 5** |
+| **M6 — Exportación (solo investigador)** | ❌ | Sprint 5 |
+| Limpieza de docs históricos | ⚠️ | Diferida |
+
+### Decisión arquitectónica actualizada en Sprint 3
+
+> **#20 (actualizada):** `age_cohort_map` es el contrato canonico para la config operativa. Es un objeto `{ nombre_nivel: rango_edad }` donde las claves son los nombres legibles definidos por el SUPERADMIN (ej. `'Primaria menor'`). El frontend mapea esos nombres a claves de enum de la API (`primary_lower`) via `EDUCATION_LEVEL_NAME_TO_KEY` antes de enviar el contexto. El reverse-map `EDUCATION_LEVEL_KEY_TO_NAME` se usa para auto-asignar cohorte en modo restringido.
+
+---
+
+## ESTADO ACTUAL DE IMPLEMENTACIÓN (Sprint 4 — 2026-04-10)
+
+Sprint 4 sin commit final. Trabajo completado.
+
+### Sprint 4 — entregado
+
+| ID | Tarea | Estado | Notas |
+|----|-------|--------|-------|
+| **CF-S4-001** | JWT mínimo + UserContext | ✅ Cerrado | JWT: `{ sub, role, jti, iat, exp }` (sin `full_name`/`email`). Middleware lee `payload.sub`. `UserContext.jsx`: fetch `GET /users/me` al cambiar token; expone `{ user, loadingUser, reloadUser }`. `AppLayout` lee `fullName`/`email` desde UserContext. |
+| **CF-S4-002** | Mock: Perfil extendido | ✅ Cerrado | Store: `phone`, `institution`, `terms_accepted_at`, `onboarding_completed` por usuario. `GET /users/me` retorna perfil completo. `PATCH /users/me/profile`. `POST /users/me/accept-terms`. |
+| **CF-S4-003** | Mock: Instituciones | ✅ Cerrado | `mock/src/routes/institutions.js`. `store.institutions`. `GET /institutions` (solo superadmin), `POST /institutions` (normaliza nombre), `GET /institutions/resolve?email=X` (detecta por dominio). |
+| **CF-S4-004** | Mock: T&C + Privacidad | ✅ Cerrado | `GET /legal/terms` y `GET /legal/privacy` (públicos, sin auth). |
+| **CF-S4-005** | Mock: profileConfig | ✅ Cerrado | `store.profileConfig: { require_phone, require_institution, require_terms }`. `GET /superadmin/profile-config` (cualquier auth). `PUT /superadmin/profile-config` (solo superadmin). |
+| **CF-S4-006** | Frontend: TermsPage + PrivacyPage + guards | ✅ Cerrado | Guards en `App.jsx`: `needsTerms` → `/terminos`, `needsOnboarding` → `/onboarding`. Superadmin exento. `TermsPage` y `PrivacyPage` usan `login-layout`/`login-card`. |
+| **CF-S4-007** | Frontend: OnboardingPage | ✅ Cerrado | Campos dinámicos según `profileConfig`. Auto-detección de institución por dominio (`GET /institutions/resolve`): si coincide, campo deshabilitado con bloque informativo; si no, texto libre. |
+| **CF-S4-008** | Frontend: SuperadminProfileConfigPage | ✅ Cerrado | Checkboxes `require_phone`, `require_institution`, `require_terms`. `PUT /superadmin/profile-config`. Ruta: `/configuracion-perfil`. |
+| **CF-S4-009** | Frontend: InstitutionsPage | ✅ Cerrado | DataTable (nombre, dominio, fecha). Botón → Modal para crear. EmptyState con acción. Ruta: `/instituciones`. |
+| **CF-S4-010** | Frontend: DetalleUsuarioPage (compartido) | ✅ Cerrado | Reemplaza `DetalleAplicadorPage`. Ambos roles (researcher y applicator) muestran sección "Proyectos asignados": lista con rol en proyecto + botón "Ver" (navega a `/proyectos/:id`) + botón "Quitar" (`DELETE /projects/:id/members/:userId`). |
+| **CF-S4-011** | Frontend: Preasignación institución al crear usuario | ✅ Cerrado | `handleEmailBlur` en `useGestionUsuarios`: llama `GET /institutions/resolve?email=X`; pre-llena campo institución en modal. Incluye `institution` en `POST /users`. Campo `institution` en tabla de usuarios. |
+
+### Cambios arquitectónicos Sprint 4
+
+| Decisión | Detalle |
+|---|---|
+| JWT mínimo | Solo `sub`, `role`, `jti`, `iat`, `exp` — sin datos personales en el token. `sub` es el `user_id`. |
+| UserContext | Patrón separado de AuthContext: AuthContext maneja sesión (token, role, logout); UserContext maneja perfil (full_name, email, phone, institution, flags). |
+| Guard chain | Solo para researcher/applicator: `loadingUser` → `needsTerms` → `needsOnboarding` → app. SUPERADMIN siempre pasa al app. |
+| GET /projects con member_id | `GET /projects?member_id=X` soportado para superadmin — retorna proyectos del usuario X con `user_role` per project. |
+| Instituciones informativas | No afectan control de acceso. Agrupan perfiles y permiten stats. Normalización por nombre y por dominio de correo. |
+
+### Tabla agregada de áreas (Sprint 4)
+
+| Área | Estado | Detalle |
+|------|--------|---------|
+| JWT mínimo (CF-S4-001) | ✅ | Sin `full_name`/`email` en token. `sub` como identificador. |
+| UserContext (CF-S4-001) | ✅ | Perfil cargado desde API en contexto separado. |
+| Perfil extendido en mock (CF-S4-002) | ✅ | phone, institution, terms, onboarding_completed. |
+| Instituciones (CF-S4-003, CF-S4-009) | ✅ | Mock + UI de gestión. Resolución por dominio. |
+| T&C y Onboarding (CF-S4-006, CF-S4-007) | ✅ | Guards funcionales. Flujo completo para researcher/applicator. |
+| Config de perfil SUPERADMIN (CF-S4-005, CF-S4-008) | ✅ | Configurable por SUPERADMIN. |
+| DetalleUsuarioPage (CF-S4-010) | ✅ | Proyectos asignados para ambos roles con acciones básicas. |
+| Preasignación institución (CF-S4-011) | ✅ | Auto-detección en crear usuario. |
+| **M5 — Consulta investigador + SUPERADMIN stats** | ❌ | **Próximo — Sprint 5** |
+| **M6 — Exportación (solo investigador)** | ❌ | Sprint 5 |
+| Tests de integración Sprint 4 | ⚠️ | MSW handlers actualizados. Tests unitarios pendientes. |
+
+---
+
+## ESTADO ACTUAL DE IMPLEMENTACIÓN (post Sprint 2 — 2026-04-08)
+
+Sprint 2 cerrado. Resumen de lo entregado y lo que sigue pendiente.
+
+### Sprint 2 — entregado
+
+| ID | Tarea | Estado | Notas |
+|----|-------|--------|-------|
+| **CF-005** | LoginPage OIDC + SystemLoginPage SUPERADMIN | ✅ Cerrado | `LoginPage` solo muestra botón Google. `SystemLoginPage` en `/__sys-auth` (configurable vía `VITE_SYSTEM_LOGIN_PATH`). `AuthCallbackPage` procesa callback OIDC con `useRef` para evitar doble consumo del code en StrictMode. |
+| **CF-006** | AuthContext — eliminar prop drilling | ✅ Cerrado | `AuthContext` con `sessionStorage` persistence. Provee `token`, `role`, `mustChangePassword`, `login`, `logout`. SESSION_REVOKED handler via DOM event. |
+| **CF-007** | Mock: endpoints OIDC simulados | ✅ Cerrado | `GET /auth/oidc/authorize` → mock-sso HTML selector (bajo `/api/v1/` para que Vite proxy lo intercepte). `GET /auth/oidc/mock-sso/select` vincula code→email. `POST /auth/oidc/callback` valida code, vincula `broker_subject`, emite JWT. |
+| **CF-008** | Magic link de activación de cuenta | ✅ Cerrado | `POST /users` genera `_mock_magic_link` en `/api/v1/auth/activate/:token`. `GET /auth/activate/:token` activa cuenta, single-use (segundo uso → 410). `POST /users/:id/magic-link` regenera link. `POST /auth/setup` eliminado (404). |
+| **CF-009** | Solicitud de cambio de correo (no autoservicio) | ✅ Cerrado | `SolicitarCambioCorreoModal` (trigger en menu de usuario). `SolicitudesCambioCorreoPanel` (panel SUPERADMIN). `emailChangeRequests.js` service. Approve via `PATCH /users/:id/email` invalida `broker_subject` + revoca sesiones. SESSION_REVOKED detectado globalmente → logout automatico. |
+
+### Bugs extra resueltos en Sprint 2
+
+| Bug | Fix |
+|-----|-----|
+| `PropTypes is not defined` en MisRegistrosPage y InstrumentoDetallePage | Importaciones agregadas |
+| `useMemo is not defined` en useGestionUsuarios | Añadido al import de React |
+| POST a `/instruments/[object Object]/metrics` | `crearMetrica(token, nuevoId, body)` — args corregidos |
+| `StatusBadge status=undefined` en tabla de instrumentos | Columna usa `key: 'is_active'` con render derivado |
+| Dos error toasts al primer login con `mustChangePassword=true` | Guard en layouts: `if (mustChangePassword) return <AppLayout>{null}</AppLayout>` |
+| OIDC callback 401 (double-fetch en StrictMode) | `useRef(false)` como `calledRef` — ejecuta el fetch exactamente una vez |
+| Magic link redirigía a `/login` (sin proxy) | URLs generadas incluyen `/api/v1/` prefix |
+
+### Producción readiness (Sprint 2 extra)
+
+| Item | Estado |
+|------|--------|
+| `VITE_OIDC_AUTHORIZE_URL` — URL del provider real (vacío = mock) | ✅ Env var + fallback |
+| `VITE_SYSTEM_LOGIN_PATH` — path de SystemLoginPage | ✅ Env var + default `/__sys-auth` |
+| `VITE_API_PROXY_TARGET` — target del proxy Vite | ✅ Env var + default `http://localhost:3000` |
+| `.env.example` y `.env.development` documentados | ✅ Creados |
+| JWT claims esperados por frontend documentados: `role`, `email`, `full_name`, `user_id` | ✅ En `.env.example` |
+
+### Tabla agregada de áreas (post Sprint 2)
+
+| Área | Estado | Detalle |
+|------|--------|---------|
+| Infraestructura de testing | ✅ | ~57+ tests verdes |
+| Contrato `is_active: boolean` | ✅ | Sin cambios |
+| Rutas canónicas M3 | ✅ | Sin cambios |
+| INVENTARIO.md | ✅ | Actualizado a Sprint 2 |
+| CI (GitHub Actions) | ✅ | Verde |
+| Rol `superadmin` (CF-031) | ✅ | Completo desde Sprint 1 |
+| Filtro Privacy by Design en M4 (CF-002) | ✅ | Completo desde Sprint 1 |
+| Validación de fechas en M2 (CF-003) | ✅ | Completo desde Sprint 1 |
+| `must_change_password` propagado (CF-004) | ✅ | Completo desde Sprint 1 |
+| Tags + `min_days_between_applications` (CF-029) | ✅ | Completo desde Sprint 1 |
+| Credenciales en código (CF-001) | ✅ | Completo desde Sprint 1 |
+| **LoginPage OIDC + SystemLoginPage (CF-005)** | ✅ | Sprint 2 |
+| **AuthContext sin prop drilling (CF-006)** | ✅ | Sprint 2 |
+| **Mock OIDC completo (CF-007)** | ✅ | Sprint 2 |
+| **Magic link activación (CF-008)** | ✅ | Sprint 2 |
+| **Solicitud cambio de correo (CF-009)** | ✅ | Sprint 2 |
+| **Producción readiness (env vars, JWT claims)** | ✅ | Sprint 2 extra |
+| Gestión de proyectos (CF-3) | ❌ | **Próximo bloque — Sprint 3** |
+| Perfiles, instituciones, onboarding (CF-4) | ❌ | Sprint 4 |
+| M5, M6, exportación (CF-5) | ❌ | Sprint 5 |
+| Limpieza de docs históricos | ⚠️ | Diferida |
 
 ---
 
 ## DECISIONES ARQUITECTÓNICAS VIGENTES
 
-1. **Roles (esta etapa):** `superadmin` | `researcher` | `applicator`. El rol `administrator` NO existe en esta etapa — el rol actual `administrator` del código se renombra a `superadmin`. Un rol `admin` con permisos más acotados se diseñará en una etapa futura.
+1. **Roles (esta etapa):** `superadmin` | `researcher` | `applicator`. El rol legacy NO existe en esta etapa — el rol actual se renombra a `superadmin`. Un rol de menor permiso se disena en una etapa futura.
 2. **Jerarquía:** SUPERADMIN crea y gestiona todo. Researcher y applicator son creados por SUPERADMIN. No hay nivel intermedio en esta etapa.
 3. **Auth:** SUPERADMIN usa email+password en ruta de sistema no listada. Researcher y applicator activan su cuenta vía magic link generado al crearlos, y autentican por OIDC/Keycloak en sesiones subsiguientes. El backend nunca toca passwords de usuarios normales.
 4. **RF-M1-06:** Cambiar correo (`PATCH /users/:id/email`), no cambiar password.
@@ -83,17 +254,17 @@ Sprint 1 cerrado. Resumen de lo entregado y lo que sigue pendiente.
 6. **Métricas:** Propietario M3. Path canónico: `/instruments/{id}/metrics`.
 7. **Configuración Operativa:** Por proyecto (`GET/PUT /projects/:id/config/operativo`). Al crear un proyecto, el sistema ofrece "usar defaults del sistema" o "configurar ahora". Nunca se crea un proyecto con config vacía.
 8. **Defaults del sistema (Config Operativa):** El mock tiene valores hardcodeados razonables como defaults: education_levels, age_cohort_ranges comunes, subject_limit = 50, mode = "normal". Estos se aplican cuando se elige "usar defaults".
-9. **M5:** Researcher puede ver el listado completo de aplicaciones de sus proyectos (datos anónimos completos: anonymous_code, métricas, fechas). SUPERADMIN también. El backend filtra por membresía. Filtro de proyecto disponible como query param opcional.
-10. **M6 Exportación:** Siempre requiere `project_id`. Researcher y SUPERADMIN pueden exportar. Cada exportación se registra en el audit log.
+9. **M5:** Researcher puede ver el listado completo de aplicaciones de sus proyectos (datos anonimos completos: anonymous_code, metricas, fechas). SUPERADMIN solo ve estadisticas agregadas. El backend filtra por membresia.
+10. **M6 Exportacion:** Siempre requiere `project_id`. Solo Researcher exporta. Cada exportacion se registra en el audit log.
 11. **Visibilidad de datos por rol:**
-    - SUPERADMIN: acceso completo a todos los datos del sistema
-    - Researcher: ve y exporta datos anónimos completos de sus proyectos (anonymous_code + métricas)
+    - SUPERADMIN: estadisticas agregadas; sin acceso a datos detallados
+    - Researcher: ve y exporta datos anonimos completos de sus proyectos (anonymous_code + metricas)
     - Applicator: solo ve sus propios registros (`/applications/my`)
-    - Futuro `admin` (no en esta etapa): solo estadísticas agregadas por proyecto y aplicador, no datos explícitos
+    - Futuro rol de menor permiso (no en esta etapa): solo estadisticas agregadas por proyecto y aplicador, no datos explicitos
 12. **Perfiles:** SUPERADMIN define por rol qué campos se piden en onboarding y si son obligatorios u opcionales. El usuario los rellena en su primer ingreso.
 13. **Instituciones:** Tienen flag `public: boolean`. En onboarding el usuario solo ve instituciones públicas (salvo auto-asignación por dominio). Solo SUPERADMIN ve todas en la UI de gestión.
 14. **Sujetos repetidos en wizard:** El aplicador puede seleccionar un sujeto registrado previamente. Cada instrumento tiene `min_days_between_applications` (default 15, configurable al crear). Si el gap no se cumple, el instrumento aparece bloqueado con fecha de próxima disponibilidad.
-15. **Acceso no autorizado:** Cualquier rol sin permiso es redirigido a `/forbidden` con mensaje explícito. Nunca silencioso.
+15. **Acceso no autorizado:** Cualquier rol sin permiso es redirigido a `/forbidden` con mensaje explicito. Nunca silencioso.
 16. **Bootstrap del SUPERADMIN:** se siembra al arranque del mock leyendo `SUPERADMIN_EMAIL` y `SUPERADMIN_PASSWORD` del `.env`. Si las variables no están, se usan defaults locales (`super@methodology.local` / `metodologia-bootstrap-cambiar-pronto`) y el mock emite WARNING en consola. El seed bootstrappeado por defaults nace con `must_change_password=true`; el seed configurado por env nace con `false` (el operador eligió). Crear más SUPERADMIN o rotar password en runtime queda fuera de Sprint 2 y se documenta como CLI futuro (`scripts/create-superadmin.js`, `scripts/rotate-superadmin.js`).
 17. **Cambio de correo (no autoservicio):** Los usuarios NO pueden cambiar su propio correo. Pueden enviar una **solicitud** (`POST /users/me/email-change-request { new_email }`) que queda pendiente para el SUPERADMIN. El SUPERADMIN ve las solicitudes en la página de gestión de usuarios y aplica el cambio manualmente vía `PATCH /users/:id/email`. Aplicar un cambio de correo invalida el `broker_subject`, revoca todas las sesiones del usuario y dispara logout forzoso global de ese usuario.
 18. **Path `/__sys-auth`:** El path del SystemLoginPage es configurable vía `VITE_SYSTEM_LOGIN_PATH` (default `/__sys-auth`). Garantía: **no enumeración** — no aparece en menús, sitemap, robots.txt, mensajes para usuarios ni redirects. NO garantiza secrecy criptográfica: el path estará como string literal en el bundle JS, igual que cualquier ruta de React Router. Para true secret URL haría falta SSR o un proxy reverso por header — fuera de scope de la fase mock. El bundle agrega `<meta name="robots" content="noindex">`.
@@ -115,7 +286,7 @@ Estas reglas aplican a **todas** las tareas. No son opcionales.
 |-------|-----------|
 | **Verificar siempre, confiar nunca** | Cada endpoint del mock valida JWT + rol. El frontend es solo la interfaz — no es la línea de defensa. Si el frontend dejó pasar algo, el backend lo rechaza igual. |
 | **Mínimo privilegio** | Cada rol accede solo a los recursos que necesita. `GET /projects` para un applicator solo devuelve proyectos donde es miembro. `GET /institutions` para un user solo devuelve las públicas. |
-| **Scope explícito** | Las rutas de SUPERADMIN (`/superadmin/*`) verifican `role === 'superadmin'` en el JWT antes de procesar. No basta con ser admin. |
+| **Scope explicito** | Las rutas de SUPERADMIN (`/superadmin/*`) verifican `role === 'superadmin'` en el JWT antes de procesar. No basta con ser superadmin. |
 | **Tokens de corta vida** | Access token: 15 min. Refresh token: 24h. El mock puede usar valores más largos para testing pero los tests deben cubrir el caso de token expirado → 401. |
 | **Protección CSRF** | El flujo OIDC incluye parámetro `state` único por request. El callback verifica que el `state` recibido coincide con el enviado. |
 | **Rate limiting en auth** | El endpoint de login (SUPERADMIN) aplica rate limiting: 5 intentos fallidos → bloqueo 15 min por IP. Tests deben cubrir este caso. |
@@ -412,7 +583,7 @@ frontend/src/__tests__/components/SolicitarCambioCorreoModal.test.jsx
 - 409 PENDING_REQUEST_EXISTS → "Ya tienes una solicitud pendiente"
 - 409 EMAIL_ALREADY_EXISTS → "Ese correo ya está registrado"
 
-frontend/src/__tests__/pages/SolicitudesCambioCorreo.test.jsx (admin)
+frontend/src/__tests__/pages/SolicitudesCambioCorreo.test.jsx (superadmin)
 - Render lista vacía → "No hay solicitudes pendientes"
 - Render lista con solicitudes → muestra correo actual, correo nuevo, motivo, fecha
 - Click "Aprobar" → confirma → PATCH /users/:id/email { email: nuevo } + DELETE /users/email-change-requests/:reqId
@@ -470,7 +641,7 @@ Sección de **documentación**, no de tareas ejecutables. Cubre cómo nace la pr
   - `SUPERADMIN_PASSWORD = "metodologia-bootstrap-cambiar-pronto"`
 - Si se usaron defaults → `must_change_password = true` y el banner del mock imprime una advertencia clara: `"⚠️  SUPERADMIN bootstrap usando defaults. Define SUPERADMIN_EMAIL y SUPERADMIN_PASSWORD en .env para producción."`
 - Si las variables están definidas en `.env` → `must_change_password = false`, sin banner.
-- Se elimina todo rastro de `admin@mock.local` (migración completada en Bloque 0 de Sprint 2).
+- Se elimina todo rastro de `superadmin@mock.local` (migracion completada en Bloque 0 de Sprint 2).
 
 **Producción (futuro, fuera de Sprint 2):**
 - Las credenciales viven en un secreto externo (Kubernetes Secret, AWS Secrets Manager, etc.), nunca en el repo.
@@ -599,14 +770,14 @@ frontend/src/__tests__/pages/ProjectDetailPage.test.jsx
 ```
 
 **Implementación:**
-- Crear `frontend/src/pages/ProjectsPage.jsx` (ruta: `/proyectos`, rol: administrator + superadmin)
+- Crear `frontend/src/pages/ProjectsPage.jsx` (ruta: `/proyectos`, rol: superadmin)
 - Crear `frontend/src/pages/ProjectDetailPage.jsx` (ruta: `/proyectos/:id`)
 - En el tab Miembros: búsqueda de usuarios existentes con filtros de rol e institución — **no se crean usuarios desde aquí**
 - En el tab Config Operativa: reemplazar la página global `ConfiguracionOperativaPage.jsx` con este tab
 - Crear `frontend/src/services/projects.js`
 - Agregar rutas en `App.jsx` y enlace en nav
 
-**Criterio:** Admin gestiona proyectos completamente desde una sola pantalla. ConfiguracionOperativaPage global queda obsoleta.
+**Criterio:** SUPERADMIN gestiona proyectos completamente desde una sola pantalla. ConfiguracionOperativaPage global queda obsoleta.
 
 ---
 
@@ -727,11 +898,10 @@ mock/src/__tests__/routes/projects.test.js (ampliar)
 mock/src/__tests__/routes/institutions.test.js
 - POST /institutions sin token → 401
 - POST /institutions con token de applicator → 403
-- POST /institutions (admin/superadmin) { name, description, public: boolean } → 201
+- POST /institutions (superadmin) { name, description, public: boolean } → 201
 - GET /institutions sin token → 401
 - GET /institutions con token de researcher → 200 [solo instituciones con public:true]
 - GET /institutions con token de applicator → 200 [solo instituciones con public:true]
-- GET /institutions con token de admin → 200 [todas, incluyendo private:true]
 - GET /institutions con token de superadmin → 200 [todas]
   ← El filtro es en el BACKEND según el rol del JWT, no en el frontend
 - POST /institutions/:id/domains { domain: "univ.edu" } → 201
@@ -764,7 +934,7 @@ mock/src/__tests__/routes/users.test.js (ampliar)
 - PATCH /users/me/profile { phone, department, position, institution_id } → 200
 - institution_id con dominio bloqueado (email del usuario coincide) → 409 INSTITUTION_LOCKED_BY_DOMAIN
 - GET /users/me → incluye todos los campos de perfil + profile_complete
-- GET /users/:id (admin) → incluye todos los campos de perfil
+- GET /users/:id (superadmin) → incluye todos los campos de perfil
 ```
 
 **Implementación:**
@@ -840,13 +1010,13 @@ frontend/src/__tests__/pages/SuperadminProfileConfigPage.test.jsx
 
 ---
 
-### CF-024 — Frontend: Admin gestión de instituciones
+### CF-024 — Frontend: SUPERADMIN gestion de instituciones
 **Módulo:** M1 | **Depende:** CF-019
 
 **Tests:**
 ```
 frontend/src/__tests__/pages/InstitutionsPage.test.jsx
-- Lista de instituciones (admin ve todas; toggle público/privado visible)
+- Lista de instituciones (SUPERADMIN ve todas; toggle publico/privado visible)
 - "Nueva institución" → POST /institutions
 - Agregar dominio → POST /institutions/:id/domains
 - Eliminar dominio → DELETE /institutions/:id/domains/:domainId
@@ -854,7 +1024,7 @@ frontend/src/__tests__/pages/InstitutionsPage.test.jsx
 ```
 
 **Implementación:**
-- Crear `frontend/src/pages/InstitutionsPage.jsx` (ruta: `/instituciones`, rol: administrator + superadmin)
+- Crear `frontend/src/pages/InstitutionsPage.jsx` (ruta: `/instituciones`, rol: superadmin)
 - Crear `frontend/src/services/institutions.js`
 
 ---
@@ -872,14 +1042,14 @@ frontend/src/__tests__/pages/DetalleInvestigadorPage.test.jsx
 ```
 
 **Implementación:**
-- Crear `frontend/src/pages/DetalleInvestigadorPage.jsx` (ruta: `/usuarios/investigadores/:id`, rol: administrator + superadmin)
+- Crear `frontend/src/pages/DetalleInvestigadorPage.jsx` (ruta: `/usuarios/investigadores/:id`, rol: superadmin)
 - Similar a `DetalleAplicadorPage.jsx` pero sin la sección de permisos de registro operativo
 
 ---
 
 ## CF-5 — Módulos M5, M6 y extensiones de M2
 
-### CF-026 — Frontend: ApplicationsPage para investigador/admin (M5)
+### CF-026 — Frontend: ApplicationsPage para investigador (M5)
 **Módulo:** M5 | **Depende:** CF-006
 
 **Tests:**
@@ -897,8 +1067,25 @@ frontend/src/__tests__/pages/ApplicationsPage.test.jsx
 - `GET /applications` soporta: `page`, `page_size`, `project_id` (opcional), `instrument_id`, `from`, `to`
 - Retorna `{ data, total, page, page_size }`
 
+### CF-026b — Backend: Applications stats (SUPERADMIN)
+**Módulo:** M5 | **Depende:** CF-026
+
+**Tests:**
+```
+mock/src/__tests__/routes/m5_stats.test.js
+- GET /applications/stats (superadmin) → 200 con agregados
+- Respuesta no incluye subject_id ni metric_values
+- Rol researcher/applicator → 403
+```
+
+**Mock:**
+- `GET /applications/stats` retorna agregados por proyecto e instrumento
+
 **Implementación:**
-- Crear `frontend/src/pages/ApplicationsPage.jsx` (ruta: `/registros`, roles: researcher + administrator)
+- Endpoint solo para SUPERADMIN
+
+**Implementación:**
+- Crear `frontend/src/pages/ApplicationsPage.jsx` (ruta: `/registros`, roles: researcher)
 - Crear `frontend/src/services/applications.js`
 
 ---
@@ -916,6 +1103,7 @@ frontend/src/__tests__/pages/ExportPage.test.jsx
 - "Exportar CSV" → GET /export/csv?project_id=X&... → descarga
 - "Exportar JSON" → GET /export/json?project_id=X&... → descarga
 - Rol applicator → redirect a /forbidden
+- Rol superadmin → redirect a /forbidden
 
 mock/src/__tests__/routes/m6.test.js
 - GET /export/csv?project_id=X → 200 con Content-Type: text/csv
@@ -924,12 +1112,12 @@ mock/src/__tests__/routes/m6.test.js
 ```
 
 **Implementación:**
-- Crear `frontend/src/pages/ExportPage.jsx` (ruta: `/exportar`, roles: researcher + administrator)
+- Crear `frontend/src/pages/ExportPage.jsx` (ruta: `/exportar`, roles: researcher)
 - Mock `m6.js`: `project_id` es obligatorio; sin él → 400
 
 ---
 
-### CF-028 — MisRegistrosPage: paginación server-side
+### CF-028 — MisRegistrosPage: paginacion server-side
 **Módulo:** M5 | **Depende:** —
 
 **Tests:**
@@ -961,7 +1149,7 @@ mock/src/__tests__/routes/instruments.test.js (ampliar)
 - GET /instruments?tag=X&tag=Y → instrumentos que contienen X OR Y (no AND)
 - PATCH /instruments/:id { tags:["nuevo"] } → 200 (reemplaza el array completo, no merge)
 - GET /instruments/tags → 200 [lista de todos los tags únicos usados, ordenados alfab.]
-  (endpoint de autocomplete; requiere JWT autenticado; no requiere rol admin)
+  (endpoint de autocomplete; requiere JWT autenticado; no requiere rol superadmin)
 - POST /instruments sin min_days_between_applications → 201 con default 15
 - POST /instruments con min_days_between_applications:0 → 201 (0 = sin restricción de gap)
 - PATCH /instruments/:id { min_days_between_applications:30 } → 200 actualizado
@@ -985,7 +1173,7 @@ frontend/src/__tests__/pages/GestionInstrumentos.test.jsx (ampliar)
 
 ---
 
-### CF-030 — Frontend: Audit logs para admin/superadmin
+### CF-030 — Frontend: Audit logs para superadmin
 **Módulo:** M1 | **Depende:** CF-006
 
 El endpoint `GET /audit-log` ya existe en el mock. Solo falta la UI.
@@ -1002,16 +1190,16 @@ frontend/src/__tests__/pages/AuditLogsPage.test.jsx
 ```
 
 **Implementación:**
-- Crear `frontend/src/pages/AuditLogsPage.jsx` (ruta: `/admin/logs`, rol: superadmin únicamente)
+- Crear `frontend/src/pages/AuditLogsPage.jsx` (ruta: `/superadmin/logs`, rol: superadmin)
 - Crear `frontend/src/services/auditLog.js`
 - Mock: verificar que `GET /audit-log` ya registra eventos del sistema; si no, agregar middleware de logging
 
 ---
 
-### CF-031 — Renombrar rol `administrator` → `superadmin` en mock y frontend
+### CF-031 — Renombrar rol legacy → `superadmin` en mock y frontend
 **Módulo:** M1 | **Depende:** — | **Prioridad:** Alta — prerequisito para cualquier guard de rol
 
-El rol `administrator` existe en el código actual (mock store, frontend guards, tests). Debe renombrarse a `superadmin` en todos los lugares.
+El rol legacy existe en el codigo actual (mock store, frontend guards, tests). Debe renombrarse a `superadmin` en todos los lugares.
 
 **Tests:**
 ```
@@ -1024,19 +1212,19 @@ mock/src/__tests__/routes/m1.test.js (verificar)
 
 frontend/src/__tests__/App.test.jsx (verificar)
 - Guard de rutas: role === 'superadmin' da acceso a /proyectos, /usuarios/*, /instrumentos (write)
-- role === 'administrator' → /forbidden (rol ya no existe)
+- role legacy → /forbidden (rol ya no existe)
 ```
 
 **Implementación:**
-- Mock `mock/src/routes/m1.js`: cambiar el usuario pre-sembrado de `role: 'administrator'` a `role: 'superadmin'`
-- Mock `mock/src/middleware/auth.js`: todos los checks `role === 'administrator'` → `role === 'superadmin'`
-- Mock `mock/src/routes/*.js`: cualquier verificación de rol administrator → superadmin
-- Frontend `App.jsx`: guards de rutas `role === 'administrator'` → `role === 'superadmin'`
-- Frontend todas las páginas: cualquier condicional `user.role === 'administrator'` → `user.role === 'superadmin'`
-- Tests mock y frontend: fixtures con `role: 'administrator'` → `role: 'superadmin'`
-- `git grep "administrator"` después del cambio debe retornar solo comentarios históricos o documentación
+- Mock `mock/src/routes/m1.js`: cambiar el usuario pre-sembrado de rol legacy a `role: 'superadmin'`
+- Mock `mock/src/middleware/auth.js`: checks de rol legacy → `role === 'superadmin'`
+- Mock `mock/src/routes/*.js`: verificaciones de rol legacy → superadmin
+- Frontend `App.jsx`: guards de rutas de rol legacy → `role === 'superadmin'`
+- Frontend todas las páginas: condicionales de rol legacy → `user.role === 'superadmin'`
+- Tests mock y frontend: fixtures con rol legacy → `role: 'superadmin'`
+- `git grep` del rol legacy despues del cambio debe retornar solo comentarios historicos o documentacion
 
-**Criterio:** `git grep "'administrator'"` vacío en `.js` y `.jsx`. Tests en verde.
+**Criterio:** `git grep` del rol legacy vacio en `.js` y `.jsx`. Tests en verde.
 
 ---
 
@@ -1145,15 +1333,15 @@ GestionInstrumentos.jsx:84-90 → JWT parsing es O(1), no necesita memoización.
 
 | ID | Título | Fase | Depende |
 |----|--------|------|---------|
-| CF-001 | Eliminar credenciales hardcodeadas | CF-1 | — |
-| CF-002 | Filtro is_active=true en wizard | CF-1 | — |
-| CF-003 | Validar start_date < end_date | CF-1 | — |
-| CF-004 | Verificar must_change_password | CF-1 | — |
-| CF-005 | LoginPage: rutas diferenciadas SUPERADMIN/OIDC | CF-2 | — |
-| CF-006 | AuthContext — eliminar prop drilling | CF-2 | CF-005 |
-| CF-007 | Mock: endpoints OIDC simulados | CF-2 | CF-005 |
-| CF-008 | Magic link de activación de cuenta | CF-2 | CF-007 |
-| CF-009 | Solicitud de cambio de correo (no autoservicio) | CF-2 | CF-005, CF-008 |
+| CF-001 | Eliminar credenciales hardcodeadas | CF-1 | — | ✅ Sprint 1 |
+| CF-002 | Filtro is_active=true en wizard | CF-1 | — | ✅ Sprint 1 |
+| CF-003 | Validar start_date < end_date | CF-1 | — | ✅ Sprint 1 |
+| CF-004 | Verificar must_change_password | CF-1 | — | ✅ Sprint 1 |
+| CF-005 | LoginPage: rutas diferenciadas SUPERADMIN/OIDC | CF-2 | — | ✅ Sprint 2 |
+| CF-006 | AuthContext — eliminar prop drilling | CF-2 | CF-005 | ✅ Sprint 2 |
+| CF-007 | Mock: endpoints OIDC simulados | CF-2 | CF-005 | ✅ Sprint 2 |
+| CF-008 | Magic link de activación de cuenta | CF-2 | CF-007 | ✅ Sprint 2 |
+| CF-009 | Solicitud de cambio de correo (no autoservicio) | CF-2 | CF-005, CF-008 | ✅ Sprint 2 |
 | CF-010 | Mock: CRUD proyectos | CF-3 | — |
 | CF-011 | Mock: membresía y asignación de instrumentos | CF-3 | CF-010 |
 | CF-012 | Mock: configuración operativa por proyecto | CF-3 | CF-010 |
@@ -1168,14 +1356,14 @@ GestionInstrumentos.jsx:84-90 → JWT parsing es O(1), no necesita memoización.
 | CF-021 | Frontend: Términos y Condiciones | CF-4 | CF-006 |
 | CF-022 | Frontend: Onboarding dinámico de perfil | CF-4 | CF-020, CF-021 |
 | CF-023 | Frontend: SUPERADMIN — config de campos de perfil | CF-4 | CF-020 |
-| CF-024 | Frontend: Admin gestión de instituciones | CF-4 | CF-019 |
+| CF-024 | Frontend: SUPERADMIN gestion de instituciones | CF-4 | CF-019 |
 | CF-025 | Frontend: DetalleInvestigadorPage | CF-4 | CF-006 |
 | CF-026 | Frontend: ApplicationsPage (M5) | CF-5 | CF-006 |
 | CF-027 | Frontend: ExportPage (M6) por proyecto | CF-5 | CF-026 |
 | CF-028 | MisRegistrosPage: paginación server-side | CF-5 | — |
 | CF-029 | Tags + min_days_between_applications en instrumentos | CF-5 | — |
 | CF-030 | Frontend: Audit logs para superadmin | CF-5 | CF-006 |
-| CF-031 | Renombrar rol `administrator` → `superadmin` | CF-1 | — |
+| CF-031 | Renombrar rol legacy → `superadmin` | CF-1 | — | ✅ Sprint 1 |
 | UI-001 | Mover CredencialesModal a /components/app | UI-1 | — |
 | UI-002 | Consolidar GestionAplicadores/Investigadores | UI-1 | — |
 | UI-003 | Refactorizar modales InstrumentoDetallePage | UI-1 | — |
@@ -1193,6 +1381,7 @@ GestionInstrumentos.jsx:84-90 → JWT parsing es O(1), no necesita memoización.
 | DT-005 | Eliminar useMemo innecesario | DT-1 | — |
 
 **Total: 46 tareas** — 31 crítico funcional · 10 UI/vista · 5 deuda técnica
+**Completadas: 11** (CF-001..004, CF-031 en Sprint 1; CF-005..009, CF-029 en Sprint 1/2)
 
 ## Árbol de dependencias críticas
 
@@ -1223,10 +1412,11 @@ Independientes (cualquier momento):
 ## Orden de implementación sugerido
 
 ```
-Sprint 1: CF-001 CF-002 CF-003 CF-004 CF-029     (bugs sin deps + modelo instrumento)
-Sprint 2: CF-005 → CF-006 CF-007 CF-008 CF-009   (auth completa)
-Sprint 3: CF-010 CF-011 CF-012 → CF-013 CF-014 CF-015 → CF-016 CF-017 CF-018  (proyectos + wizard)
-Sprint 4: CF-019 CF-020 → CF-021 → CF-022 CF-023 CF-024 CF-025  (perfiles + onboarding)
+Sprint 1: CF-001 CF-002 CF-003 CF-004 CF-029 CF-031                        ✅ CERRADO
+Sprint 2: CF-005 CF-006 CF-007 CF-008 CF-009                               ✅ CERRADO
+Sprint 3: CF-010 CF-011 CF-012 CF-013 CF-014 CF-015 CF-016 CF-017 CF-018  ✅ CERRADO (sin commit)
+Sprint 4: CF-S4-001..011  JWT mínimo + UserContext + perfiles + instituciones + onboarding
+          → Ver docs/SPRINT_4_PLAN.md                                       ← SIGUIENTE
 Sprint 5: CF-026 CF-027 CF-028 CF-030             (M5, M6, logs)
 Sprint 6: UI-001..004 + UI-008                    (componentes + forbidden)
 Sprint 7: UI-005..007 UI-009 UI-010 + DT-001..005 (polish + deuda técnica)
@@ -1234,4 +1424,4 @@ Sprint 7: UI-005..007 UI-009 UI-010 + DT-001..005 (polish + deuda técnica)
 
 ---
 
-*Versión 4.0 — 2026-04-07*
+*Versión 4.2 — 2026-04-08*

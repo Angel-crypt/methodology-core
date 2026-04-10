@@ -1,12 +1,16 @@
 # Pendientes — methodology-core
 
-Lista consolidada con criterios de aceptacion minimos.
+Lista consolidada con criterios de aceptacion minimos. Aplica Zero Trust y Privacy by Design.
+
+- Zero Trust (transversal): todo endpoint valida JWT + rol + estado; backend enforza permisos.
+- Privacy by Design (transversal): no PII en Subjects/Applications/Exports; solo `anonymous_code`.
+- Auditoria (transversal): operaciones sensibles registran audit_log.
 
 - [C-05] Redireccion por sesion expirada. Criterio: cualquier 401/SESSION_REVOKED redirige a `/login` con mensaje visible.
 - [C-03] Password SUPERADMIN con reglas de fortaleza. Criterio: longitud minima y requerir mayuscula, numero y caracter especial.
 - [H-01] M5 consulta paginada para investigador. Criterio: `GET /applications` paginado con filtros y metadatos completos.
 - [H-01b] M5 estadisticas para SUPERADMIN. Criterio: `GET /applications/stats` retorna agregados sin datos detallados.
-- [H-02] M6 exportacion. Criterio: `GET /export/csv` y `GET /export/json` con `project_id` obligatorio y audit log.
+- [H-02] M6 exportacion. Criterio: `GET /export/csv` y `GET /export/json` con `project_id` obligatorio y audit log; SUPERADMIN -> 403.
 - [G-05] Enforce `min_days_between_applications` en backend. Criterio: bloqueo y error consistente en API al violar gap.
 - [C-02] Bloqueo correos demo/prueba. Criterio: validacion rechaza dominios o patrones definidos.
 - [C-04] Reset password solo SUPERADMIN. Criterio: endpoints retornan 403 para otros roles y UI no muestra opcion.
