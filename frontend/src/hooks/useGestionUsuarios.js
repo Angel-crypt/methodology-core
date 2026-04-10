@@ -6,7 +6,6 @@ import { listarUsuarios, crearUsuario, cambiarEstadoUsuario, resetearPassword, l
 export const FILTROS_ESTADO = [
   { value: '', label: 'Todos' },
   { value: 'true', label: 'Activos' },
-  { value: 'pending', label: 'Pendientes' },
   { value: 'false', label: 'Inactivos' },
 ]
 
@@ -22,14 +21,13 @@ export function formatFecha(iso) {
 }
 
 /**
- * Deriva el estado de un usuario a partir de sus campos booleanos.
- * pending  → active=true  AND must_change_password=true
- * active   → active=true  AND must_change_password=false
- * inactive → active=false
+ * Deriva el estado de un usuario a partir de sus campos.
+ * Investigadores y aplicadores usan OIDC y solo tienen active/disabled.
+ * Superadmin usa auth local y puede tener must_change_password.
  */
 export function getUserStatus(user) {
-  if (!user.active) return 'inactive'
-  if (user.must_change_password) return 'pending'
+  if (!user.active) return 'disabled'
+  if (user.must_change_password) return 'pending'   // solo superadmin con contraseña local
   return 'active'
 }
 
@@ -98,12 +96,8 @@ export function useGestionUsuarios({ role, labelSingular }) {
   const cargarUsuarios = useCallback(async () => {
     setCargando(true)
     try {
-      // El filtro 'pending' y 'true' (activos reales) requieren cargar
-      // los usuarios con active=true y filtrar cliente-side por must_change_password.
-      // El filtro 'false' (inactivos) usa el parámetro del API directamente.
       const apiActiveFilter =
-        filtroEstado === 'pending' ? 'true'
-        : filtroEstado === 'true' ? 'true'
+        filtroEstado === 'true'  ? 'true'
         : filtroEstado === 'false' ? 'false'
         : ''
 
@@ -113,14 +107,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
       ])
 
       if (data.status === 'success') {
-        let lista = data.data
-        // Filtrado cliente-side para distinguir pending de active
-        if (filtroEstado === 'pending') {
-          lista = lista.filter((u) => u.must_change_password)
-        } else if (filtroEstado === 'true') {
-          lista = lista.filter((u) => !u.must_change_password)
-        }
-        setUsuarios(lista)
+        setUsuarios(data.data)
       } else {
         toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo cargar la lista.' })
       }
