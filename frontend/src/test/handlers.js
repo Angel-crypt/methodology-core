@@ -45,8 +45,8 @@ export const handlers = [
     HttpResponse.json({
       status: 'success',
       data: [
-        { id: 'user-1', email: 'super@methodology.local', role: 'superadmin', status: 'active' },
-        { id: 'user-2', email: 'app@mock.local', role: 'applicator', status: 'active' },
+        { id: 'user-1', email: 'super@methodology.local', role: 'superadmin', active: true, must_change_password: false },
+        { id: 'user-2', email: 'app@mock.local', role: 'applicator', active: true },
       ],
     })
   ),
@@ -191,15 +191,113 @@ export const handlers = [
     HttpResponse.json([{ col1: 'val1' }])
   ),
 
-  // ── M2 — Proyectos ─────────────────────────────────────────────────────────
-  http.post(`${API}/projects/:projectId/instruments`, () =>
+  // ── M4 paths canónicos con project_id (CF-017) ────────────────────────────
+  http.post(`${API}/projects/:projectId/applications`, () =>
+    HttpResponse.json({ status: 'success', data: { id: 'app-1' } }, { status: 201 })
+  ),
+
+  http.post(`${API}/projects/:projectId/applications/:appId/metric-values`, () =>
+    HttpResponse.json({ status: 'success', data: null }, { status: 201 })
+  ),
+
+  http.patch(`${API}/subjects/:id/context`, () =>
+    HttpResponse.json({ status: 'success', data: null })
+  ),
+
+  http.get(`${API}/projects/:id/subjects/mine`, () =>
+    HttpResponse.json({ status: 'success', data: [] })
+  ),
+
+  // ── M2-PROJECT — Proyectos (CF-013) ────────────────────────────────────────
+  http.get(`${API}/projects`, () =>
+    HttpResponse.json({
+      status: 'success',
+      data: [
+        { id: 'proj-1', name: 'Estudio Piloto 2026', description: 'Demo', member_count: 1, instrument_count: 2, created_at: '2026-04-01T00:00:00Z' },
+        { id: 'proj-2', name: 'Cohorte B', description: null, member_count: 0, instrument_count: 0, created_at: '2026-04-02T00:00:00Z' },
+      ],
+    })
+  ),
+
+  http.post(`${API}/projects`, () =>
     HttpResponse.json(
-      { status: 'success', data: null },
+      { status: 'success', data: { id: 'proj-new', name: 'Nuevo Proyecto', description: null, member_count: 0, instrument_count: 0, created_at: new Date().toISOString() } },
       { status: 201 }
     )
   ),
 
+  http.get(`${API}/projects/:id`, ({ params }) =>
+    HttpResponse.json({
+      status: 'success',
+      data: {
+        id: params.id, name: 'Estudio Piloto 2026', description: 'Demo',
+        member_count: 1, instrument_count: 2, created_at: '2026-04-01T00:00:00Z', updated_at: null,
+        members: [{ id: 'm-1', user_id: 'user-2', email: 'app@mock.local', full_name: 'Aplicador Test', role: 'applicator', added_at: '2026-04-01T00:00:00Z' }],
+        instruments: [],
+      },
+    })
+  ),
+
+  http.patch(`${API}/projects/:id`, () =>
+    HttpResponse.json({ status: 'success', data: { id: 'proj-1', name: 'Actualizado' } })
+  ),
+
+  http.delete(`${API}/projects/:id`, () => new HttpResponse(null, { status: 204 })),
+
+  http.get(`${API}/projects/:id/members`, () =>
+    HttpResponse.json({ status: 'success', data: [] })
+  ),
+
+  http.post(`${API}/projects/:id/members`, () =>
+    HttpResponse.json({ status: 'success', data: { id: 'm-new', user_id: 'user-2', role: 'researcher' } }, { status: 201 })
+  ),
+
+  http.delete(`${API}/projects/:id/members/:userId`, () => new HttpResponse(null, { status: 204 })),
+
+  http.post(`${API}/projects/:projectId/instruments`, () =>
+    HttpResponse.json({ status: 'success', data: null }, { status: 201 })
+  ),
+
   http.get(`${API}/projects/:projectId/instruments`, () =>
     HttpResponse.json({ status: 'success', data: [] })
+  ),
+
+  http.delete(`${API}/projects/:id/instruments/:instrumentId`, () => new HttpResponse(null, { status: 204 })),
+
+  http.get(`${API}/projects/:id/config/operativo`, () =>
+    HttpResponse.json({
+      status: 'success',
+      data: {
+        education_levels: ['Preescolar', 'Primaria menor', 'Primaria mayor', 'Secundaria'],
+        age_cohort_map: { 'Preescolar': '3-6', 'Primaria menor': '6-9', 'Primaria mayor': '9-12', 'Secundaria': '12-15' },
+        cohort_mode: 'libre', subject_limit: 50, mode: 'normal',
+      },
+    })
+  ),
+
+  http.put(`${API}/projects/:id/config/operativo`, () =>
+    HttpResponse.json({
+      status: 'success',
+      data: {
+        education_levels: ['Preescolar', 'Primaria menor', 'Primaria mayor', 'Secundaria'],
+        age_cohort_map: { 'Preescolar': '3-6', 'Primaria menor': '6-9', 'Primaria mayor': '9-12', 'Secundaria': '12-15' },
+        cohort_mode: 'libre', subject_limit: 30, mode: 'normal',
+      },
+    })
+  ),
+
+  http.get(`${API}/config/system-defaults`, () =>
+    HttpResponse.json({
+      status: 'success',
+      data: {
+        education_levels: ['Preescolar', 'Primaria menor', 'Primaria mayor', 'Secundaria'],
+        age_cohort_map: { 'Preescolar': '3-6', 'Primaria menor': '6-9', 'Primaria mayor': '9-12', 'Secundaria': '12-15' },
+        cohort_mode: 'libre', subject_limit: 50, mode: 'normal',
+      },
+    })
+  ),
+
+  http.get(`${API}/config/operativo`, () =>
+    new HttpResponse(JSON.stringify({ status: 'error', data: { code: 'GONE' } }), { status: 410 })
   ),
 ]
