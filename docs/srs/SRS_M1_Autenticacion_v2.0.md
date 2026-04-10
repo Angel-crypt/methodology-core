@@ -53,8 +53,8 @@ Quedan **fuera del alcance**: recuperación de contraseña, registro público de
 |---|---|
 | **Token JWT** | Token único de sesión, firmado con HS256. Expira en 6 horas (`exp = iat + 21600`). Incluye `user_id`, `role`, `iat`, `exp`, `jti`. Sin datos personales. |
 | **jti** | JWT ID. Identificador único del token incluido en el payload. Permite revocación individual en `revoked_tokens`. |
-| **HS256** | Algoritmo de firma simétrica HMAC-SHA256. La clave se gestiona exclusivamente como Docker Secret. |
-| **Docker Secret** | Mecanismo de gestión de secretos de Docker Swarm. Nunca en texto plano en archivos de configuración. |
+| **HS256** | Algoritmo de firma simetrica HMAC-SHA256. La clave se gestiona exclusivamente como Kubernetes Secret. |
+| **Kubernetes Secret** | Mecanismo de gestion de secretos de Kubernetes. Nunca en texto plano en archivos de configuracion. |
 | **Keycloak** | Proveedor de identidad externo (broker) que gestiona la autenticación de usuarios. El sistema delega autenticación a Keycloak. |
 | **UID interno** | Identificador local del usuario en el sistema, vinculado al subject de Keycloak. Se usa para referenciar usuarios en tablas locales (audit_log, etc.) sin exponer el identificador externo del broker. |
 | **Broker de identidad** | Componente externo (Keycloak) que gestiona la autenticación de usuarios. El backend es la fuente de verdad; el broker solo autentica. |
@@ -87,7 +87,7 @@ Las secciones 1–3 establecen el contexto, actores y alcance. La sección 5 det
 
 El Módulo 1 es la base de seguridad de todo el sistema. Centraliza la autenticación y el control de acceso para garantizar que solo usuarios registrados y activos accedan al sistema, cada rol opere exclusivamente dentro de sus capacidades declaradas y exista trazabilidad de sesiones para auditoría operativa.
 
-El módulo opera como un **servicio replicado en Docker Swarm multinodo**, lo que impone el requisito fundamental de ser completamente stateless: la validación JWT no depende de sesiones en memoria; todo el estado se almacena en PostgreSQL.
+El modulo opera como un **servicio replicado en K3s**, lo que impone el requisito fundamental de ser completamente stateless: la validacion JWT no depende de sesiones en memoria; todo el estado se almacena en PostgreSQL.
 
 ### 2.2 Problema que Resuelve
 
@@ -97,10 +97,10 @@ Sin este módulo, cualquier usuario podría invocar endpoints sensibles sin iden
 - Exista trazabilidad de sesiones para auditoría operativa.
 - La revocación de tokens funcione de forma consistente entre réplicas del servicio.
 
-### 2.3 Rol en la Arquitectura Docker Swarm
+### 2.3 Rol en la Arquitectura K3s
 
 ```
-Balanceador de carga Swarm
+Balanceador de carga K3s
   └─ Réplica 1  ─┐
   └─ Réplica 2  ──┼─ Módulo 1 (stateless)
   └─ Réplica N  ─┘       │
@@ -110,7 +110,7 @@ Balanceador de carga Swarm
                     │ users  ·  revoked_tokens         │
                     └─────────────────────────────────┘
                           │
-                    Docker Secret (clave HS256)
+                    Kubernetes Secret (clave HS256)
 ```
 
 La validación de tokens es stateless: el rol se extrae del JWT firmado sin consulta a BD. Solo se consulta PostgreSQL para verificar `is_active` del usuario y presencia del `jti` en `revoked_tokens`.
@@ -225,7 +225,7 @@ FLUJO DE CAMBIO DE CORREO:
 | Rol | Interés en el módulo | Responsabilidades relacionadas |
 |---|---|---|
 | **Equipo de desarrollo** | Implementar correctamente la seguridad base del sistema. | Codificar, probar e integrar conforme al SRS y al DoD. |
-| **Responsable técnico** | Garantizar seguridad y disponibilidad del módulo en el clúster. | Configurar Docker Secrets, revisar PRs, firmar cierre de historias. |
+| **Responsable tecnico** | Garantizar seguridad y disponibilidad del modulo en el cluster. | Configurar Kubernetes Secrets, revisar PRs, firmar cierre de historias. |
 | **Testers / QA** | Verificar todos los criterios incluyendo casos negativos. | Diseñar y ejecutar pruebas funcionales, negativas y de integración. |
 | **Módulos M2–M6** | Que el middleware funcione correctamente en cada petición. | Consumir el JWT de M1 en todos sus endpoints. |
 
@@ -243,7 +243,7 @@ FLUJO DE CAMBIO DE CORREO:
 
 ### 4.1 Objetivo del Módulo
 
-Garantizar que solo usuarios autenticados con el rol correcto accedan a cada funcionalidad del sistema, mediante un modelo de seguridad Zero Trust con verificación stateless por petición, compatible con despliegue replicado en Docker Swarm.
+Garantizar que solo usuarios autenticados con el rol correcto accedan a cada funcionalidad del sistema, mediante un modelo de seguridad Zero Trust con verificacion stateless por peticion, compatible con despliegue replicado en K3s.
 
 ### 4.2 Funcionalidades Principales
 
@@ -566,12 +566,12 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | ID | Categoría | Descripción | Métrica verificable |
 |---|---|---|---|
 | RNF-M1-01 | Rendimiento | Los endpoints responden en tiempo razonable. | `POST /auth/login` < 1 s. Demás endpoints < 500 ms. |
-| RNF-M1-02 | Seguridad | Token JWT firmado HS256 con clave almacenada como Docker Secret. | Clave nunca en texto plano en archivos de configuración ni variables de entorno. |
+| RNF-M1-02 | Seguridad | Token JWT firmado HS256 con clave almacenada como Kubernetes Secret. | Clave nunca en texto plano en archivos de configuracion ni variables de entorno. |
 | RNF-M1-03 | Seguridad | Token expira en 6 horas (exp = iat + 21600). | Token expirado retorna 401. Sin mecanismo de refresh. |
 | RNF-M1-04 | Seguridad | El campo `jti` está presente en todos los tokens emitidos. | 100% de tokens incluyen `jti` UUID único. |
 | RNF-M1-05 | Seguridad | El middleware verifica firma, revocación, estado ACTIVE y rol en cada petición. | Sin firma válida → 401. Token en `revoked_tokens` → 401. Usuario no activo → 401. Rol incorrecto → 403. |
 | RNF-M1-06 | Seguridad | Rate limiting: 5 intentos fallidos en 60 s → bloqueo 5 min. | El audit_log registra `RATE_LIMIT_ACTIVADO`. |
-| RNF-M1-07 | Disponibilidad | Servicio stateless compatible con múltiples réplicas en Swarm. | Sin sesiones en memoria. |
+| RNF-M1-07 | Disponibilidad | Servicio stateless compatible con multiples replicas en K3s. | Sin sesiones en memoria. |
 | RNF-M1-08 | Integridad | `revoked_tokens` no crece indefinidamente. | Cron elimina entradas expiradas. |
 | RNF-M1-09 | Integridad | El único SUPERADMIN activo no puede deshabilitarse. | Intento → 409. |
 | RNF-M1-10 | Mantenibilidad | Matriz de permisos como constante centralizada. | Sin permisos hardcodeados. |
@@ -605,7 +605,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | **SQLAlchemy + PostgreSQL** | ORM y base de datos para `users`, `magic_links` y `revoked_tokens`. |
 | **Alembic** | Migraciones del esquema de las tablas del módulo. |
 | **Pydantic** | Validación de esquemas de entrada y salida. |
-| **Docker Swarm** | Orquestación del servicio replicado. Gestión de Docker Secrets. |
+| **K3s** | Orquestacion del servicio replicado. Gestion de Kubernetes Secrets. |
 | **Keycloak** | Broker de identidad externo. Gestiona usuarios, sesiones y credenciales. |
 
 ### 7.4 Interfaces de Comunicación
@@ -613,7 +613,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 - Base path: `/api/v1`
 - Protocolo: HTTP/HTTPS · Formato: JSON
 - Autenticación en endpoints protegidos: `Authorization: Bearer {token}`
-- Clave JWT: Docker Secret montado en el contenedor (no variable de entorno)
+- Clave JWT: Kubernetes Secret montado en el contenedor (no variable de entorno)
 - Sincronización de reloj: NTP requerido en todos los nodos del clúster
 
 ---
@@ -625,7 +625,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | # | Restricción | Detalle |
 |---|---|---|
 | R1 | Stateless obligatorio | Sin sesiones en memoria compartida entre réplicas. Todo el estado en PostgreSQL. |
-| R2 | Docker Secret | La clave HS256 se gestiona exclusivamente como Docker Secret. Nunca en texto plano fuera del sistema de secretos de la plataforma. |
+| R2 | Kubernetes Secret | La clave HS256 se gestiona exclusivamente como Kubernetes Secret. Nunca en texto plano fuera del sistema de secretos de la plataforma. |
 | R3 | PostgreSQL única fuente de verdad | Usuarios, tokens revocados y Magic Links solo en PostgreSQL. |
 | R4 | Separación identidad/autenticación | user_id inmutable, correo como atributo de autenticación. |
 | R5 | Broker externo (Keycloak) | La autenticación se delega a Keycloak. El backend valida estado. |
@@ -638,8 +638,8 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | # | Supuesto |
 |---|---|
 | S1 | PostgreSQL está operativo dentro del stack antes del inicio del servicio de autenticación. |
-| S2 | Los Docker Secrets están correctamente configurados en el manager node antes del despliegue. |
-| S3 | El balanceador de carga interno de Swarm distribuye tráfico de forma equitativa entre réplicas. |
+| S2 | Los Kubernetes Secrets estan correctamente configurados en el cluster antes del despliegue. |
+| S3 | El balanceador de carga interno distribuye trafico de forma equitativa entre replicas. |
 | S4 | El reloj está sincronizado (NTP) en todos los nodos del clúster para garantizar consistencia en la validación de `exp`. |
 | S5 | El script de seed para el primer SUPERADMIN se ejecuta antes del primer uso del sistema. |
 
@@ -682,7 +682,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | CA-HU3-05 | Usuario activa con Magic Link válido. | `state=ACTIVE`, `broker_subject` vinculado, JWT emitido. |
 | CA-HU3-06 | Magic Link expirado o usado. | HTTP 400. Link inválido. |
 
-**Stack técnico:** `POST /api/v1/auth/login` · HS256 con Docker Secret · Keycloak broker · Rate limiting.
+**Stack tecnico:** `POST /api/v1/auth/login` · HS256 con Kubernetes Secret · Keycloak broker · Rate limiting.
 
 ### HU4 – Cerrar sesión
 
