@@ -100,7 +100,7 @@ router.post('/auth/login', (req, res) => {
     : null;
 
   const token = jwt.sign(
-    { user_id: user.id, role: user.role, full_name: user.full_name, email: user.email, jti, iat, exp, pwd_changed_at: pwdChangedAt },
+    { sub: user.id, role: user.role, jti, iat, exp, pwd_changed_at: pwdChangedAt },
     JWT_SECRET,
     { algorithm: 'HS256', noTimestamp: true }
   );
@@ -281,7 +281,7 @@ router.post('/auth/oidc/callback', (req, res) => {
   const exp = iat + JWT_EXPIRES_IN;
 
   const token = jwt.sign(
-    { user_id: user.id, role: user.role, full_name: user.full_name, email: user.email, jti, iat, exp },
+    { sub: user.id, role: user.role, jti, iat, exp },
     JWT_SECRET,
     { algorithm: 'HS256', noTimestamp: true }
   );
@@ -316,6 +316,66 @@ router.post('/auth/logout', authMiddleware(), (req, res) => {
   addAuditEvent('LOGOUT', req.user.id, req.ip, null);
 
   return res.status(200).json({ status: 'success', message: 'Sesión cerrada correctamente', data: null });
+});
+
+// ─── Documentos legales (CF-S4-004) ─────────────────────────────────────────
+// Rutas públicas — no requieren autenticación.
+
+router.get('/legal/terms', (_req, res) => {
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      version: '1.0',
+      updated_at: '2026-04-01',
+      content: `**Términos y Condiciones de Uso**
+
+Al utilizar esta plataforma aceptas los presentes términos y condiciones. Este sistema está destinado exclusivamente a investigadores y aplicadores autorizados por la institución administradora.
+
+**1. Uso permitido**
+El acceso a esta plataforma es personal e intransferible. Está prohibido compartir credenciales de acceso.
+
+**2. Tratamiento de datos**
+Los datos recolectados son de carácter anónimo y su uso está restringido a fines de investigación lingüística y metodológica. Consulta el Aviso de Privacidad para más detalle.
+
+**3. Obligaciones del usuario**
+El usuario se compromete a utilizar la plataforma de forma ética, respetando la privacidad de los sujetos evaluados.
+
+**4. Modificaciones**
+La institución administradora se reserva el derecho de actualizar estos términos. Se notificará a los usuarios registrados ante cambios relevantes.
+
+_Versión 1.0 — Abril 2026_`,
+    },
+  });
+});
+
+router.get('/legal/privacy', (_req, res) => {
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      version: '1.0',
+      updated_at: '2026-04-01',
+      content: `**Aviso de Privacidad**
+
+En cumplimiento con la normativa vigente de protección de datos personales, se informa lo siguiente:
+
+**Responsable del tratamiento**
+La institución administradora del sistema de registro metodológico es responsable del tratamiento de los datos personales proporcionados.
+
+**Datos recopilados**
+Se recopilan únicamente los datos estrictamente necesarios para el funcionamiento del sistema: nombre, correo electrónico, rol e institución del usuario. Los registros operativos son anónimos y no permiten identificar a los sujetos evaluados.
+
+**Finalidad**
+Los datos se utilizan exclusivamente para la gestión de acceso, trazabilidad de registros y mejora de los instrumentos de evaluación.
+
+**Derechos del titular**
+El usuario puede solicitar en cualquier momento el acceso, rectificación, cancelación u oposición al tratamiento de sus datos personales dirigiéndose al administrador del sistema.
+
+**Transferencia de datos**
+No se realizan transferencias de datos a terceros sin consentimiento expreso.
+
+_Versión 1.0 — Abril 2026_`,
+    },
+  });
 });
 
 // POST /auth/password-recovery
@@ -393,15 +453,99 @@ router.post(
   }
 );
 
+// GET /users/me — perfil del usuario autenticado
+router.get('/users/me', authMiddleware(), (req, res) => {
+  const user = store.users.find((u) => u.id === req.user.id);
+  if (!user) {
+    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
+  }
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      id: user.id,
+      full_name: user.full_name,
+      email: user.email,
+      role: user.role,
+      active: user.active,
+      must_change_password: user.must_change_password === true,
+      phone: user.phone ?? null,
+      institution: user.institution ?? null,
+      terms_accepted_at: user.terms_accepted_at ?? null,
+      onboarding_completed: user.onboarding_completed === true,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+    },
+  });
+});
+
+// PATCH /users/me/profile — actualizar perfil propio
+router.patch('/users/me/profile', authMiddleware(), validateStrictInput(['phone', 'institution', 'onboarding_completed']), (req, res) => {
+  const user = store.users.find((u) => u.id === req.user.id);
+  if (!user) {
+    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
+  }
+
+  const { phone, institution, onboarding_completed } = req.body || {};
+
+  if (phone !== undefined) user.phone = phone || null;
+  if (institution !== undefined) {
+    // Normalizar: lowercase, sin acentos, solo alfanumérico y espacios, trim
+    user.institution = institution
+      ? institution
+          .trim()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim() || null
+      : null;
+  }
+  if (onboarding_completed !== undefined) user.onboarding_completed = Boolean(onboarding_completed);
+  user.updated_at = new Date();
+
+  addAuditEvent('ACTUALIZAR_PERFIL', user.id, req.ip, null);
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      id: user.id,
+      full_name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      institution: user.institution,
+    },
+  });
+});
+
+// POST /users/me/accept-terms — aceptar términos y condiciones
+router.post('/users/me/accept-terms', authMiddleware(), (req, res) => {
+  const user = store.users.find((u) => u.id === req.user.id);
+  if (!user) {
+    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
+  }
+
+  user.terms_accepted_at = new Date();
+  user.updated_at = new Date();
+
+  addAuditEvent('ACEPTAR_TERMINOS', user.id, req.ip, null);
+
+  return res.status(200).json({
+    status: 'success',
+    data: { terms_accepted_at: user.terms_accepted_at },
+  });
+});
+
 // POST /users
 // El admin NO provee contraseña en el cuerpo — el servidor genera el setup token.
 // En producción: _mock_setup_token no se expone; se entrega por canal seguro.
 router.post(
   '/users',
   authMiddleware(['superadmin']),
-  validateStrictInput(['full_name', 'email', 'role']),
+  validateStrictInput(['full_name', 'email', 'role', 'institution']),
   (req, res) => {
-    const { full_name, email, role } = req.body || {};
+    const { full_name, email, role, institution } = req.body || {};
 
     if (!full_name || !email || !role) {
       return res.status(400).json({ status: 'error', message: 'Campos obligatorios: full_name, email, role', data: null });
@@ -432,6 +576,13 @@ router.post(
       created_at: new Date(),
       updated_at: null,
       password_changed_at: null,
+      // Perfil extendido (Sprint 4)
+      phone: null,
+      institution: institution
+        ? institution.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim() || null
+        : null,
+      terms_accepted_at: null,
+      onboarding_completed: false,
     };
     store.users.push(user);
 
@@ -596,7 +747,15 @@ router.get('/users', authMiddleware(['superadmin']), (req, res) => {
     status: 'success',
     message: 'Usuarios recuperados',
     data: paginatedUsers.map((u) => {
-      const base = { id: u.id, full_name: u.full_name, email: u.email, role: u.role, active: u.active, created_at: u.created_at };
+      const base = {
+        id: u.id,
+        full_name: u.full_name,
+        email: u.email,
+        role: u.role,
+        active: u.active,
+        institution: u.institution ?? null,
+        created_at: u.created_at,
+      };
       if (u.role === 'superadmin') base.must_change_password = u.must_change_password === true;
       return base;
     }),
@@ -927,6 +1086,30 @@ router.delete('/sessions/:jti', authMiddleware(), (req, res) => {
     status: 'success',
     message: 'Sesión cerrada correctamente',
     data: null,
+  });
+});
+
+// ─── Configuración de perfil requerido (CF-S4-005) ───────────────────────────
+
+// GET /superadmin/profile-config — leer config (accesible a cualquier usuario autenticado)
+router.get('/superadmin/profile-config', authMiddleware(), (_req, res) => {
+  return res.status(200).json({
+    status: 'success',
+    data: store.profileConfig,
+  });
+});
+
+// PUT /superadmin/profile-config — actualizar config
+router.put('/superadmin/profile-config', authMiddleware(['superadmin']), (req, res) => {
+  const { require_phone, require_institution, require_terms } = req.body || {};
+
+  if (require_phone !== undefined) store.profileConfig.require_phone = Boolean(require_phone);
+  if (require_institution !== undefined) store.profileConfig.require_institution = Boolean(require_institution);
+  if (require_terms !== undefined) store.profileConfig.require_terms = Boolean(require_terms);
+
+  return res.status(200).json({
+    status: 'success',
+    data: store.profileConfig,
   });
 });
 

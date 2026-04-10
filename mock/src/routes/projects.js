@@ -157,6 +157,21 @@ router.post('/projects', authMiddleware(ADMIN_ROLES), (req, res) => {
 // ─── GET /projects ────────────────────────────────────────────────────────────
 router.get('/projects', authMiddleware(ANY_AUTH), (req, res) => {
   let projects = store.projects;
+  const { member_id } = req.query;
+
+  // Superadmin con member_id: proyectos donde ese usuario es miembro
+  if (req.user.role === 'superadmin' && member_id) {
+    const memberships = store.projectMembers.filter((m) => m.user_id === member_id);
+    const memberProjectIds = new Set(memberships.map((m) => m.project_id));
+    projects = projects.filter((p) => memberProjectIds.has(p.id));
+    return res.json({
+      status: 'success',
+      data: projects.map((p) => {
+        const membership = memberships.find((m) => m.project_id === p.id);
+        return { ...serializeProject(p), user_role: membership?.role ?? null };
+      }),
+    });
+  }
 
   // Researcher/applicator: solo proyectos donde son miembros
   if (req.user.role !== 'superadmin') {
