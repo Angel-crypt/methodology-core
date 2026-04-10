@@ -17,6 +17,8 @@ import MisRegistrosPage from './pages/MisRegistrosPage'
 import ConfiguracionOperativaPage from './pages/ConfiguracionOperativaPage'
 import DetalleAplicadorPage from './pages/DetalleAplicadorPage'
 import InstrumentoDetallePage from './pages/InstrumentoDetallePage'
+import ProjectsPage from './pages/ProjectsPage'
+import ProjectDetailPage from './pages/ProjectDetailPage'
 import AppLayout from './layouts/AppLayout'
 
 const SYSTEM_LOGIN_PATH = import.meta.env.VITE_SYSTEM_LOGIN_PATH || '/__sys-auth'
@@ -100,8 +102,12 @@ function AppRoutes() {
           )}
         />
 
-        {/* Configuración Operativa (solo Administrador) */}
-        <Route path="/configuracion-operativa" element={adminLayout(<ConfiguracionOperativaPage />)} />
+        {/* Módulo 2-PROJECT — Gestión de Proyectos (solo Administrador) */}
+        <Route path="/proyectos" element={adminLayout(<ProjectsPage />)} />
+        <Route path="/proyectos/:id" element={adminLayout(<ProjectDetailPage />)} />
+
+        {/* Configuración Operativa global — deprecada (CF-014), redirige a proyectos */}
+        <Route path="/configuracion-operativa" element={<Navigate to="/proyectos" replace />} />
 
         {/* Redirect raíz */}
         <Route
