@@ -9,7 +9,7 @@ export const FILTROS_ESTADO = [
   { value: 'false', label: 'Inactivos' },
 ]
 
-export const FORM_INICIAL = { full_name: '', email: '' }
+export const FORM_INICIAL = { full_name: '', email: '', institution: '' }
 
 export function formatFecha(iso) {
   if (!iso) return '—'
@@ -63,6 +63,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
   const [erroresCrear, setErroresCrear] = useState({})
   const [errorApiCrear, setErrorApiCrear] = useState('')
   const [guardandoCrear, setGuardandoCrear] = useState(false)
+  const [institutionDetected, setInstitutionDetected] = useState(null) // string | null
 
   // ─── Estado cambio de estado ───────────────────────────────────
   const [errorApiEstado, setErrorApiEstado] = useState('')
@@ -131,7 +132,29 @@ export function useGestionUsuarios({ role, labelSingular }) {
     setFormCrear(FORM_INICIAL)
     setErroresCrear({})
     setErrorApiCrear('')
+    setInstitutionDetected(null)
     setModalCrear(true)
+  }
+
+  async function handleEmailBlur() {
+    const email = formCrear.email.trim()
+    if (!email || !email.includes('@')) return
+    setInstitutionDetected(null)
+    try {
+      const res = await fetch(`/api/v1/institutions/resolve?email=${encodeURIComponent(email)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const json = await res.json()
+        const detected = json.data?.institution ?? null
+        setInstitutionDetected(detected)
+        if (detected && !formCrear.institution) {
+          setFormCrear((prev) => ({ ...prev, institution: detected }))
+        }
+      }
+    } catch {
+      // no op — institution detection is best-effort
+    }
   }
 
   function handleChangeCrear(campo) {
@@ -156,11 +179,13 @@ export function useGestionUsuarios({ role, labelSingular }) {
     setErrorApiCrear('')
 
     try {
-      const data = await crearUsuario(token, {
+      const payload = {
         full_name: formCrear.full_name.trim(),
         email: formCrear.email.trim(),
         role,
-      })
+      }
+      if (formCrear.institution.trim()) payload.institution = formCrear.institution.trim()
+      const data = await crearUsuario(token, payload)
       if (data.status === 'success') {
         setModalCrear(false)
         setFormCrear(FORM_INICIAL)
@@ -276,6 +301,8 @@ export function useGestionUsuarios({ role, labelSingular }) {
     dismiss,
     abrirModalCrear,
     handleChangeCrear,
+    handleEmailBlur,
+    institutionDetected,
     handleGuardarCrear,
     abrirModalEstado,
     handleConfirmarEstado,
