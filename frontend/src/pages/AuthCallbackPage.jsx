@@ -37,8 +37,8 @@ function AuthCallbackPage({ onLogin }) {
         const data = await res.json()
 
         if (data.status === 'success') {
-          const { access_token, must_change_password } = data.data
-          onLogin(access_token, must_change_password === true)
+          const { access_token } = data.data
+          onLogin(access_token, false)
           navigate('/instruments', { replace: true })
         } else {
           setError(true)

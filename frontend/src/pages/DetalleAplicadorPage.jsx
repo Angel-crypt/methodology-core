@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { ChevronLeft, Copy, Monitor, Shield } from 'lucide-react'
+import { ChevronLeft, Copy, Monitor } from 'lucide-react'
 import {
   Button,
   Alert,
@@ -17,13 +17,9 @@ import {
   listarSesionesUsuario,
   cambiarEstadoUsuario,
   resetearPassword,
-  obtenerPermisos,
-  guardarPermisos,
 } from '@/services/users'
-import { obtenerConfigOperativo } from '@/services/config'
 import { formatFecha, getUserStatus } from '@/hooks/useGestionUsuarios'
 import CredencialesModal from '@/pages/CredencialesModal'
-import { EDUCATION_LEVEL_META } from '@/constants/educationLevels'
 
 // ── Estilos comunes ──────────────────────────────────────────────────────────
 
@@ -63,17 +59,6 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
   const [cargandoSesiones,  setCargandoSesiones]  = useState(true)
   const [errorSesiones,     setErrorSesiones]     = useState(false)
 
-  // ── Estado — Config global ──────────────────────────────────────
-  const [configGlobal,     setConfigGlobal]     = useState(null)
-  const [cargandoConfig,   setCargandoConfig]   = useState(true)
-
-  // ── Estado — Permisos ───────────────────────────────────────────
-  const [permisos,          setPermisos]          = useState({ mode: 'libre', education_levels: [], subject_limit: null })
-  const [permisosGuardados, setPermisosGuardados] = useState(null)
-  const [cargandoPermisos,  setCargandoPermisos]  = useState(true)
-  const [guardandoPermisos, setGuardandoPermisos] = useState(false)
-  const [errorPermisos,     setErrorPermisos]     = useState(null)
-
   // ── Estado — Acciones ───────────────────────────────────────────
   const [guardandoEstado,    setGuardandoEstado]    = useState(false)
   const [guardandoReset,     setGuardandoReset]     = useState(false)
@@ -105,58 +90,6 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
       .catch(() => setErrorSesiones(true))
       .finally(() => setCargandoSesiones(false))
   }, [id, token])
-
-  // ── Fetch: config global + permisos (en paralelo) ───────────────
-  useEffect(() => {
-    setCargandoConfig(true)
-    setCargandoPermisos(true)
-
-    Promise.all([
-      obtenerConfigOperativo(token),
-      obtenerPermisos(token, id),
-    ]).then(([cfg, perm]) => {
-      if (cfg.status === 'success')  setConfigGlobal(cfg.data)
-      if (perm.status === 'success') {
-        setPermisos(perm.data)
-        setPermisosGuardados(perm.data)
-      } else {
-        setErrorPermisos(perm.message || 'No se pudieron cargar los permisos.')
-      }
-    }).catch(() => setErrorPermisos('Error de conexión.'))
-      .finally(() => { setCargandoConfig(false); setCargandoPermisos(false) })
-  }, [id, token])
-
-  // ── Handlers — Permisos ─────────────────────────────────────────
-
-  function toggleLevel(level) {
-    setPermisos((prev) => {
-      const has = prev.education_levels.includes(level)
-      return {
-        ...prev,
-        education_levels: has
-          ? prev.education_levels.filter((l) => l !== level)
-          : [...prev.education_levels, level],
-      }
-    })
-  }
-
-  async function handleGuardarPermisos() {
-    setGuardandoPermisos(true)
-    setErrorPermisos(null)
-    try {
-      const data = await guardarPermisos(token, id, permisos)
-      if (data.status === 'success') {
-        setPermisosGuardados(permisos)
-        toast({ type: 'success', title: 'Permisos guardados', message: 'Los permisos de acceso se actualizaron.' })
-      } else {
-        setErrorPermisos(data.message || 'No se pudieron guardar los permisos.')
-      }
-    } catch {
-      setErrorPermisos('Error de conexión.')
-    } finally {
-      setGuardandoPermisos(false)
-    }
-  }
 
   // ── Handlers — Acciones ─────────────────────────────────────────
 
@@ -191,7 +124,6 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
         const setupToken = data.data?._mock_setup_token
         setCredencialesNuevas({ email: usuario.email, setupToken, nombreUsuario: usuario.full_name })
         setModalCredenciales(true)
-        setUsuario((prev) => ({ ...prev, must_change_password: true }))
       } else {
         toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo restablecer la contraseña.' })
       }
@@ -229,17 +161,6 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
   const roleKey = usuario.role === 'superadmin' ? 'admin'
                 : usuario.role === 'applicator'    ? 'aplicador'
                 : 'researcher'
-
-  const nivelesDisponibles = configGlobal?.education_levels ?? []
-  const nivelesTotal       = nivelesDisponibles.length
-
-  const permisosResumen = permisos.mode === 'libre'
-    ? `Libre — acceso a los ${nivelesTotal} niveles habilitados globalmente`
-    : permisos.education_levels.length === 0
-      ? 'Restringido — sin niveles habilitados'
-      : `Restringido — ${permisos.education_levels.length} de ${nivelesTotal} nivel${nivelesTotal !== 1 ? 'es' : ''} habilitado${permisos.education_levels.length !== 1 ? 's' : ''}`
-
-  const permisosHanCambiado = JSON.stringify(permisos) !== JSON.stringify(permisosGuardados)
 
   // ── Render ──────────────────────────────────────────────────────
 
@@ -301,12 +222,6 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
                 >
                   <Copy size={13} />
                 </button>
-              </dd>
-            </div>
-            <div>
-              <dt style={LABEL_STYLE}>Permisos actuales</dt>
-              <dd style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)' }}>
-                {cargandoPermisos ? 'Cargando...' : permisosResumen}
               </dd>
             </div>
             <div>
@@ -387,186 +302,6 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
         </section>
       </div>
 
-      {/* ── Permisos de acceso — ancho completo ───────────────── */}
-      {usuario?.role === 'applicator' && (
-      <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-
-        {/* Encabezado de sección */}
-        <div>
-          <Typography as="h2" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-1)' }}>
-            <Shield size={16} aria-hidden="true" />
-            Permisos de Registro Operativo
-          </Typography>
-          <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
-            Define qué niveles educativos puede registrar este aplicador en el Módulo de Registro Operativo.
-            En modo <strong>libre</strong> puede registrar sujetos de cualquier nivel. En modo <strong>restringido</strong>,
-            solo puede registrar los niveles habilitados en la tabla.
-          </Typography>
-        </div>
-
-        {errorPermisos && <Alert variant="error">{errorPermisos}</Alert>}
-
-        {cargandoPermisos ? (
-          <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>Cargando permisos...</Typography>
-        ) : (
-          <>
-            {/* Selector de modo */}
-            <div style={{ display: 'flex', gap: 'var(--space-6)', alignItems: 'center' }}>
-              <span style={LABEL_STYLE}>Modo de acceso</span>
-              <div style={{ display: 'flex', gap: 'var(--space-5)' }}>
-                {[
-                  { value: 'libre',      label: 'Libre',       desc: 'Accede a todos los niveles' },
-                  { value: 'restricted', label: 'Restringido', desc: 'Solo niveles habilitados'  },
-                ].map(({ value, label, desc }) => (
-                  <label
-                    key={value}
-                    style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', cursor: 'pointer' }}
-                  >
-                    <input
-                      type="radio"
-                      name={`permission-mode-${id}`}
-                      value={value}
-                      checked={permisos.mode === value}
-                      onChange={() => setPermisos((prev) => ({ ...prev, mode: value }))}
-                    />
-                    <span>
-                      <span style={{ fontWeight: 'var(--font-weight-medium)', fontSize: 'var(--font-size-body)' }}>
-                        {label}
-                      </span>
-                      <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)', marginLeft: 'var(--space-1)' }}>
-                        — {desc}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Tabla de niveles educativos — solo los habilitados globalmente */}
-            {(cargandoConfig || nivelesDisponibles.length === 0) ? (
-              <Typography as="small" style={{ color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
-                {cargandoConfig
-                  ? 'Cargando niveles disponibles...'
-                  : 'No hay niveles educativos habilitados en la Configuración Operativa.'}
-              </Typography>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <th style={{ textAlign: 'left', padding: 'var(--space-2) var(--space-3)', fontSize: 'var(--font-size-label)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)' }}>
-                      Nivel educativo
-                    </th>
-                    <th style={{ textAlign: 'left', padding: 'var(--space-2) var(--space-3)', fontSize: 'var(--font-size-label)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)' }}>
-                      Descripción
-                    </th>
-                    <th style={{ textAlign: 'center', padding: 'var(--space-2) var(--space-3)', fontSize: 'var(--font-size-label)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-weight-medium)', width: '120px' }}>
-                      Acceso
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {nivelesDisponibles.map((level, idx) => {
-                    const meta = EDUCATION_LEVEL_META[level] ?? { label: level, desc: '' }
-                    const isRestricted = permisos.mode === 'restricted'
-                    return (
-                      <tr
-                        key={level}
-                        style={{
-                          background:   idx % 2 === 0 ? 'transparent' : 'var(--color-bg-subtle)',
-                          borderBottom: '1px solid var(--color-border)',
-                          opacity:      !isRestricted ? 0.65 : 1,
-                        }}
-                      >
-                        <td style={{ padding: 'var(--space-3)', fontWeight: 'var(--font-weight-medium)', fontSize: 'var(--font-size-body)', color: 'var(--color-text-primary)' }}>
-                          {meta.label}
-                        </td>
-                        <td style={{ padding: 'var(--space-3)', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)' }}>
-                          {meta.desc}
-                        </td>
-                        <td style={{ padding: 'var(--space-3)', textAlign: 'center' }}>
-                          {isRestricted ? (
-                            <input
-                              type="checkbox"
-                              checked={permisos.education_levels.includes(level)}
-                              onChange={() => toggleLevel(level)}
-                              aria-label={`Habilitar ${meta.label}`}
-                              style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                            />
-                          ) : (
-                            <span
-                              style={{
-                                display:        'inline-flex',
-                                alignItems:     'center',
-                                justifyContent: 'center',
-                                width:          '20px',
-                                height:         '20px',
-                                borderRadius:   '50%',
-                                background:     'var(--color-success)',
-                                fontSize:       '11px',
-                                color:          'var(--color-primary-text)',
-                              }}
-                              aria-label="Acceso completo (modo libre)"
-                            >
-                              ✓
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            )}
-
-            {/* Límite de sujetos */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--color-border)' }}>
-              <div style={{ flex: 1 }}>
-                <label
-                  htmlFor="subject-limit"
-                  style={{ ...LABEL_STYLE, display: 'block' }}
-                >
-                  Límite de sujetos registrables
-                </label>
-                <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
-                  Máximo de sujetos que este aplicador puede registrar. Dejar en 0 para sin límite.
-                </Typography>
-              </div>
-              <input
-                id="subject-limit"
-                type="number"
-                min="0"
-                step="1"
-                className="input-base"
-                style={{ width: '120px' }}
-                value={permisos.subject_limit ?? ''}
-                placeholder="Sin límite"
-                onChange={(e) => {
-                  const v = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                  setPermisos((prev) => ({ ...prev, subject_limit: v === 0 ? null : v }))
-                }}
-              />
-            </div>
-
-            {/* Pie de sección */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
-                {permisos.mode === 'libre'
-                  ? `Acceso libre a los ${nivelesTotal} niveles habilitados globalmente.`
-                  : `${permisos.education_levels.length} de ${nivelesTotal} niveles habilitados.`}
-                {permisos.subject_limit ? ` Límite: ${permisos.subject_limit} sujetos.` : ''}
-              </Typography>
-              <Button
-                onClick={handleGuardarPermisos}
-                loading={guardandoPermisos}
-                disabled={!permisosHanCambiado}
-              >
-                Guardar permisos
-              </Button>
-            </div>
-          </>
-        )}
-      </section>
-      )}
 
       {credencialesNuevas && (
         <CredencialesModal

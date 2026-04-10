@@ -46,12 +46,69 @@ const CONTEXT_LABELS = {
   },
 }
 
+// Mapeo entre los nombres legibles del config del proyecto y las claves de enum de la API
+const EDUCATION_LEVEL_NAME_TO_KEY = {
+  'Preescolar':     'preschool',
+  'Primaria menor': 'primary_lower',
+  'Primaria mayor': 'primary_upper',
+  'Secundaria':     'secondary',
+}
+// Inverso: clave API → nombre legible del config (para auto-asignar cohorte en modo restringido)
+const EDUCATION_LEVEL_KEY_TO_NAME = Object.fromEntries(
+  Object.entries(EDUCATION_LEVEL_NAME_TO_KEY).map(([name, key]) => [key, name])
+)
+
 const STEP_LABELS = [
   '1. Sujeto',
   '2. Contexto',
   '3. Aplicación',
   '4. Métricas',
 ]
+
+// ── Paso 0: Selección de proyecto ─────────────────────────────────────────────
+
+function Step0Project({ projects, loading, onSelect }) {
+  if (loading) {
+    return (
+      <section className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+        <Spinner />
+        <Typography as="small">Cargando proyectos...</Typography>
+      </section>
+    )
+  }
+
+  if (!projects.length) {
+    return (
+      <section className="card">
+        <Alert variant="warning">No tienes proyectos asignados. Contacta al administrador.</Alert>
+      </section>
+    )
+  }
+
+  return (
+    <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+      <Typography as="h2">Paso 0: Seleccionar proyecto</Typography>
+      <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
+        Elige el proyecto en el que vas a trabajar en esta sesión.
+      </Typography>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        {projects.map((p) => (
+          <button
+            key={p.id}
+            className="card"
+            onClick={() => onSelect(p.id)}
+            style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--color-bg-card)', width: '100%', border: '1px solid var(--color-border)' }}
+          >
+            <Typography as="h3" style={{ margin: 0 }}>{p.name}</Typography>
+            {p.description && (
+              <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>{p.description}</Typography>
+            )}
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
 
 function Step1Subject({
   onCreate,
@@ -60,11 +117,14 @@ function Step1Subject({
   subjectId,
   mode,
   onModeChange,
-  subjectInput,
-  onSubjectInputChange,
   onLoadExisting,
   loadingExisting,
+  // CF-016: mis sujetos
+  mySubjects,
+  loadingMySubjects,
 }) {
+  const todayISO = new Date().toISOString().split('T')[0]
+
   return (
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       <Typography as="h2">Paso 1: Identificar sujeto</Typography>
@@ -77,23 +137,25 @@ function Step1Subject({
         </Alert>
       ) : (
         <>
-          {/* Toggle de modo */}
-          <div className="date-mode-toggle">
-            <button
-              type="button"
-              className={`date-mode-btn${mode === 'new' ? ' date-mode-btn--active' : ''}`}
-              onClick={() => onModeChange('new')}
-            >
-              Nuevo sujeto
-            </button>
-            <button
-              type="button"
-              className={`date-mode-btn${mode === 'existing' ? ' date-mode-btn--active' : ''}`}
-              onClick={() => onModeChange('existing')}
-            >
-              Sujeto existente
-            </button>
-          </div>
+          {/* Toggle de modo — "Mis sujetos" solo si ya hay registros */}
+          {mySubjects.length > 0 && (
+            <div className="date-mode-toggle">
+              <button
+                type="button"
+                className={`date-mode-btn${mode === 'new' ? ' date-mode-btn--active' : ''}`}
+                onClick={() => onModeChange('new')}
+              >
+                Nuevo sujeto
+              </button>
+              <button
+                type="button"
+                className={`date-mode-btn${mode === 'mine' ? ' date-mode-btn--active' : ''}`}
+                onClick={() => onModeChange('mine')}
+              >
+                Mis sujetos
+              </button>
+            </div>
+          )}
 
           {mode === 'new' && (
             <>
@@ -106,33 +168,47 @@ function Step1Subject({
             </>
           )}
 
-          {mode === 'existing' && (
+          {mode === 'mine' && (
             <>
               <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
-                Ingresa el UUID de un sujeto ya registrado para añadirle una nueva aplicación de instrumento.
+                Selecciona uno de los sujetos que registraste en este proyecto.
               </Typography>
-              <label className="field-label">
-                UUID del sujeto
-                <input
-                  className="input-base"
-                  type="text"
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  value={subjectInput}
-                  onChange={(e) => onSubjectInputChange(e.target.value.trim())}
-                  style={{ fontFamily: 'monospace' }}
-                />
-              </label>
-              <div>
-                <Button
-                  onClick={onLoadExisting}
-                  loading={loadingExisting}
-                  disabled={!subjectInput}
-                >
-                  Cargar sujeto
-                </Button>
-              </div>
+              {loadingMySubjects ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <Spinner /><Typography as="small">Cargando sujetos...</Typography>
+                </div>
+              ) : mySubjects.length === 0 ? (
+                <Alert variant="info">No has registrado sujetos en este proyecto todavía.</Alert>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                  {mySubjects.map((s) => {
+                    const lastApp = s.applications?.[s.applications.length - 1]
+                    const blocked = lastApp?.next_available_date && lastApp.next_available_date > todayISO
+                    return (
+                      <button
+                        key={s.id}
+                        className="card"
+                        onClick={() => !blocked && onLoadExisting(s.id)}
+                        disabled={blocked || loadingExisting}
+                        style={{ textAlign: 'left', cursor: blocked ? 'not-allowed' : 'pointer', width: '100%', opacity: blocked ? 0.6 : 1 }}
+                      >
+                        <Typography as="small" style={{ fontFamily: 'monospace', fontWeight: 'var(--font-weight-medium)' }}>
+                          {s.anonymous_code ?? s.id}
+                        </Typography>
+                        {lastApp && (
+                          <Typography as="small" style={{ color: 'var(--color-text-secondary)', display: 'block' }}>
+                            Última aplicación: {lastApp.application_date} · {lastApp.instrument_name}
+                            {blocked && <> · Disponible desde: <strong>{lastApp.next_available_date}</strong></>}
+                          </Typography>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </>
           )}
+
         </>
       )}
     </section>
@@ -157,9 +233,16 @@ function Step2Context({
   ageCohortOptions,
   isValid,
   alreadySaved,
+  contextDirty,
 }) {
   const cohortRestricted = cohortMode === 'restricted'
   const badge = BADGE_COHORT[cohortMode] ?? BADGE_COHORT.libre
+
+  function buttonLabel() {
+    if (!alreadySaved) return 'Guardar contexto y continuar'
+    if (contextDirty) return 'Actualizar contexto y continuar'
+    return 'Continuar →'
+  }
 
   return (
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -170,16 +253,17 @@ function Step2Context({
 
       {apiError && <Alert variant="error">{apiError}</Alert>}
       {validationError && <Alert variant="warning">{validationError}</Alert>}
-      {alreadySaved && (
-        <Alert variant="info">
-          Paso guardado. Puedes revisar la información, pero ya no puede modificarse.
-        </Alert>
+      {alreadySaved && !contextDirty && (
+        <Alert variant="info">Paso guardado. Puedes modificar el contexto si es necesario.</Alert>
+      )}
+      {contextDirty && (
+        <Alert variant="warning">Has modificado el contexto. Guarda para actualizar.</Alert>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
         <label className="field-label">
           Tipo de institución *
-          <select className="input-base" value={contextData.school_type} onChange={(e) => onChange('school_type', e.target.value)} disabled={alreadySaved}>
+          <select className="input-base" value={contextData.school_type} onChange={(e) => onChange('school_type', e.target.value)}>
             <option value="">Selecciona...</option>
             {contextOptions.school_type.map((value) => (
               <option key={value} value={value}>{CONTEXT_LABELS.school_type[value] || value}</option>
@@ -189,7 +273,7 @@ function Step2Context({
 
         <label className="field-label">
           Nivel educativo *
-          <select className="input-base" value={contextData.education_level} onChange={(e) => onChange('education_level', e.target.value)} disabled={alreadySaved}>
+          <select className="input-base" value={contextData.education_level} onChange={(e) => onChange('education_level', e.target.value)}>
             <option value="">Selecciona...</option>
             {contextOptions.education_level.map((value) => (
               <option key={value} value={value}>{CONTEXT_LABELS.education_level[value] || value}</option>
@@ -221,7 +305,7 @@ function Step2Context({
               style={{ backgroundColor: 'var(--color-bg-subtle)', cursor: 'not-allowed', color: 'var(--color-text-secondary)' }}
             />
           ) : (
-            <select className="input-base" value={contextData.age_cohort} onChange={(e) => onChange('age_cohort', e.target.value)} disabled={alreadySaved}>
+            <select className="input-base" value={contextData.age_cohort} onChange={(e) => onChange('age_cohort', e.target.value)}>
               <option value="">Selecciona...</option>
               {ageCohortOptions.map((value) => (
                 <option key={value} value={value}>{value}</option>
@@ -232,7 +316,7 @@ function Step2Context({
 
         <label className="field-label">
           Género *
-          <select className="input-base" value={contextData.gender} onChange={(e) => onChange('gender', e.target.value)} disabled={alreadySaved}>
+          <select className="input-base" value={contextData.gender} onChange={(e) => onChange('gender', e.target.value)}>
             <option value="">Selecciona...</option>
             {contextOptions.gender.map((value) => (
               <option key={value} value={value}>{CONTEXT_LABELS.gender[value] || value}</option>
@@ -246,7 +330,6 @@ function Step2Context({
             className="input-base"
             value={contextData.socioeconomic_level}
             onChange={(e) => onChange('socioeconomic_level', e.target.value)}
-            disabled={alreadySaved}
           >
             <option value="">Selecciona...</option>
             {contextOptions.socioeconomic_level.map((value) => (
@@ -259,7 +342,7 @@ function Step2Context({
       <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'space-between' }}>
         <Button variant="ghost" onClick={onBack}>Volver</Button>
         <Button onClick={onSubmit} loading={loading} disabled={!isValid && !alreadySaved}>
-          {alreadySaved ? 'Continuar →' : 'Guardar contexto y continuar'}
+          {buttonLabel()}
         </Button>
       </div>
     </section>
@@ -579,7 +662,14 @@ function Step4Metrics({
 
       <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'space-between' }}>
         <Button variant="ghost" onClick={onBack}>Volver</Button>
-        <Button onClick={handleSubmitWithValidation} loading={loadingSubmit}>Guardar métricas y finalizar</Button>
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          {apiError && (
+            <Button variant="ghost" onClick={onSubmit} loading={loadingSubmit}>
+              Reintentar
+            </Button>
+          )}
+          <Button onClick={handleSubmitWithValidation} loading={loadingSubmit}>Guardar métricas y finalizar</Button>
+        </div>
       </div>
     </section>
   )
@@ -588,11 +678,22 @@ function Step4Metrics({
 function RegistroOperativoWizardPage() {
   const { token } = useAuth()
   const { toasts, toast, dismiss } = useToast()
+
+  // ── CF-015: Paso 0 — selección de proyecto ────────────────────────────────
+  const [projectId, setProjectId]         = useState(null)
+  const [projects, setProjects]           = useState([])
+  const [loadingProjects, setLoadingProjects] = useState(true)
+  const [loadingConfig, setLoadingConfig] = useState(false)
+
   const [isDone, setIsDone] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
   const [maxReachedStep, setMaxReachedStep] = useState(1)
   const [subjectMode, setSubjectMode] = useState('new')
-  const [subjectInput, setSubjectInput] = useState('')
+  // CF-016: mis sujetos
+  const [mySubjects, setMySubjects]           = useState([])
+  const [loadingMySubjects, setLoadingMySubjects] = useState(false)
+  // CF-018: contexto modificado tras guardado inicial
+  const [contextDirty, setContextDirty] = useState(false)
   const [wizardState, setWizardState] = useState({
     subjectId: '',
     contextData: {
@@ -614,7 +715,6 @@ function RegistroOperativoWizardPage() {
   const [uiState, setUiState] = useState({
     loadingSubject: false,
     loadingContext: false,
-    loadingInstruments: false,
     loadingApplication: false,
     loadingMetrics: false,
     loadingMetricSubmit: false,
@@ -622,9 +722,9 @@ function RegistroOperativoWizardPage() {
     validationError: '',
   })
   const [instruments, setInstruments] = useState([])
+  const [loadingProjectInstruments, setLoadingProjectInstruments] = useState(false)
   const [metricDefinitions, setMetricDefinitions] = useState([])
   const [operativoConfig, setOperativoConfig] = useState(null)
-  const [loadingConfig, setLoadingConfig] = useState(true)
 
   function setApiError(message) {
     setUiState((prev) => ({ ...prev, apiError: message }))
@@ -658,18 +758,25 @@ function RegistroOperativoWizardPage() {
     [token]
   )
 
-  // Opciones de contexto derivadas de la config del admin (con fallback a enums locales)
+  // Opciones de contexto — education_levels del config filtran cuáles keys de API están habilitadas
   const contextOptions = useMemo(() => {
-    if (!operativoConfig) return CONTEXT_OPTIONS
+    let educationKeys = CONTEXT_OPTIONS.education_level
+    if (operativoConfig?.education_levels?.length) {
+      const filtered = operativoConfig.education_levels
+        .map((name) => EDUCATION_LEVEL_NAME_TO_KEY[name])
+        .filter(Boolean)
+      if (filtered.length) educationKeys = filtered
+    }
     return {
-      school_type:         operativoConfig.school_types?.length        ? operativoConfig.school_types        : CONTEXT_OPTIONS.school_type,
-      education_level:     operativoConfig.education_levels?.length    ? operativoConfig.education_levels    : CONTEXT_OPTIONS.education_level,
-      gender:              operativoConfig.genders?.length             ? operativoConfig.genders             : CONTEXT_OPTIONS.gender,
-      socioeconomic_level: operativoConfig.socioeconomic_levels?.length ? operativoConfig.socioeconomic_levels : CONTEXT_OPTIONS.socioeconomic_level,
+      school_type:         CONTEXT_OPTIONS.school_type,
+      education_level:     educationKeys,
+      gender:              CONTEXT_OPTIONS.gender,
+      socioeconomic_level: CONTEXT_OPTIONS.socioeconomic_level,
     }
   }, [operativoConfig])
 
-  const cohortMode = operativoConfig?.cohort_mode ?? 'libre'
+  // cohort_mode 'restringido' auto-asigna cohorte según nivel educativo; 'libre' deja elegir
+  const cohortMode = operativoConfig?.cohort_mode === 'restringido' ? 'restricted' : 'libre'
 
   // Todos los campos de contexto deben estar llenos para habilitar el paso 2
   const step2Valid = useMemo(() => {
@@ -677,44 +784,61 @@ function RegistroOperativoWizardPage() {
     return !!(school_type && education_level && age_cohort && gender && socioeconomic_level)
   }, [wizardState.contextData])
 
-  // Rangos disponibles para el modo libre (valores únicos del age_cohort_map)
+  // Rangos de cohorte de edad: valores únicos del age_cohort_map
   const ageCohortOptions = useMemo(() => {
     const map = operativoConfig?.age_cohort_map || {}
-    return [...new Set(Object.values(map).filter(Boolean))]
+    return [...new Set(Object.values(map))].filter(Boolean)
   }, [operativoConfig])
 
-  // Cargar config al montar
+  // CF-015: Cargar proyectos al montar
   useEffect(() => {
-    async function loadConfig() {
-      const res = await fetch('/api/v1/config/operativo', {
+    fetch('/api/v1/projects', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        setLoadingProjects(false)
+        if (data.status === 'success') setProjects(data.data || [])
+      })
+      .catch(() => setLoadingProjects(false))
+  }, [token])
+
+  // CF-015: Cargar config del proyecto seleccionado
+  async function handleSelectProject(pid) {
+    setProjectId(pid)
+    setLoadingConfig(true)
+    setLoadingProjectInstruments(true)
+    try {
+      const [configRes, instRes] = await Promise.all([
+        fetch(`/api/v1/projects/${pid}/config/operativo`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/v1/projects/${pid}/instruments`,      { headers: { Authorization: `Bearer ${token}` } }),
+      ])
+      const [configData, instData] = await Promise.all([parseResponse(configRes), parseResponse(instRes)])
+      if (configData.status === 'success') setOperativoConfig(configData.data)
+      if (instData.status === 'success')   setInstruments(instData.data || [])
+    } catch { /* silencioso */ }
+    setLoadingConfig(false)
+    setLoadingProjectInstruments(false)
+    loadMySubjects(pid)
+  }
+
+  // CF-016: Cargar mis sujetos del proyecto
+  async function loadMySubjects(pid) {
+    const id = pid ?? projectId
+    if (!id) return
+    setLoadingMySubjects(true)
+    try {
+      const res = await fetch(`/api/v1/projects/${id}/subjects/mine`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = await parseResponse(res)
-      setLoadingConfig(false)
-      if (data.status === 'success') setOperativoConfig(data.data)
-    }
-    loadConfig()
-  }, [token])
+      if (data.status === 'success') setMySubjects(data.data || [])
+    } catch { /* silent */ }
+    setLoadingMySubjects(false)
+  }
 
-  useEffect(() => {
-    if (currentStep < 3 || instruments.length > 0 || uiState.loadingInstruments) return
-
-    async function loadInstruments() {
-      setUiState((prev) => ({ ...prev, loadingInstruments: true }))
-      const response = await fetch('/api/v1/instruments?is_active=true', { headers: authHeaders })
-      const data = await parseResponse(response)
-      setUiState((prev) => ({ ...prev, loadingInstruments: false }))
-
-      if (data.status === 'success') {
-        setInstruments(data.data || [])
-        return
-      }
-
-      setApiError(data.message || 'No se pudieron cargar los instrumentos.')
-    }
-
-    loadInstruments()
-  }, [currentStep, instruments.length, authHeaders, uiState.loadingInstruments])
+  function handleSubjectModeChange(mode) {
+    setSubjectMode(mode)
+    clearErrors()
+  }
 
   useEffect(() => {
     if (currentStep !== 4 || !wizardState.instrumentId || metricDefinitions.length > 0 || uiState.loadingMetrics) return
@@ -741,13 +865,6 @@ function RegistroOperativoWizardPage() {
     clearErrors()
     setUiState((prev) => ({ ...prev, loadingSubject: true }))
 
-    const projectId = operativoConfig?.project_id
-    if (!projectId) {
-      setApiError('No hay un proyecto activo configurado. Contacta al administrador.')
-      setUiState((prev) => ({ ...prev, loadingSubject: false }))
-      return
-    }
-
     const response = await fetch(`/api/v1/projects/${projectId}/subjects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
@@ -768,11 +885,11 @@ function RegistroOperativoWizardPage() {
     toast({ type: 'success', title: 'Sujeto creado', message: 'UUID generado correctamente.' })
   }
 
-  async function handleLoadExistingSubject() {
+  async function handleLoadExistingSubject(sid) {
     clearErrors()
     setUiState((prev) => ({ ...prev, loadingSubject: true }))
 
-    const response = await fetch(`/api/v1/subjects/${subjectInput}`, {
+    const response = await fetch(`/api/v1/subjects/${sid}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await parseResponse(response)
@@ -812,20 +929,23 @@ function RegistroOperativoWizardPage() {
   }
 
   function updateContextData(field, value) {
+    if (maxReachedStep >= 3) setContextDirty(true)
     setWizardState((prev) => {
-      const newContext = { ...prev.contextData, [field]: value }
-      // Al cambiar nivel educativo, auto-rellenar cohorte de edad desde la config
-      if (field === 'education_level') {
-        const range = operativoConfig?.age_cohort_map?.[value]
-        if (range) newContext.age_cohort = range
+      const updated = { ...prev.contextData, [field]: value }
+      // En modo restringido, auto-asignar cohorte al cambiar nivel educativo
+      if (field === 'education_level' && cohortMode === 'restricted') {
+        const levelName = EDUCATION_LEVEL_KEY_TO_NAME[value] || value
+        updated.age_cohort = operativoConfig?.age_cohort_map?.[levelName] || ''
       }
-      return { ...prev, contextData: newContext }
+      return { ...prev, contextData: updated }
     })
   }
 
   async function handleSubmitContext() {
     clearErrors()
-    if (maxReachedStep >= 3) { setCurrentStep(3); return }
+    // Already saved and no changes → just advance
+    if (maxReachedStep >= 3 && !contextDirty) { setCurrentStep(3); return }
+
     const { subjectId, contextData } = wizardState
 
     if (!subjectId) {
@@ -842,9 +962,11 @@ function RegistroOperativoWizardPage() {
       Object.entries(contextData).filter(([, value]) => value !== '')
     )
 
+    // CF-018: PATCH si ya fue guardado antes; POST si es la primera vez
+    const isUpdate = maxReachedStep >= 3 && contextDirty
     setUiState((prev) => ({ ...prev, loadingContext: true }))
     const response = await fetch(`/api/v1/subjects/${subjectId}/context`, {
-      method: 'POST',
+      method: isUpdate ? 'PATCH' : 'POST',
       headers: authHeaders,
       body: JSON.stringify(payload),
     })
@@ -852,13 +974,27 @@ function RegistroOperativoWizardPage() {
     setUiState((prev) => ({ ...prev, loadingContext: false }))
 
     if (data.status !== 'success') {
-      setApiError(data.message || 'No se pudo registrar el contexto.')
+      // Transformar errores técnicos de validación de enum en mensajes legibles
+      const raw = data.message || ''
+      const friendlyError =
+        raw.includes('education_level') ? 'Nivel educativo no válido. Selecciona una opción de la lista.' :
+        raw.includes('school_type')     ? 'Tipo de institución no válido. Selecciona una opción de la lista.' :
+        raw.includes('gender')          ? 'Género no válido. Selecciona una opción de la lista.' :
+        raw.includes('socioeconomic')   ? 'Nivel socioeconómico no válido. Selecciona una opción de la lista.' :
+        raw.includes('age_cohort')      ? 'Rango de edad no válido. Verifica el formato (ej. 6-9).' :
+        raw || 'No se pudo registrar el contexto.'
+      setApiError(friendlyError)
       return
     }
 
+    setContextDirty(false)
     setCurrentStep(3)
-    setMaxReachedStep(3)
-    toast({ type: 'success', title: 'Contexto guardado', message: 'Paso 2 completado.' })
+    if (!isUpdate) setMaxReachedStep(3)
+    toast({
+      type: 'success',
+      title: isUpdate ? 'Contexto actualizado' : 'Contexto guardado',
+      message: isUpdate ? 'Cambios guardados.' : 'Paso 2 completado.',
+    })
   }
 
   function updateApplicationDraft(field, value) {
@@ -908,7 +1044,7 @@ function RegistroOperativoWizardPage() {
       payload.notes = wizardState.applicationDraft.notes.trim()
     }
 
-    const response = await fetch('/api/v1/applications', {
+    const response = await fetch(`/api/v1/projects/${projectId}/applications`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(payload),
@@ -1008,13 +1144,10 @@ function RegistroOperativoWizardPage() {
     }
 
     setUiState((prev) => ({ ...prev, loadingMetricSubmit: true }))
-    const response = await fetch('/api/v1/metric-values', {
+    const response = await fetch(`/api/v1/projects/${projectId}/applications/${wizardState.applicationId}/metric-values`, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({
-        application_id: wizardState.applicationId,
-        values: valuesPayload,
-      }),
+      body: JSON.stringify({ values: valuesPayload }),
     })
     const data = await parseResponse(response)
     setUiState((prev) => ({ ...prev, loadingMetricSubmit: false }))
@@ -1029,10 +1162,13 @@ function RegistroOperativoWizardPage() {
 
   function handleNuevoRegistro() {
     setIsDone(false)
+    setProjectId(null)
+    setOperativoConfig(null)
+    setMySubjects([])
+    setContextDirty(false)
     setCurrentStep(1)
     setMaxReachedStep(1)
     setSubjectMode('new')
-    setSubjectInput('')
     setInstruments([])
     setMetricDefinitions([])
     setWizardState({
@@ -1068,12 +1204,28 @@ function RegistroOperativoWizardPage() {
     }
   }
 
+  // CF-015: Paso 0 — mostrar selector de proyecto antes de iniciar el wizard
+  if (loadingProjects || !projectId) {
+    return (
+      <main className="page-container">
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          <Typography as="h1">Registro Operativo Anonimizado</Typography>
+          <Typography as="small" style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)' }}>
+            Selecciona el proyecto antes de registrar.
+          </Typography>
+        </div>
+        <Step0Project projects={projects} loading={loadingProjects} onSelect={handleSelectProject} />
+        <ToastContainer toasts={toasts} onDismiss={dismiss} />
+      </main>
+    )
+  }
+
   if (loadingConfig) {
     return (
       <main className="page-container">
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           <Spinner />
-          <Typography as="small">Cargando configuración...</Typography>
+          <Typography as="small">Cargando configuración del proyecto...</Typography>
         </div>
       </main>
     )
@@ -1145,6 +1297,15 @@ function RegistroOperativoWizardPage() {
         })}
       </div>
 
+      {/* Bloqueo: proyecto sin instrumentos asignados */}
+      {!loadingProjectInstruments && instruments.length === 0 && projectId ? (
+        <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <Alert variant="warning">
+            Este proyecto aún no tiene instrumentos asignados. No es posible iniciar un registro hasta que el administrador configure los instrumentos del proyecto.
+          </Alert>
+        </section>
+      ) : (<>
+
       {currentStep === 1 && (
         <Step1Subject
           onCreate={handleCreateSubject}
@@ -1152,11 +1313,11 @@ function RegistroOperativoWizardPage() {
           apiError={uiState.apiError}
           subjectId={wizardState.subjectId}
           mode={subjectMode}
-          onModeChange={(m) => { setSubjectMode(m); clearErrors() }}
-          subjectInput={subjectInput}
-          onSubjectInputChange={setSubjectInput}
+          onModeChange={handleSubjectModeChange}
           onLoadExisting={handleLoadExistingSubject}
           loadingExisting={uiState.loadingSubject}
+          mySubjects={mySubjects}
+          loadingMySubjects={loadingMySubjects}
         />
       )}
 
@@ -1174,13 +1335,14 @@ function RegistroOperativoWizardPage() {
           ageCohortOptions={ageCohortOptions}
           isValid={step2Valid}
           alreadySaved={maxReachedStep >= 3}
+          contextDirty={contextDirty}
         />
       )}
 
       {currentStep === 3 && (
         <Step3Application
           instruments={instruments}
-          loadingInstruments={uiState.loadingInstruments}
+          loadingInstruments={loadingProjectInstruments}
           applicationDraft={wizardState.applicationDraft}
           onChange={updateApplicationDraft}
           onSubmit={handleSubmitApplication}
@@ -1206,6 +1368,8 @@ function RegistroOperativoWizardPage() {
         />
       )}
 
+      </>)}
+
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
   )
@@ -1218,8 +1382,6 @@ Step1Subject.propTypes = {
   subjectId:             PropTypes.string.isRequired,
   mode:                  PropTypes.string.isRequired,
   onModeChange:          PropTypes.func.isRequired,
-  subjectInput:          PropTypes.string.isRequired,
-  onSubjectInputChange:  PropTypes.func.isRequired,
   onLoadExisting:        PropTypes.func.isRequired,
   loadingExisting:       PropTypes.bool.isRequired,
 }
@@ -1250,6 +1412,7 @@ Step3Application.propTypes = {
   apiError: PropTypes.string.isRequired,
   validationError: PropTypes.string.isRequired,
   alreadySaved: PropTypes.bool.isRequired,
+  contextDirty: PropTypes.bool,
 }
 
 Step4Metrics.propTypes = {
