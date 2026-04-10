@@ -39,7 +39,7 @@ Este documento cubre:
 - Edición de la descripción metodológica (`methodological_description`) y del periodo de vigencia (`start_date` / `end_date`).
 - Activación y desactivación de instrumentos sin eliminar registros históricos.
 - Consulta de instrumentos disponible para todos los roles autenticados.
-- Control de acceso por proyecto. Los instrumentos pertenecen a un proyecto específico.
+- Instrumentos globales asignables a proyectos. La asignacion define que instrumentos se usan en cada proyecto.
 
 Se relaciona con los siguientes componentes:
 - **M1 – Autenticación:** provee JWT, validación de roles y membresía de proyectos.
@@ -59,7 +59,7 @@ Quedan **fuera del alcance**: gestión de métricas (M3), registro de sujetos y 
 | **UUID** | Identificador único universal utilizado como clave primaria de los instrumentos. |
 | **JWT** | JSON Web Token. Token firmado para autenticación y control de acceso en cada petición. |
 | **RBAC** | Role-Based Access Control. Control de acceso por roles implementado por M1 como middleware. |
-| **Administrador** | Usuario con permisos completos de gestión del sistema. |
+| **SUPERADMIN** | Usuario con permisos completos de gestión del sistema. |
 | **Investigador** | Usuario con permisos de consulta y exportación de datos. |
 | **Aplicador** | Profesional habilitado para aplicar instrumentos y registrar métricas. |
 
@@ -111,11 +111,11 @@ M1 – Autenticación
 
 ### 2.5 Flujo General de Interacción
 
-1. El Administrador se autentica en M1 y obtiene un JWT.
+1. El SUPERADMIN se autentica en M1 y obtiene un JWT.
 2. Registra un instrumento global mediante `POST /instruments` con nombre, descripción y fechas.
 3. Opcionalmente actualiza descripción o periodo de vigencia mediante `PATCH /instruments/{id}`.
 4. Activa o desactiva el instrumento mediante `PATCH /instruments/{id}/status`.
-5. El Administrador asigna el instrumento a un proyecto mediante `POST /projects/{project_id}/instruments`.
+5. El SUPERADMIN asigna el instrumento a un proyecto mediante `POST /projects/{project_id}/instruments`.
 6. Cualquier rol autenticado consulta instrumentos globales mediante `GET /instruments`.
 7. M3 consulta `GET /instruments` para seleccionar el instrumento al definir métricas.
 8. M4 verifica estado `is_active` y vigencia del instrumento al registrar una aplicación.
@@ -137,7 +137,7 @@ M1 – Autenticación
 
 | Tipo | Descripción | Nivel de acceso | Funcionalidades que utiliza |
 |---|---|---|---|
-| **Administrador** | Control total sobre la gestión de instrumentos. | Lectura y escritura. | Crear, editar, activar, desactivar y consultar instrumentos. |
+| **SUPERADMIN** | Control total sobre la gestión de instrumentos. | Lectura y escritura. | Crear, editar, activar, desactivar y consultar instrumentos. |
 | **Investigador** | Usuario académico de consulta. | Solo lectura. | Consultar instrumentos disponibles e información metodológica. |
 | **Aplicador** | Profesional que aplica las pruebas en campo. | Solo lectura. | Consultar instrumentos activos para seleccionarlos al registrar aplicaciones en M4. |
 
@@ -168,7 +168,7 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 | Importación de instrumentos desde CSV, JSON u otros archivos. | No aplica en el MVP |
 | Eliminación permanente de instrumentos. | No permitida en ningún módulo |
 | Análisis estadístico o interpretación de resultados. | M5 / M6 / Fases posteriores |
-| Creación o modificación de instrumentos por roles distintos al Administrador. | Restringido por RBAC |
+| Creación o modificación de instrumentos por roles distintos al SUPERADMIN. | Restringido por RBAC |
 
 ---
 
@@ -182,11 +182,11 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `Instrument` |
 | **Endpoint** | `POST /instruments` |
 | **Entrada** | `name` (string, obligatorio), `methodological_description` (string, obligatorio), `start_date` (date ISO 8601, obligatorio), `end_date` (date ISO 8601, obligatorio) |
-| **Descripción** | El Administrador registra un nuevo instrumento global. Las fechas de vigencia son obligatorias y el sistema valida que `start_date` sea estrictamente anterior a `end_date`. El instrumento debe tener al menos una métrica asociada. Se crea en estado `is_active` por defecto. |
+| **Descripción** | El SUPERADMIN registra un nuevo instrumento global. Las fechas de vigencia son obligatorias y el sistema valida que `start_date` sea estrictamente anterior a `end_date`. Se crea en estado `is_active` por defecto. |
 | **Resultado** | Instrumento registrado con UUID, estado `is_active`, y métricas asociadas. HTTP 201. |
 
 ---
@@ -195,11 +195,11 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `Instrument` (campo `methodological_description`) |
 | **Endpoint** | `PATCH /instruments/{instrument_id}` |
 | **Entrada** | `methodological_description` (string) |
-| **Descripción** | El Administrador puede documentar o actualizar la descripción metodológica. La descripción es editable en cualquier momento. |
+| **Descripción** | El SUPERADMIN puede documentar o actualizar la descripción metodológica. La descripción es editable en cualquier momento. |
 | **Resultado** | Campo `methodological_description` actualizado. HTTP 200. |
 
 ---
@@ -208,11 +208,11 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `Instrument` (campos `start_date`, `end_date`) |
 | **Endpoint** | `PATCH /instruments/{instrument_id}` |
 | **Entrada** | `start_date` (date ISO 8601), `end_date` (date ISO 8601) |
-| **Descripción** | El Administrador puede definir o actualizar el periodo de vigencia. `start_date` debe ser estrictamente anterior a `end_date`. M4 usa este periodo para rechazar aplicaciones fuera del rango. |
+| **Descripción** | El SUPERADMIN puede definir o actualizar el periodo de vigencia. `start_date` debe ser estrictamente anterior a `end_date`. M4 usa este periodo para rechazar aplicaciones fuera del rango. |
 | **Resultado** | Periodo de vigencia actualizado. HTTP 200 con datos del instrumento. |
 
 > **Nota de implementación:** RF-M2-02 y RF-M2-03 comparten el endpoint `PATCH /instruments/{instrument_id}`. El body acepta cualquier combinación de `methodological_description`, `start_date` y `end_date`. Ambos campos se pueden actualizar en la misma petición.
@@ -223,11 +223,11 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `Instrument` (campo `is_active`) |
 | **Endpoint** | `PATCH /instruments/{instrument_id}/status` |
 | **Entrada** | `is_active` (boolean) |
-| **Descripción** | El Administrador puede cambiar el estado operativo del instrumento. Solo instrumentos en estado `is_active` pueden recibir nuevas aplicaciones en M4. |
+| **Descripción** | El SUPERADMIN puede cambiar el estado operativo del instrumento. Solo instrumentos en estado `is_active` pueden recibir nuevas aplicaciones en M4. |
 | **Resultado** | Estado actualizado. HTTP 200. |
 
 ---
@@ -236,11 +236,11 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `Instrument` |
 | **Endpoint** | `GET /instruments` |
 | **Entrada** | Query param opcional: `is_active` (boolean) |
-| **Descripción** | El Administrador consulta todos los instrumentos globales. Puede filtrar por estado. Este endpoint es para gestión, no para captura de datos. |
+| **Descripción** | El SUPERADMIN consulta todos los instrumentos globales. Puede filtrar por estado. Este endpoint es para gestión, no para captura de datos. |
 | **Resultado** | Lista de instrumentos globales. HTTP 200. |
 
 ---
@@ -262,11 +262,11 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Entidades** | `Project`, `Instrument` |
 | **Endpoint** | `POST /projects/{project_id}/instruments` |
 | **Entrada** | `instrument_id` (UUID) |
-| **Descripción** | El Administrador asigna un instrumento existente al proyecto. El instrumento debe existir y estar activo. |
+| **Descripción** | El SUPERADMIN asigna un instrumento existente al proyecto. El instrumento debe existir y estar activo. |
 | **Resultado** | Instrumento agregado al proyecto. HTTP 201. |
 
 ---
@@ -276,7 +276,7 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 | ID | Categoría | Descripción | Métrica verificable |
 |---|---|---|---|
 | RNF-M2-01 | Rendimiento | Los endpoints responden en tiempo razonable. | `GET /instruments` < 500 ms. `POST` y `PATCH` < 1 s. |
-| RNF-M2-02 | Seguridad | Endpoints requieren JWT válido y membresía al proyecto. | Sin token → 401. No miembro → 403. |
+| RNF-M2-02 | Seguridad | Endpoints requieren JWT valido. Los endpoints globales requieren rol SUPERADMIN. Los endpoints por proyecto requieren membresia. | Sin token → 401. No miembro → 403. |
 | RNF-M2-03 | Integridad | Unicidad del nombre por proyecto. Coherencia de fechas. | No duplicados en proyecto. `start_date >= end_date` → 400. |
 | RNF-M2-04 | Persistencia | Desactivar un instrumento no elimina ni modifica historial de M4. | Registros de `TestApplication` y `MetricValue` intactos tras cambio de estado. |
 | RNF-M2-05 | Mantenibilidad | Código modular. Permisos en archivo de configuración centralizado. Type hints en 100% de funciones. | Cobertura de tests ≥ 80%. Tabla de permisos en un único archivo de configuración. |
@@ -299,7 +299,7 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador, Investigador, Aplicador |
+| **Actor** | SUPERADMIN, Investigador, Aplicador |
 | **Entidades** | `Instrument`, `Metric` |
 | **Endpoint** | `GET /instruments/{id}` |
 | **Entrada** | UUID del instrumento (path param) |
@@ -310,7 +310,7 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Administrador |
+| **Actor** | SUPERADMIN |
 | **Descripción** | La interfaz de tabla de instrumentos debe proporcionar acciones consistentes: desactivar/activar (soft delete) y editar. Las acciones siguen el patrón: `PATCH /instruments/{id}/status` para desactivar, `PATCH /instruments/{id}` para editar. La gestión de métricas es responsabilidad de M3 y se accede desde la vista de detalle del instrumento. |
 | **Resultado** | Acciones visibles y accesibles desde la vista tabular. |
 
@@ -359,7 +359,7 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 | S1 | El usuario posee un JWT válido y activo emitido por M1. |
 | S2 | El middleware de M1 está operativo y accesible. |
 | S3 | PostgreSQL está operativo y las migraciones del módulo ejecutadas. |
-| S4 | Los roles (`administrator`, `researcher`, `applicator`) ya están definidos en M1. |
+| S4 | Los roles (`superadmin`, `researcher`, `applicator`) ya están definidos en M1. |
 | S5 | El frontend valida formatos de fecha antes de enviar, pero el backend valida independientemente. |
 
 ---
@@ -369,11 +369,11 @@ Proveer al sistema una capa de administración controlada y trazable de los inst
 ### HU6 – Crear instrumento *(RF-M2-01)*
 
 Se considera aceptado si:
-- El Administrador puede registrar un instrumento con nombre, descripción y fechas mediante `POST /instruments`.
+- El SUPERADMIN puede registrar un instrumento con nombre, descripción y fechas mediante `POST /instruments`.
 - El instrumento se crea con estado `is_active` por defecto.
 - HTTP 409 si ya existe un instrumento con el mismo nombre.
 - HTTP 400 si se envían fechas y `start_date >= end_date`.
-- HTTP 403 si el solicitante no es Administrador.
+- HTTP 403 si el solicitante no es SUPERADMIN.
 - HTTP 401 sin token JWT.
 - El instrumento aparece en `GET /instruments` inmediatamente tras la creación.
 - La respuesta sigue `{ status, message, data }`.
@@ -381,8 +381,8 @@ Se considera aceptado si:
 ### HU7 – Definir descripción metodológica *(RF-M2-02)*
 
 Se considera aceptado si:
-- El Administrador puede agregar o modificar `methodological_description` mediante `PATCH /instruments/{id}`.
-- HTTP 403 si el solicitante no es Administrador.
+- El SUPERADMIN puede agregar o modificar `methodological_description` mediante `PATCH /instruments/{id}`.
+- HTTP 403 si el solicitante no es SUPERADMIN.
 - HTTP 404 si el instrumento no existe.
 - HTTP 400 si la descripción está vacía.
 - El campo actualizado es visible en `GET /instruments` y en `GET /instruments/{id}`.
@@ -390,21 +390,21 @@ Se considera aceptado si:
 ### HU8 – Asociar periodo de aplicación *(RF-M2-03)*
 
 Se considera aceptado si:
-- El Administrador puede definir y actualizar `start_date` y `end_date` mediante `PATCH /instruments/{id}`.
+- El SUPERADMIN puede definir y actualizar `start_date` y `end_date` mediante `PATCH /instruments/{id}`.
 - HTTP 400 si `start_date >= end_date` o si el formato de fecha es inválido.
 - M4 rechaza aplicaciones cuya `application_date` está fuera del periodo `[start_date, end_date]`.
-- HTTP 403 si el solicitante no es Administrador.
+- HTTP 403 si el solicitante no es SUPERADMIN.
 - HTTP 404 si el instrumento no existe.
 
 ### HU9 – Activar / desactivar instrumento *(RF-M2-04)*
 
 Se considera aceptado si:
-- El Administrador puede cambiar el estado entre `is_active=true` y `is_active=false` mediante `PATCH /instruments/{id}/status`.
+- El SUPERADMIN puede cambiar el estado entre `is_active=true` y `is_active=false` mediante `PATCH /instruments/{id}/status`.
 - Los registros históricos de `TestApplication` y `MetricValue` en M4 no se modifican.
 - M4 retorna HTTP 422 al intentar registrar una aplicación con instrumento `inactive`.
 - El estado actualizado se refleja en `GET /instruments`.
 - HTTP 400 si el valor de `is_active` no es un boolean.
-- HTTP 403 si el solicitante no es Administrador.
+- HTTP 403 si el solicitante no es SUPERADMIN.
 - HTTP 404 si el instrumento no existe.
 
 ---
