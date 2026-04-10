@@ -70,7 +70,7 @@ Queda fuera del alcance de este documento todo lo relativo a fases posteriores: 
 | **Separación identidad/autenticación** | El user_id es inmutable y representa la identidad real del usuario. El correo es un atributo de autenticación que puede cambiar. Cambio de correo ≠ cambio de usuario. |
 | **MetricType** | Enumeración de tipos válidos para una métrica: `numeric`, `categorical`, `boolean`, `short_text`. |
 | **JWT** | JSON Web Token. Mecanismo para generar y validar tokens de sesión. |
-| **Access Token** | JWT de sesión única (6 h / 21 600 s) usado para autenticar todas las peticiones al API. La sesión termina por vencimiento natural, logout explícito o desactivación del usuario por el Administrador. |
+| **Access Token** | JWT de sesión única (6 h / 21 600 s) usado para autenticar todas las peticiones al API. La sesión termina por vencimiento natural, logout explícito o desactivación del usuario por el SUPERADMIN. |
 | **PEP** | Policy Enforcement Point. Middleware que intercepta toda solicitud antes de ejecutar lógica de negocio. |
 | **PA** | Policy Administrator. Evalúa token, rol y estado activo en cada petición. |
 | **PE** | Policy Engine. Lógica centralizada de validación JWT y verificación de permisos. |
@@ -145,8 +145,8 @@ FASES POSTERIORES (fuera del alcance)
 ### 2.5 Flujo General de Interacción
 
 ```bash
-Administrador
-  → Crea usuarios con rol (administrador / investigador / aplicador)
+SUPERADMIN
+  → Crea usuarios con rol (superadmin / investigador / aplicador)
   → Registra instrumentos metodológicos con descripción y periodo de vigencia
   → Define métricas por instrumento (tipo, rango, obligatoriedad)
 
@@ -172,7 +172,7 @@ Investigador
 | **Equipo de desarrollo** | Requisitos claros para implementar correctamente. | Implementar, probar e integrar conforme al SRS y estándares definidos. |
 | **Investigadores / responsables metodológicos** | Integridad y trazabilidad científica del dataset. | Validar instrumentos, métricas y flujo metodológico. |
 | **Profesionales aplicadores** | Sistema usable en campo para registrar aplicaciones. | Aplicar instrumentos y capturar datos conforme al protocolo. |
-| **Administrador del sistema** | Gestión operativa del sistema. | Crear usuarios, configurar instrumentos y métricas. |
+| **SUPERADMIN del sistema** | Gestión operativa del sistema. | Crear usuarios, configurar instrumentos y métricas. |
 | **Proyecto de IA (fases posteriores)** | Recibir un dataset de calidad científica. | Consumir el dataset producido por este sistema. |
 | **Testers / QA** | Criterios verificables para validar el sistema. | Diseñar y ejecutar pruebas funcionales, negativas y de integración. |
 
@@ -182,7 +182,7 @@ El sistema tiene tres roles globales que son mutuamente excluyentes:
 
 | Rol Global | Descripción | Capacidad base |
 | --- | --- | --- |
-| **Administrador** | Control total del sistema. | Crear/gestionar instrumentos y métricas globalmente, asignar instrumentos a proyectos, gestionar usuarios, acceder a audit_log. |
+| **SUPERADMIN** | Control total del sistema (operativo). | Crear/gestionar instrumentos y métricas globalmente, asignar instrumentos a proyectos, gestionar usuarios, acceder a audit_log. Solo ve estadisticas agregadas; no accede a datos detallados. |
 | **Investigador** | Usuario académico de lectura. | Asignado a proyectos para consultar y exportar datos. No puede crear instrumentos ni capturar datos. |
 | **Aplicador** | Profesional habilitado para aplicar instrumentos. | Asignado a proyectos para capturar datos. No puede crear instrumentos ni consultar datos. |
 
@@ -191,7 +191,7 @@ El sistema tiene tres roles globales que son mutuamente excluyentes:
 El **proyecto** es la unidad principal de aislamiento de datos. Cada proyecto tiene sus **instrumentos asignados** y sus **miembros**.
 
 ```
-Administrador
+SUPERADMIN
     │
     ├── Crea proyectos
     ├── Gestiona instrumentos/métricas (global)
@@ -206,7 +206,7 @@ Proyecto
 
 #### 3.3.1 Asignación de Instrumentos a Proyecto
 
-Los instrumentos se crean de manera **global** por el Administrador. Luego se asignan a los proyectos específicos.
+Los instrumentos se crean de manera **global** por el SUPERADMIN. Luego se asignan a los proyectos específicos.
 
 | Campo | Tipo | Descripción |
 |---|---|---|
@@ -257,7 +257,7 @@ El sistema implementa **soft delete** (eliminación lógica) para mantener traza
 | `User` | `state = DELETED` | Usuario no puede acceder. Trazabilidad en audit_log. Irreversible. |
 | `Instrument` | `is_active = false` | Instrumento no puede recibir nuevas aplicaciones. Historial M4 intacto. Reversible. |
 
-> **Instrumentos**: Al desactivar (`is_active=false`), el instrumento deja de aparecer en la lista de instrumentos disponibles del proyecto, pero todas las aplicaciones históricas permanecen intactas. El Administrador puede reactivarlo.
+> **Instrumentos**: Al desactivar (`is_active=false`), el instrumento deja de aparecer en la lista de instrumentos disponibles del proyecto, pero todas las aplicaciones históricas permanecen intactas. El SUPERADMIN puede reactivarlo.
 
 > **Usuarios**: Al eliminar (`state=DELETED`), el usuario pierde acceso al sistema. La operación es irreversible (debe crearse un nuevo usuario). Se registra en audit_log.
 
@@ -267,9 +267,9 @@ El sistema implementa separación entre identidad y autenticación. Cada usuario
 
 | Estado | Descripción | Acceso al sistema |
 | --- | --- | --- |
-| **PENDING** | Usuario creado, esperando activación por Magic Link. | Solo `POST /auth/activate` con Magic Link válido. |
+| **PENDING** | Usuario creado, esperando activacion por Magic Link. | Solo `GET /auth/activate/:token` con Magic Link valido. |
 | **ACTIVE** | Usuario con identidad verificada y autenticación vinculada. | Acceso completo según rol. |
-| **DISABLED** | Usuario deshabilitado por el Administrador. Sin acceso, reversible por el Administrador. | Ninguno. Puede reactivarse. |
+| **DISABLED** | Usuario deshabilitado por el SUPERADMIN. Sin acceso, reversible por el SUPERADMIN. | Ninguno. Puede reactivarse. |
 | **DELETED** | Usuario eliminado (soft delete). Sin acceso, con trazabilidad en audit_log. | Ninguno. Irreversible. |
 
 > **Nota:** Cambio de correo ≠ cambio de usuario. Cuando un usuario cambia su correo:
@@ -282,7 +282,7 @@ El sistema implementa separación entre identidad y autenticación. Cada usuario
 
 Esta tabla define los permisos a **nivel de sistema**:
 
-| Acción (Global)                   | Administrador | Investigador | Aplicador |
+| Acción (Global)                   | SUPERADMIN | Investigador | Aplicador |
 |-----------------------------------|:-------------:|:------------:|:---------:|
 | Crear instrumentos (global)        | ✓ | — | — |
 | Gestionar métricas (global)        | ✓ | — | — |
@@ -290,6 +290,9 @@ Esta tabla define los permisos a **nivel de sistema**:
 | Gestionar usuarios globales       | ✓ | — | — |
 | Agregar miembros a proyectos       | ✓ | — | — |
 | Ver audit_log                     | ✓ | — | — |
+| Consultar datos detallados (M5)   | — | ✓ | — |
+| Ver estadisticas agregadas (M5)   | ✓ | — | — |
+| Exportar datos (M6)               | — | ✓ | — |
 
 ---
 
@@ -354,7 +357,7 @@ Estos requisitos aplican a **todos los módulos**. Los SRS específicos de módu
 | RNF-SEC-11 | Rate limiting transversal: máximo 100 solicitudes por minuto por IP. | Endpoints retornan HTTP 429 al exceder límite. |
 | RNF-SEC-12 | Cifrado de datos sensibles por contexto. Datos cuasi-identificables (ContextData) cifrados con AES-256-GCM usando clave derivada del proyecto (HKDF). Datos críticos (auditoría) almacenados con hash irreversible (blake2b). | Verificación de cifrado en reposo. Clave maestra en Docker Secrets. |
 | RNF-SEC-13 | Logging estructurado en formato JSON con contexto de auditoría. | Todos los logs incluyen timestamp, user_id, action, project_id, contexto. |
-| RNF-SEC-14 | Protección último administrador: el sistema impide desactivación del último usuario con rol administrator. | Endpoint retorna HTTP 409 si se intenta desactivar el último admin. |
+| RNF-SEC-14 | Proteccion ultimo SUPERADMIN: el sistema impide desactivacion del ultimo usuario con rol superadmin. | Endpoint retorna HTTP 409 si se intenta desactivar el ultimo SUPERADMIN. |
 | RNF-SEC-15 | Aislamiento de datos por proyecto. Cada proyecto tiene clave derivada independiente. | Un proyecto comprometido no afecta datos de otros proyectos. |
 | RNF-SEC-16 | La clave maestra nunca se almacena en código fuente ni variables de entorno. | Solo Docker Secrets. Auditoría de código confirma ausencia. |
 
@@ -404,7 +407,7 @@ Estos requisitos aplican a **todos los módulos**. Los SRS específicos de módu
 | `Project` | M1 | Proyecto que agrupa datos. Cada proyecto tiene instrumentos asignados y miembros. |
 | `ProjectMember` | M1 | Relación usuario-proyecto. Define qué proyectos puede acceder el usuario. |
 | `Dataset` | M1 | Conjunto de datos (aplicaciones, valores) de un proyecto. |
-| `Role` | M1 | Rol global: `administrator`, `researcher`, `applicator`. |
+| `Role` | M1 | Rol global: `superadmin`, `researcher`, `applicator`. |
 | `Session` | M1 | Sesiones activas de usuarios con timestamp. |
 | `AuditLog` | M1 | Eventos de seguridad: login, logout, accesos denegados, cambios de estado. |
 | `Instrument` | M2 | Instrumento metodológico global con nombre único, descripción, periodo de vigencia y estado. Se asigna a proyectos. |
@@ -526,9 +529,9 @@ El sistema implementa **logging estructurado en JSON** para auditoría y complia
 | Cambio de correo | Usuario | ✓ | — | ✓ |
 | Sincronización con broker | Sistema | ✓ | — | ✓ |
 | Acceso a dataset | Datos | ✓ | ✓ | ✓ |
-| Creación de proyecto | Admin | ✓ | ✓ | ✓ |
-| Asignación de instrumento a proyecto | Admin | ✓ | ✓ | ✓ |
-| Agregar miembro a proyecto | Admin | ✓ | ✓ | ✓ |
+| Creacion de proyecto | SUPERADMIN | ✓ | ✓ | ✓ |
+| Asignacion de instrumento a proyecto | SUPERADMIN | ✓ | ✓ | ✓ |
+| Agregar miembro a proyecto | SUPERADMIN | ✓ | ✓ | ✓ |
 | Registro de sujeto | Datos | ✓ | ✓ | ✓ |
 | Registro de aplicación | Datos | ✓ | ✓ | ✓ |
 | Captura de métricas | Datos | ✓ | ✓ | ✓ |
@@ -549,7 +552,7 @@ El sistema implementa **logging estructurado en JSON** para auditoría y complia
   "ip_address": "192.168.1.100",
   "user_agent": "Mozilla/5.0...",
   "metadata": {
-    "role": "administrator",
+    "role": "superadmin",
     "method": "keycloak"
   }
 }
@@ -606,7 +609,7 @@ Esto permite responder a auditorías de compliance preguntando: "¿qué happened
 La interfaz web expone al menos:
 
 - Formulario de inicio de sesión.
-- Panel de administración: gestión de usuarios, instrumentos y métricas.
+- Panel de administracion: gestion de usuarios, instrumentos y metricas.
 - Formulario dinámico de captura de métricas (adapta campos según `MetricType`).
 - Formulario de registro de sujetos y aplicaciones.
 - Tabla paginada de aplicaciones con filtros por instrumento y periodo.
@@ -645,7 +648,7 @@ La interfaz web expone al menos:
 |---|---|
 | **Anonimización obligatoria** | Los sujetos se registran exclusivamente mediante UUID. Sin PII bajo ninguna circunstancia. |
 | **Roles fijos** | Los tres roles son fijos en esta versión. Sin gestión granular de permisos. |
-| **Solo el admin crea usuarios** | No existe registro público. Solo el Administrador crea cuentas. |
+| **Solo el SUPERADMIN crea usuarios** | No existe registro publico. Solo el SUPERADMIN crea cuentas. |
 | **Sin eliminación permanente** | Usuarios, instrumentos y todos los registros históricos son inactivables, no eliminables. |
 | **Backend en Python** | Python 3.11+, FastAPI, SQLAlchemy, Alembic. |
 | **Base de datos** | PostgreSQL exclusivamente. Sin otro motor en esta versión. |
@@ -669,12 +672,12 @@ La interfaz web expone al menos:
 
 El sistema se considera funcionalmente aceptado cuando el siguiente escenario de punta a punta puede ejecutarse completamente sin errores críticos:
 
-1. El administrador crea un usuario Investigador y un usuario Aplicador.
+1. El SUPERADMIN crea un usuario Investigador y un usuario Aplicador.
 2. Ambos usuarios se autentican correctamente y reciben un access token (6 h).
 3. Un token expirado es rechazado con 401; el usuario debe autenticarse nuevamente con sus credenciales.
 4. El aplicador cambia su contraseña tras validar correctamente la contraseña actual.
-5. El administrador registra un instrumento con descripción y periodo de vigencia.
-6. El administrador define métricas para el instrumento (tipo, rango, obligatoriedad).
+5. El SUPERADMIN registra un instrumento con descripcion y periodo de vigencia.
+6. El SUPERADMIN define metricas para el instrumento (tipo, rango, obligatoriedad).
 7. El aplicador registra un sujeto MOCK con UUID automático, sin datos PII.
 8. El aplicador registra datos contextuales no identificables para el sujeto.
 9. El aplicador registra la aplicación del instrumento al sujeto.
@@ -738,7 +741,7 @@ Todos los secretos se gestionan via **Docker Secrets**:
 - Credenciales PostgreSQL (principal, réplica, Keycloak)
 - Clave maestra de cifrado (AES-256)
 - Clave JWT
-- Credenciales admin Keycloak
+- Credenciales SUPERADMIN Keycloak
 
 ### 10.6 Modos de Ejecución
 
@@ -773,7 +776,7 @@ Estrategia **Blue/Green**: el entorno activo continúa operando mientras el ento
 |---|---|---|---|---|
 | RF-M1-01 | HU1 – Crear usuario | M1 | `User`, `MagicLink` | `POST /users` |
 | RF-M1-02 | HU2 – Gestionar estado de usuario | M1 | `User` | `PATCH /users/{user_id}/status` |
-| RF-M1-03 | HU3 – Login / Activar con Magic Link | M1 | `User`, `MagicLink` | `POST /auth/login` · `POST /auth/activate` |
+| RF-M1-03 | HU3 – Login / Activar con Magic Link | M1 | `User`, `MagicLink` | `POST /auth/login` · `GET /auth/activate/:token` |
 | RF-M1-04 | HU4 – Cerrar sesión | M1 | `AuditLog`, Token blacklist | `POST /auth/logout` |
 | RF-M1-05 | HU5 – Restringir por rol | M1 | `Role` | Middleware `/api/v1/*` |
 | RF-M1-06 | Cambiar correo electrónico | M1 | `User`, `MagicLink`, `revoked_tokens` | `PATCH /users/{user_id}/email` |
@@ -828,7 +831,7 @@ El sistema captura datos de **sujetos menores de edad** (potencialmente) en cont
 | **Restricción de additional_attributes** | Máx 5 claves, sin campos de PII conocidos, límites de tamaño | `mock/src/routes/m4.js` + lista negra |
 | **Validación de age_cohort** | Solo rangos (`N-N`), no edades exactas | Regex `^\d+-\d+$`, max 20 chars |
 | **Separación de identidad** | Ninguna tabla vincula UUID de sujeto con PII real | Diseño de BD |
-| **Control de acceso** | Solo Aplicador/Administrador acceden a datos de sujetos | RBAC en todos los endpoints M4 |
+| **Control de acceso** | Solo Aplicador/SUPERADMIN acceden a datos de sujetos | RBAC en todos los endpoints M4 |
 | **Audit log** | Registro de accesos a datos de usuarios para compliance | `store.auditLog` + `GET /audit-log` |
 
 ### 12.4 Restricciones de Producción (Pendientes)
