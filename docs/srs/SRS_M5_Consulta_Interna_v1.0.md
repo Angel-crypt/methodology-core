@@ -101,14 +101,14 @@ M4 – Registro Operativo                                    │
 
 | Dependencia | Tipo | Detalle |
 |---|---|---|
-| **M1 – Autenticación** | Consumidor | El middleware JWT de M1 debe estar operativo. Solo Investigador y Administrador pueden consultar. |
+| **M1 – Autenticacion** | Consumidor | El middleware JWT de M1 debe estar operativo. Investigador consulta detalle; SUPERADMIN solo estadisticas agregadas. |
 | **M4 – Registro Operativo** | Consumidor | Los datos consultados son los generados por M4: `TestApplication`, `MetricValue`, `Subject`, `ContextData`, `Instrument`, `Metric`. |
 | **PostgreSQL** | Infraestructura | Las consultas se ejecutan contra la base de datos compartida del sistema. |
 
 ### 2.5 Flujo General de Interacción
 
 ```
-Investigador o Administrador
+Investigador o SUPERADMIN (estadisticas)
   → Se autentica en M1 → obtiene token JWT
   → GET /applications (paginado, sin filtros) → revisa listado general
   → GET /applications?instrument_id={id} → revisa aplicaciones de un instrumento
@@ -133,7 +133,7 @@ Investigador o Administrador
 
 | Tipo | Descripción | Nivel de acceso | Funcionalidades que utiliza |
 |---|---|---|---|
-| **Administrador** | Control total del sistema. | Solo lectura en M5. | Consulta paginada, filtros por instrumento y por periodo. |
+| **SUPERADMIN** | Control operativo del sistema. | Solo lectura agregada. | Estadisticas agregadas del dataset. |
 | **Investigador** | Usuario académico de consulta. | Solo lectura. | Consulta paginada, filtros por instrumento y por periodo. |
 | **Aplicador** | Profesional de campo. | Sin acceso a M5. | No puede consultar el dataset. |
 
@@ -147,7 +147,8 @@ Permitir la revisión estructurada y filtrable del dataset de aplicaciones regis
 
 ### 4.2 Funcionalidades Principales
 
-- Listado paginado de aplicaciones con sus valores de métricas asociados.
+- Listado paginado de aplicaciones con sus valores de metricas asociados (solo Investigador).
+- Estadisticas agregadas del dataset (solo SUPERADMIN).
 - Filtrado por instrumento metodológico (`instrument_id`).
 - Filtrado por rango de fechas de aplicación (`start_date`, `end_date`).
 - Combinación de ambos filtros en una misma consulta.
@@ -176,7 +177,7 @@ Permitir la revisión estructurada y filtrable del dataset de aplicaciones regis
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Investigador / Administrador |
+| **Actor** | Investigador |
 | **Entidades** | `TestApplication`, `MetricValue`, `Subject`, `Instrument`, `Metric` |
 | **Endpoint** | `GET /applications` |
 | **Entrada** | `page` (integer, opcional, default: 1), `page_size` (integer, opcional, default: 20, máx: 100) |
@@ -208,7 +209,7 @@ Permitir la revisión estructurada y filtrable del dataset de aplicaciones regis
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Investigador / Administrador |
+| **Actor** | Investigador |
 | **Entidades** | `TestApplication`, `Instrument` |
 | **Endpoint** | `GET /applications?instrument_id={id}` |
 | **Entrada** | `instrument_id` (UUID, query param), más los parámetros de paginación de RF-M5-01 |
@@ -221,7 +222,7 @@ Permitir la revisión estructurada y filtrable del dataset de aplicaciones regis
 
 | Campo | Detalle |
 |---|---|
-| **Actor** | Investigador / Administrador |
+| **Actor** | Investigador |
 | **Entidades** | `TestApplication` |
 | **Endpoint** | `GET /applications?start_date={date}&end_date={date}` |
 | **Entrada** | `start_date` (date ISO 8601, query param), `end_date` (date ISO 8601, query param), más parámetros de paginación |
@@ -236,7 +237,7 @@ Permitir la revisión estructurada y filtrable del dataset de aplicaciones regis
 |---|---|---|---|
 | RNF-M5-01 | Rendimiento | Las consultas responden en tiempo razonable con el volumen esperado. | `GET /applications` con hasta 1,000 registros: < 2 segundos. |
 | RNF-M5-02 | Rendimiento | La paginación evita respuestas de gran volumen. | `page_size` máximo: 100. Solicitudes con `page_size > 100` retornan 400. |
-| RNF-M5-03 | Seguridad | Solo Investigador y Administrador pueden acceder. | Aplicador → 403. Sin token → 401. |
+| RNF-M5-03 | Seguridad | Investigador puede consultar detalle. SUPERADMIN solo estadisticas agregadas. | Aplicador → 403. Sin token → 401. |
 | RNF-M5-04 | Integridad | El módulo es de solo lectura. No modifica ningún dato. | 0 operaciones de escritura en la base de datos originadas por este módulo. |
 | RNF-M5-05 | Integridad | Los filtros no retornan datos de otros instrumentos o periodos. | Verificable en pruebas de aislamiento de filtros. |
 | RNF-M5-06 | Integridad | Las respuestas no exponen PII de los sujetos. | Solo UUID en el campo `subject_id`. Sin nombre, CURP ni ningún campo identificable. |
@@ -256,7 +257,8 @@ Permitir la revisión estructurada y filtrable del dataset de aplicaciones regis
 
 ### 7.2 Interfaces de Usuario
 
-- Tabla paginada de aplicaciones con columnas: sujeto (UUID), instrumento, fecha, valores de métricas.
+- Tabla paginada de aplicaciones con columnas: sujeto (UUID), instrumento, fecha, valores de metricas (solo Investigador).
+- Panel de estadisticas agregadas para SUPERADMIN (sin detalle de aplicaciones).
 - Selector de instrumento para filtrar el listado.
 - Selector de rango de fechas (fecha inicio / fecha fin) para filtrar.
 - Controles de paginación: número de página, registros por página, total de resultados.
@@ -335,6 +337,15 @@ Permitir la revisión estructurada y filtrable del dataset de aplicaciones regis
 | CA-HU20-05 | Formato de fecha inválido. | HTTP 400 con mensaje descriptivo. |
 | CA-HU20-06 | Rango válido pero sin aplicaciones en ese periodo. | HTTP 200 con listado vacío y `total_records = 0`. |
 
+### HU21 – Estadisticas agregadas *(RF-M5-STATS)*
+
+| ID | Criterio | Resultado esperado |
+|---|---|---|
+| CA-HU21-01 | SUPERADMIN autenticado consulta `GET /applications/stats`. | Respuesta con conteos agregados. HTTP 200. |
+| CA-HU21-02 | La respuesta no incluye datos detallados de aplicaciones ni sujetos. | Sin `subject_id`, sin `metric_values`, sin detalles de aplicacion. |
+| CA-HU21-03 | Aplicador intenta acceder. | HTTP 403 Forbidden. |
+| CA-HU21-04 | Sin token JWT. | HTTP 401 Unauthorized. |
+
 ---
 
 ## 10. Trazabilidad de Requisitos
@@ -344,6 +355,7 @@ Permitir la revisión estructurada y filtrable del dataset de aplicaciones regis
 | RF-M5-01 | HU18 – Consultar aplicaciones | `TestApplication`, `MetricValue`, `Subject`, `Instrument`, `Metric` | `GET /applications` | CA-HU18-01 a 07 |
 | RF-M5-02 | HU19 – Filtrar por instrumento | `TestApplication`, `Instrument` | `GET /applications?instrument_id=` | CA-HU19-01 a 04 |
 | RF-M5-03 | HU20 – Filtrar por periodo | `TestApplication` | `GET /applications?start_date=&end_date=` | CA-HU20-01 a 06 |
+| RF-M5-STATS | HU21 – Estadisticas agregadas | `TestApplication` | `GET /applications/stats` | CA-HU21-01 a 04 |
 
 ---
 
