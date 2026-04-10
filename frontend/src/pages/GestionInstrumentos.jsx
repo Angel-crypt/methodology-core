@@ -69,6 +69,81 @@ const METRIC_TYPES = [
 
 const TIPO_LABELS = Object.fromEntries(METRIC_TYPES.map((t) => [t.value, t.label]))
 
+// ── Componente reutilizable: chip-input de etiquetas con catálogo clicable ────
+function TagChipInput({ label, inputId, tags, tagInput, catalog, onAdd, onRemove, onInputChange, onKeyDown }) {
+  const available = catalog.filter((t) => !tags.includes(t))
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+      <label htmlFor={inputId} className="field-label">{label}</label>
+      {/* Chips seleccionados + input */}
+      <div
+        style={{
+          display: 'flex', flexWrap: 'wrap', gap: 'var(--space-1)',
+          padding: 'var(--space-1) var(--space-2)',
+          border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+          background: 'var(--color-surface)', alignItems: 'center',
+        }}
+      >
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)',
+              padding: '2px var(--space-2)',
+              background: 'var(--color-info-bg)', color: 'var(--color-info-text)',
+              borderRadius: 'var(--radius-pill)', fontSize: 'var(--font-size-small)',
+            }}
+          >
+            {tag}
+            <button
+              type="button"
+              style={{ padding: 0, height: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', lineHeight: 1 }}
+              onClick={() => onRemove(tag)}
+              aria-label={`Quitar ${tag}`}
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          </span>
+        ))}
+        <input
+          id={inputId}
+          className="input-base"
+          style={{ flex: 1, minWidth: 120, border: 'none', boxShadow: 'none', padding: 'var(--space-1)' }}
+          placeholder={tags.length === 0 ? 'Añade etiquetas (Enter o coma)' : ''}
+          value={tagInput}
+          onChange={(e) => onInputChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          onBlur={() => tagInput && onAdd(tagInput)}
+        />
+      </div>
+      {/* Etiquetas del catálogo disponibles para reutilizar */}
+      {available.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-1)', marginTop: 'var(--space-1)' }}>
+          <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)', alignSelf: 'center', marginRight: 'var(--space-1)' }}>
+            Existentes:
+          </span>
+          {available.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => onAdd(t)}
+              style={{
+                padding: '2px var(--space-2)',
+                background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)',
+                border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-pill)',
+                fontSize: 'var(--font-size-caption)', cursor: 'pointer',
+              }}
+            >
+              +{t}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="field-helper">Las etiquetas ayudan a agrupar instrumentos por dominio o nivel.</p>
+    </div>
+  )
+}
+
 function emptyMetricForm() {
   return { name: '', metric_type: 'numeric', required: true, description: '', min_value: '', max_value: '', options: '' }
 }
@@ -342,6 +417,7 @@ function GestionInstrumentos() {
         message: `"${res.data.name}" registrado con ${metricasCrear.length} métrica${metricasCrear.length > 1 ? 's' : ''}.`,
       })
       cerrarModalCrear()
+      cargarTags()
     } catch {
       setErrorApiCrear('No se pudo conectar con el servidor.')
     } finally {
@@ -376,10 +452,34 @@ function GestionInstrumentos() {
       methodological_description: instrumento.methodological_description || '',
       start_date: instrumento.start_date || '',
       end_date: instrumento.end_date || '',
+      tags: [...(instrumento.tags || [])],
+      tagInput: '',
+      min_days_between_applications: instrumento.min_days_between_applications ?? 0,
     })
     setErroresEditar({})
     setErrorApiEditar('')
     setModalEditar(true)
+  }
+
+  function addTagEditar(raw) {
+    const norm = (raw || '').trim().toLowerCase()
+    if (!norm) return
+    setFormEditar((prev) =>
+      prev.tags.includes(norm)
+        ? { ...prev, tagInput: '' }
+        : { ...prev, tags: [...prev.tags, norm], tagInput: '' }
+    )
+  }
+  function removeTagEditar(tag) {
+    setFormEditar((prev) => ({ ...prev, tags: prev.tags.filter((t) => t !== tag) }))
+  }
+  function handleTagInputKeyDownEditar(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      addTagEditar(formEditar.tagInput)
+    } else if (e.key === 'Backspace' && formEditar.tagInput === '' && formEditar.tags.length > 0) {
+      removeTagEditar(formEditar.tags[formEditar.tags.length - 1])
+    }
   }
 
   function cambiarEditar(campo) {
@@ -409,6 +509,8 @@ function GestionInstrumentos() {
 
     const body = {
       methodological_description: formEditar.methodological_description.trim(),
+      tags: formEditar.tags,
+      min_days_between_applications: Number(formEditar.min_days_between_applications) || 0,
     }
     if (formEditar.start_date) body.start_date = formEditar.start_date
     if (formEditar.end_date) body.end_date = formEditar.end_date
@@ -421,6 +523,7 @@ function GestionInstrumentos() {
         )
         toast({ type: 'success', title: 'Instrumento actualizado', message: 'Los cambios se guardaron correctamente.' })
         cerrarModalEditar()
+        cargarTags()
       } else {
         setErrorApiEditar(res.message || 'Error al actualizar el instrumento.')
       }
@@ -858,72 +961,18 @@ function GestionInstrumentos() {
               </div>
             </div>
 
-            {/* Etiquetas: chip-input con sugerencias del catálogo */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-              <label htmlFor="crear-tags" className="field-label">
-                Etiquetas
-              </label>
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 'var(--space-1)',
-                  padding: 'var(--space-1) var(--space-2)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--color-surface)',
-                  alignItems: 'center',
-                }}
-              >
-                {formCrear.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-1)',
-                      padding: '2px var(--space-2)',
-                      background: 'var(--color-info-bg)',
-                      color: 'var(--color-info-text)',
-                      borderRadius: 'var(--radius-pill)',
-                      fontSize: 'var(--font-size-small)',
-                    }}
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      className="btn btn-icon"
-                      style={{ padding: 0, height: 'auto', color: 'inherit' }}
-                      onClick={() => removeTagCrear(tag)}
-                      aria-label={`Quitar ${tag}`}
-                    >
-                      <X size={12} aria-hidden="true" />
-                    </button>
-                  </span>
-                ))}
-                <input
-                  id="crear-tags"
-                  list="crear-tags-suggestions"
-                  className="input-base"
-                  style={{ flex: 1, minWidth: 120, border: 'none', boxShadow: 'none', padding: 'var(--space-1)' }}
-                  placeholder={formCrear.tags.length === 0 ? 'Añade etiquetas (Enter o coma)' : ''}
-                  value={formCrear.tagInput}
-                  onChange={(e) => setFormCrear((prev) => ({ ...prev, tagInput: e.target.value }))}
-                  onKeyDown={handleTagInputKeyDownCrear}
-                  onBlur={() => formCrear.tagInput && addTagCrear(formCrear.tagInput)}
-                />
-                <datalist id="crear-tags-suggestions">
-                  {tagCatalog
-                    .filter((t) => !formCrear.tags.includes(t))
-                    .map((t) => (
-                      <option key={t} value={t} />
-                    ))}
-                </datalist>
-              </div>
-              <p className="field-helper">
-                Las etiquetas ayudan a agrupar instrumentos por dominio o nivel.
-              </p>
-            </div>
+            {/* Etiquetas */}
+            <TagChipInput
+              label="Etiquetas"
+              inputId="crear-tags"
+              tags={formCrear.tags}
+              tagInput={formCrear.tagInput}
+              catalog={tagCatalog}
+              onAdd={addTagCrear}
+              onRemove={removeTagCrear}
+              onInputChange={(v) => setFormCrear((prev) => ({ ...prev, tagInput: v }))}
+              onKeyDown={handleTagInputKeyDownCrear}
+            />
 
             {/* Días mínimos entre aplicaciones */}
             <FormField
@@ -1181,6 +1230,34 @@ function GestionInstrumentos() {
               error={erroresEditar.end_date}
             />
           </div>
+
+          <TagChipInput
+            label="Etiquetas"
+            inputId="editar-tags"
+            tags={formEditar.tags}
+            tagInput={formEditar.tagInput}
+            catalog={tagCatalog}
+            onAdd={addTagEditar}
+            onRemove={removeTagEditar}
+            onInputChange={(v) => setFormEditar((prev) => ({ ...prev, tagInput: v }))}
+            onKeyDown={handleTagInputKeyDownEditar}
+          />
+
+          <FormField
+            id="editar-min-days"
+            label="Días mínimos entre aplicaciones"
+            type="number"
+            min="0"
+            step="1"
+            value={formEditar.min_days_between_applications}
+            onChange={(e) =>
+              setFormEditar((prev) => ({
+                ...prev,
+                min_days_between_applications: e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0),
+              }))
+            }
+            helper="0 = sin restricción."
+          />
         </div>
       </Modal>
 
