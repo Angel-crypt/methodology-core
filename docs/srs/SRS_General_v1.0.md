@@ -92,6 +92,10 @@ Queda fuera del alcance de este documento todo lo relativo a fases posteriores: 
 | [MockContract_M2_Gestion_Instrumentos_v2](../../mock/responses/MockContract_M2_Gestion_Instrumentos_v2.xml) | Contrato de mock server M2 |
 | [MockContract_M3_Metricas_v1](../../mock/responses/MockContract_M3_Metricas_v1.xml) | Contrato de mock server M3 |
 | [MockContract_M4_RegistroOperativo_v1](../../mock/responses/MockContract_M4_RegistroOperativo_v1.xml) | Contrato de mock server M4 |
+| [Plan inicial de desarrollo backend](../../backend/docs/PLAN_INICIAL_DESARROLLO.md) | Guia operativa para el arranque del backend |
+| [Guia mock server](../../mock/GUIA_IMPLEMENTACION_MOCK_SERVER.md) | Referencia de implementacion y contratos del mock |
+| [Guia despliegue mock server](../../mock/GUIA_DESPLIEGUE_MOCK_SERVER.md) | Instrucciones de despliegue del mock |
+| [Despliegue K3s](../../deploy/k3s/) | Manifiestos K3s por entorno |
 
 ### 1.5 Estructura del Documento
 
