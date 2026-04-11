@@ -225,3 +225,18 @@ backend/
 - Criterios de aceptacion centralizados
 - M5/M6 explicitamente fuera de alcance actual
 - Arquitectura de despliegue valida para K3s
+
+## 15. Plan inicial de desarrollo
+
+Ver `backend/docs/PLAN_INICIAL_DESARROLLO.md`.
+
+## 15.1 Inicio rapido (10 minutos)
+
+Ver `backend/README.md`.
+
+## 16. Referencias de contratos y despliegue
+
+- Contratos mock: `mock/responses/MockContract_M1_Autenticacion_v2.xml`, `mock/responses/MockContract_M2_Gestion_Instrumentos_v2.xml`, `mock/responses/MockContract_M3_Metricas_v1.xml`, `mock/responses/MockContract_M4_RegistroOperativo_v1.xml`.
+- Guia mock server: `mock/README.md`, `mock/GUIA_IMPLEMENTACION_MOCK_SERVER.md`, `mock/GUIA_DESPLIEGUE_MOCK_SERVER.md`.
+- Despliegue K3s: `deploy/k3s/base/`, `deploy/k3s/overlays/mock/`, `deploy/k3s/overlays/real/`.
+- Arquitectura: `docs/architecture/ARQUITECTURA_DESPLIEGUE.md`.
