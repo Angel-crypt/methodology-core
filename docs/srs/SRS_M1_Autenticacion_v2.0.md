@@ -605,7 +605,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | Componente | Descripción |
 |---|---|
 | **FastAPI** | Framework web. Expone los endpoints REST. |
-| **python-jose** | Generación y validación de tokens JWT HS256. |
+| **PyJWT** | Generacion y validacion de tokens JWT HS256. |
 | **SQLAlchemy + PostgreSQL** | ORM y base de datos para `users`, `magic_links` y `revoked_tokens`. |
 | **Alembic** | Migraciones del esquema de las tablas del módulo. |
 | **Pydantic** | Validación de esquemas de entrada y salida. |
@@ -659,7 +659,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | CA-HU1-02 | Se intenta crear un usuario con correo ya registrado. | HTTP 409 Conflict. No se crea duplicado. |
 | CA-HU1-03 | Se intenta crear un usuario con rol no definido en el sistema. | HTTP 400 Bad Request con mensaje descriptivo. |
 | CA-HU1-04 | Se intenta crear usuario sin estar autenticado como SUPERADMIN. | HTTP 403 Forbidden. |
-| CA-HU1-05 | El usuario en estado PENDING intenta activarse. | Magic Link válido → `state=ACTIVE`, vinculación con broker. |
+| CA-HU1-05 | El usuario en estado PENDING intenta activarse. | Magic Link válido → `state=ACTIVE`, redirección a login OIDC sin emitir JWT. |
 
 **Stack técnico:** `POST /api/v1/users` · tabla `users` (user_id, state) · tabla `magic_links`.
 
@@ -683,7 +683,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 | CA-HU3-02 | Usuario en estado PENDING intenta login. | HTTP 401. Debe usar Magic Link primero. |
 | CA-HU3-03 | Usuario con estado DISABLED o DELETED intenta login. | HTTP 401 Unauthorized con mensaje genérico. |
 | CA-HU3-04 | Correo no registrado en sistema. | HTTP 401. El usuario no existe en backend. |
-| CA-HU3-05 | Usuario activa con Magic Link válido. | `state=ACTIVE`, `broker_subject` vinculado, JWT emitido. |
+| CA-HU3-05 | Usuario activa con Magic Link válido. | `state=ACTIVE`, redirección a login OIDC, sin JWT emitido. |
 | CA-HU3-06 | Magic Link expirado o usado. | HTTP 400. Link inválido. |
 
 **Stack tecnico:** `POST /api/v1/auth/login` · HS256 con Kubernetes Secret · Keycloak broker · Rate limiting.
