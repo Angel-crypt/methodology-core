@@ -73,7 +73,11 @@ Quedan **fuera del alcance**: recuperación de contraseña, registro público de
 - `SRS_General_v1.0.md` — Especificación general del sistema.
 - `MockContract_M1_Autenticacion_v2.xml` — Contrato de mock server del módulo (v2.2).
 - `Módulos_del_Sistema_y_Tareas_Asociadas.docx` — Backlog con HU1–HU5.
+- `../../backend/docs/PLAN_INICIAL_DESARROLLO.md` — Plan inicial de desarrollo backend.
 - `M1_Autenticacion.docx` — Documento original de scope del módulo.
+- `../../mock/GUIA_IMPLEMENTACION_MOCK_SERVER.md` — Guia de implementacion del mock.
+- `../../mock/GUIA_DESPLIEGUE_MOCK_SERVER.md` — Despliegue del mock.
+- `../../deploy/k3s/` — Manifiestos K3s.
 
 ### 1.5 Estructura del Documento
 
