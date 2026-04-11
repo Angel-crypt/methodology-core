@@ -9,7 +9,7 @@ Formato: dado [contexto], cuando [accion], entonces [resultado esperado].
 
 ### Magic Link
 
-CA-MAGIC-01: Dado un usuario `pending`, cuando consume un Magic Link valido dentro del TTL, entonces queda `active` y se vincula `keycloak_sub` al `user_id`.
+CA-MAGIC-01: Dado un usuario `pending`, cuando consume un Magic Link valido dentro del TTL, entonces queda `active` y se redirige a login OIDC sin emitir JWT.
 Test: `test_magic_link_activates_pending_user`
 
 CA-MAGIC-02: Dado un Magic Link ya usado, cuando se reintenta, entonces retorna `410`.
@@ -54,7 +54,7 @@ Test: `test_permissions_served_from_cache_without_db_query`
 CA-ACCESS-03: Dado cache miss, cuando consulta DB, entonces cachea permisos para siguiente request.
 Test: `test_permissions_cached_after_db_fallback`
 
-CA-ACCESS-04: Dado cambio administrativo de rol/permisos, cuando se aplica, entonces invalida cache explicita.
+CA-ACCESS-04: Dado cambio de rol/permisos por SUPERADMIN, cuando se aplica, entonces invalida cache explicita.
 Test: `test_permission_change_invalidates_cache`
 
 ## Cifrado y proteccion
@@ -70,8 +70,8 @@ Test: `test_derived_keys_not_persisted_anywhere`
 
 ## Auditoria
 
-CA-AUDIT-01: Dada accion administrativa, cuando se ejecuta, entonces genera log JSON con `user_id`, `project_id` (si aplica), accion y timestamp.
-Test: `test_admin_action_produces_structured_log`
+CA-AUDIT-01: Dada accion de SUPERADMIN, cuando se ejecuta, entonces genera log JSON con `user_id`, `project_id` (si aplica), accion y timestamp.
+Test: `test_superadmin_action_produces_structured_log`
 
 CA-AUDIT-02: Dado login fallido, cuando ocurre, entonces se registra sin token completo ni secretos.
 Test: `test_failed_login_logged_without_sensitive_data`
