@@ -1,17 +1,53 @@
 from __future__ import annotations
 
-# security.py
-# Módulo: core
-# Responsabilidad: utilidades de seguridad JWT y validación de estado
-# Criterios de aceptación relacionados: CA-STATE-01, CA-MAGIC-01
-# Ver: backend/docs/ACCEPTANCE_CRITERIA.md
-#
-# TODO: implementar según BACKEND_SPEC.md sección 4
+import uuid
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import jwt
+from jwt.exceptions import InvalidTokenError
+
+from app.config import settings
 
 
-def create_access_token() -> str:
-    raise NotImplementedError
+def _load_jwt_secret() -> str:
+    secret_file = Path(settings.jwt_secret_file)
+    if secret_file.exists():
+        return secret_file.read_text(encoding="utf-8").strip()
+    import os
+    secret = os.environ.get("JWT_SECRET")
+    if secret:
+        return secret
+    return "development-secret-do-not-use-in-production"
 
 
-def decode_access_token() -> dict[str, object]:
-    raise NotImplementedError
+def create_access_token(user_id: str, role: str) -> tuple[str, datetime]:
+    now = datetime.utcnow()
+    exp = now + timedelta(seconds=settings.jwt_expire_seconds)
+    jti = uuid.uuid4()
+
+    payload = {
+        "user_id": user_id,
+        "role": role,
+        "iat": int(now.timestamp()),
+        "exp": int(exp.timestamp()),
+        "jti": str(jti),
+    }
+
+    secret = _load_jwt_secret()
+    token = jwt.encode(payload, secret, algorithm=settings.jwt_algorithm)
+    return token, exp
+
+
+def decode_access_token(token: str) -> dict:
+    secret = _load_jwt_secret()
+    try:
+        payload = jwt.decode(
+            token,
+            secret,
+            algorithms=[settings.jwt_algorithm],
+            options={"verify_exp": True},
+        )
+        return payload
+    except InvalidTokenError as e:
+        raise ValueError(f"Invalid token: {e}")

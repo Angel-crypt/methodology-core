@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.config import settings
 from app.db.base import Base
+from app.db.models import MagicLink, RevokedToken, User  # noqa: F401
 
 config = context.config
 sync_database_url = settings.database_url.replace("+asyncpg", "+psycopg")
