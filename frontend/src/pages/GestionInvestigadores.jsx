@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import PropTypes from 'prop-types'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Power, RotateCcw, Search } from 'lucide-react'
 import {
@@ -14,6 +13,7 @@ import {
   ToastContainer,
   PillToggle,
   Typography,
+  ActionsMenu,
 } from '@/components/app'
 import {
   useGestionUsuarios,
@@ -22,16 +22,9 @@ import {
   getUserStatus,
 } from '@/hooks/useGestionUsuarios'
 import CredencialesModal from '@/pages/CredencialesModal'
-import DetalleUsuarioDrawer from '@/pages/DetalleUsuarioDrawer'
+import SolicitudesCambioCorreoPanel from '@/components/SolicitudesCambioCorreoPanel'
 
-/**
- * GestionInvestigadores — Gestión de Usuarios
- * Cubre: RF-M1-LIST, RF-M1-01, RF-M1-02, RF-M1-RESET para role=researcher
- *
- * Props:
- *   token string — JWT para autenticar llamadas a la API
- */
-function GestionInvestigadores({ token }) {
+function GestionInvestigadores() {
   const {
     esAdmin,
     usuarios,
@@ -57,18 +50,17 @@ function GestionInvestigadores({ token }) {
     dismiss,
     abrirModalCrear,
     handleChangeCrear,
+    handleEmailBlur,
+    institutionDetected,
     handleGuardarCrear,
     abrirModalEstado,
     handleConfirmarEstado,
     handleResetearPassword,
-    drawerUsuario,
-    abrirDetalle,
-    cerrarDetalle,
     searchQuery,
     setSearchQuery,
     usuariosFiltrados,
     usuariosConSesion,
-  } = useGestionUsuarios({ token, role: 'researcher', labelSingular: 'investigador' })
+  } = useGestionUsuarios({ role: 'researcher', labelSingular: 'investigador' })
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -77,7 +69,6 @@ function GestionInvestigadores({ token }) {
   useEffect(() => {
     const s = location.state
     if (!s) return
-    if (s.openDrawer) abrirDetalle(s.openDrawer)
     if (s.openCrear) abrirModalCrear()
     navigate(location.pathname, { replace: true, state: null })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,10 +79,17 @@ function GestionInvestigadores({ token }) {
     { key: 'full_name', label: 'Nombre completo' },
     { key: 'email', label: 'Correo electrónico' },
     {
+      key: 'institution',
+      label: 'Institución',
+      render: (v) => v
+        ? <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)' }}>{v}</span>
+        : <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>—</span>,
+    },
+    {
       key: 'role',
       label: 'Rol',
       render: (value) => (
-        <RoleBadge role={value === 'administrator' ? 'admin' : value === 'applicator' ? 'aplicador' : 'researcher'} />
+        <RoleBadge role={value === 'superadmin' ? 'admin' : value === 'applicator' ? 'aplicador' : 'researcher'} />
       ),
     },
     {
@@ -120,47 +118,21 @@ function GestionInvestigadores({ token }) {
       label: 'Acciones',
       render: (_, row) => {
         const status = getUserStatus(row)
+        const actions = []
 
         if (status === 'inactive') {
-          return (
-            <div onClick={(e) => e.stopPropagation()}>
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={Power}
-                onClick={() => abrirModalEstado(row)}
-                aria-label={`Activar a ${row.full_name}`}
-              >
-                Activar
-              </Button>
-            </div>
-          )
+          actions.push({ label: 'Activar cuenta', icon: Power, onClick: () => abrirModalEstado(row) })
+        } else {
+          actions.push({
+            label: status === 'pending' ? 'Regenerar contraseña' : 'Restablecer contraseña',
+            icon: RotateCcw,
+            onClick: () => handleResetearPassword(row),
+            disabled: guardandoReset,
+          })
+          actions.push({ label: 'Desactivar cuenta', icon: Power, onClick: () => abrirModalEstado(row), variant: 'danger' })
         }
 
-        // pending o active: mostrar botón de contraseña + desactivar
-        return (
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }} onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={RotateCcw}
-              onClick={() => handleResetearPassword(row)}
-              loading={guardandoReset}
-              aria-label={status === 'pending' ? `Regenerar contraseña de ${row.full_name}` : `Restablecer contraseña de ${row.full_name}`}
-            >
-              {status === 'pending' ? 'Regenerar' : 'Restablecer'}
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              icon={Power}
-              onClick={() => abrirModalEstado(row)}
-              aria-label={`Desactivar a ${row.full_name}`}
-            >
-              Desactivar
-            </Button>
-          </div>
-        )
+        return <ActionsMenu actions={actions} />
       },
     }] : []),
   ]
@@ -179,9 +151,12 @@ function GestionInvestigadores({ token }) {
         </Typography>
       </div>
 
+      {/* Panel solicitudes de cambio de correo — solo superadmin */}
+      {esAdmin && <SolicitudesCambioCorreoPanel />}
+
       {/* Búsqueda y filtros */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-        <div className="page-search-wrapper">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
+        <div className="page-search-wrapper" style={{ flex: '1 1 200px' }}>
           <Search size={14} className="page-search-icon" aria-hidden="true" />
           <input
             className="page-search-input"
@@ -190,26 +165,20 @@ function GestionInvestigadores({ token }) {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          {FILTROS_ESTADO.map(({ value, label }) => (
-            <PillToggle
-              key={value}
-              selected={filtroEstado === value}
-              onClick={() => setFiltroEstado(value)}
-            >
-              {label}
-            </PillToggle>
-          ))}
-          {esAdmin && (
-            <Button
-              icon={Plus}
-              onClick={abrirModalCrear}
-              style={{ marginLeft: 'auto' }}
-            >
-              Nuevo investigador
-            </Button>
-          )}
-        </div>
+        {FILTROS_ESTADO.map(({ value, label }) => (
+          <PillToggle
+            key={value}
+            selected={filtroEstado === value}
+            onClick={() => setFiltroEstado(value)}
+          >
+            {label}
+          </PillToggle>
+        ))}
+        {esAdmin && (
+          <Button icon={Plus} onClick={abrirModalCrear} style={{ marginLeft: 'auto' }}>
+            Nuevo investigador
+          </Button>
+        )}
       </div>
 
       {/* Tabla / Empty state */}
@@ -234,7 +203,7 @@ function GestionInvestigadores({ token }) {
           data={usuariosFiltrados}
           loading={false}
           emptyMessage="No hay investigadores que coincidan con el filtro."
-          onRowClick={abrirDetalle}
+          onRowClick={(row) => navigate(`/usuarios/investigadores/${row.id}`, { state: { usuario: row } })}
         />
       )}
 
@@ -277,8 +246,23 @@ function GestionInvestigadores({ token }) {
             required
             value={formCrear.email}
             onChange={handleChangeCrear('email')}
+            onBlur={handleEmailBlur}
             error={erroresCrear.email}
           />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <FormField
+              id="inv-crear-institucion"
+              label="Institución (opcional)"
+              placeholder="Nombre de la institución"
+              value={formCrear.institution}
+              onChange={handleChangeCrear('institution')}
+            />
+            {institutionDetected && (
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                Institución detectada por dominio: <strong>{institutionDetected}</strong>
+              </span>
+            )}
+          </div>
         </div>
       </Modal>
 
@@ -323,28 +307,14 @@ function GestionInvestigadores({ token }) {
           open={modalCredenciales}
           onClose={cerrarModalCredenciales}
           email={credencialesNuevas.email}
-          setupToken={credencialesNuevas.setupToken}
+          magicLink={credencialesNuevas.magicLink}
           nombreUsuario={credencialesNuevas.nombreUsuario}
         />
       )}
 
-      {/* Drawer — Detalle de usuario */}
-      <DetalleUsuarioDrawer
-        open={!!drawerUsuario}
-        onClose={cerrarDetalle}
-        usuario={drawerUsuario}
-        formatFecha={formatFecha}
-        token={token}
-        esAdmin={esAdmin}
-      />
-
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
   )
-}
-
-GestionInvestigadores.propTypes = {
-  token: PropTypes.string.isRequired,
 }
 
 export default GestionInvestigadores

@@ -44,7 +44,7 @@ Bcryptjs ofrece compatibilidad con la biblioteca bcrypt de Node.js para el hashe
 
 El módulo `src/store/index.js` implementa un almacén de datos en memoria que simula las tablas de una base de datos relacional. El diseño utiliza estructuras de datos nativas de JavaScript optimizadas para las operaciones requeridas por cada entidad.
 
-El objeto `store` contiene las siguientes colecciones principales: `users` es un array que almacena todos los usuarios registrados, inicializado con un usuario administrador por defecto con credenciales `admin@mock.local` y contraseña `Admin123!`. El password hash se genera utilizando bcrypt con factor 12 durante la carga del módulo, garantizando que el administrador inicial esté disponible inmediatamente.
+El objeto `store` contiene las siguientes colecciones principales: `users` es un array que almacena todos los usuarios registrados, inicializado con un superadmin cuyas credenciales se leen de las variables de entorno `SUPERADMIN_EMAIL` y `SUPERADMIN_PASSWORD`. Si no están definidas se usan valores de desarrollo por defecto y `must_change_password` queda en `true`. El password hash se genera con bcrypt factor 12 durante la carga del módulo.
 
 La colección `revokedTokens` es un Map que asocia identificadores JWT con su fecha de expiración. Esta estructura permite búsquedas O(1) para verificar rápidamente si un token ha sido revocado, operación crítica que se ejecuta en cada solicitud protegida. El Map se limpia periódicamente para eliminar entradas expiradas, evitando crecimiento ilimitado de la memoria.
 

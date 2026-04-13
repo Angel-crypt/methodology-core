@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: methodology
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: methodology
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:24.0
+          args: ["start-dev"]
+          env:
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: jdbc:postgresql://postgres-keycloak:5432/keycloak
+            - name: KC_DB_USERNAME_FILE
+              value: /run/secrets/db_keycloak_user
+            - name: KC_DB_PASSWORD_FILE
+              value: /run/secrets/db_keycloak_password
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME_FILE
+              value: /run/secrets/keycloak_admin_user
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD_FILE
+              value: /run/secrets/keycloak_admin_password
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HTTP_PORT
+              value: "8080"
+          volumeMounts:
+            - name: secrets
+              mountPath: /run/secrets
+              readOnly: true
+      volumes:
+        - name: secrets
+          secret:
+            secretName: methodology-secrets
+            items:
+              - key: db_keycloak_user
+                path: db_keycloak_user
+              - key: db_keycloak_password
+                path: db_keycloak_password
+              - key: keycloak_admin_user
+                path: keycloak_admin_user
+              - key: keycloak_admin_password
+                path: keycloak_admin_password

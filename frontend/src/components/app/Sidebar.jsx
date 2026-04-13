@@ -121,7 +121,7 @@ Sidebar.propTypes = {
   onToggle:    PropTypes.func.isRequired,
   user:        PropTypes.shape({
     fullName: PropTypes.string.isRequired,
-    role:     PropTypes.oneOf(['administrator', 'researcher', 'applicator']).isRequired,
+    role:     PropTypes.oneOf(['superadmin', 'researcher', 'applicator']).isRequired,
   }).isRequired,
   onLogout:    PropTypes.func.isRequired,
 }
