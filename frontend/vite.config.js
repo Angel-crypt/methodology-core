@@ -17,26 +17,11 @@ export default defineConfig({
   server: {
     port: 5173,
     hmr: { overlay: true },
-    // Proxy solo activo en desarrollo (vite dev).
-    // En producción, Nginx u otro reverse proxy enruta /api → backend real.
     proxy: {
       '/api': {
-        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:3000',
+        target: 'http://localhost:3000', // mock server
         changeOrigin: true,
       },
-    },
-  },
-  test: {
-    environment: 'jsdom',
-    globals: true,
-    setupFiles: ['./src/test/setup.js'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'lcov'],
-      exclude: ['node_modules/', 'src/test/'],
-    },
-    alias: {
-      '@': path.resolve(__dirname, './src'),
     },
   },
 })

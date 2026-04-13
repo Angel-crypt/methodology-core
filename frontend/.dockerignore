@@ -33,3 +33,4 @@ coverage
 # Docker files themselves (not needed in build context)
 Dockerfile*
 docker-compose*
+nginx.conf

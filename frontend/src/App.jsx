@@ -1,146 +1,105 @@
-/**
- * App — árbol de rutas de la aplicación.
- * La autenticación se gestiona a través de AuthProvider/useAuth; no hay prop drilling de token.
- */
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { UserProvider, useUser } from './contexts/UserContext'
 import LoginPage from './pages/LoginPage'
-import SystemLoginPage from './pages/SystemLoginPage'
-import AuthCallbackPage from './pages/AuthCallbackPage'
+import GalleryPage from './pages/GalleryPage'
 import GestionAplicadores from './pages/GestionAplicadores'
 import GestionInvestigadores from './pages/GestionInvestigadores'
 import GestionInstrumentos from './pages/GestionInstrumentos'
 import CambiarPasswordModal from './pages/CambiarPasswordModal'
 import SetupPage from './pages/SetupPage'
-import RegistroOperativoWizardPage from './pages/RegistroOperativoWizardPage'
-import MisRegistrosPage from './pages/MisRegistrosPage'
-import ConfiguracionOperativaPage from './pages/ConfiguracionOperativaPage'
-import DetalleAplicadorPage from './pages/DetalleAplicadorPage'
-import DetalleUsuarioPage from './pages/DetalleUsuarioPage'
-import InstrumentoDetallePage from './pages/InstrumentoDetallePage'
-import SuperadminProfileConfigPage from './pages/SuperadminProfileConfigPage'
-import InstitutionsPage from './pages/InstitutionsPage'
-import ProjectsPage from './pages/ProjectsPage'
-import ProjectDetailPage from './pages/ProjectDetailPage'
-import TermsPage from './pages/TermsPage'
-import PrivacyPage from './pages/PrivacyPage'
-import OnboardingPage from './pages/OnboardingPage'
 import AppLayout from './layouts/AppLayout'
 
-const SYSTEM_LOGIN_PATH = import.meta.env.VITE_SYSTEM_LOGIN_PATH || '/__sys-auth'
+function App() {
+  const [token, setToken] = useState(() => localStorage.getItem('access_token') || '')
+  const [mustChangePassword, setMustChangePassword] = useState(
+    () => localStorage.getItem('must_change_password') === 'true'
+  )
 
-function AppRoutes() {
-  const { token, role, mustChangePassword, login, logout } = useAuth()
-  const { user, loadingUser } = useUser()
-
-  // Superadmin está exento de terms/onboarding.
-  // Researcher y applicator deben aceptar T&C antes del onboarding.
-  const needsTerms = !loadingUser && user && role !== 'superadmin' && !user.terms_accepted_at
-  const needsOnboarding = !loadingUser && user && role !== 'superadmin' && user.terms_accepted_at && !user.onboarding_completed
-
-  // Cuando hay cambio de contraseña pendiente, montamos AppLayout vacío para
-  // que el modal forzado se muestre sin que las páginas hagan fetch en background.
-  const authedLayout = (page) => {
-    if (!token) return <Navigate to="/login" replace />
-    if (mustChangePassword) return <AppLayout>{null}</AppLayout>
-    if (needsTerms) return <Navigate to="/terminos" replace />
-    if (needsOnboarding) return <Navigate to="/onboarding" replace />
-    return <AppLayout>{page}</AppLayout>
+  function handleLogin(tk, mustChange = false) {
+    localStorage.setItem('access_token', tk)
+    if (mustChange) {
+      localStorage.setItem('must_change_password', 'true')
+    } else {
+      localStorage.removeItem('must_change_password')
+    }
+    setToken(tk)
+    setMustChangePassword(mustChange)
   }
+
+  async function handleLogout() {
+    if (token) {
+      try {
+        await fetch('/api/v1/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      } catch {
+        // best effort — cerrar sesión local aunque falle la revocación
+      }
+    }
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('must_change_password')
+    setToken('')
+    setMustChangePassword(false)
+  }
+
+  // Llamado tras cambio forzado exitoso: el servidor invalidó el token,
+  // hay que hacer logout para que el usuario inicie sesión con la nueva contraseña.
+  function handleForcedPasswordChanged() {
+    handleLogout()
+  }
+
+  function getRoleFromToken(tk) {
+    try {
+      return JSON.parse(atob(tk.split('.')[1])).role
+    } catch {
+      return null
+    }
+  }
+
+  const authedLayout = (page) =>
+    token ? (
+      <AppLayout onLogout={handleLogout} token={token}>{page}</AppLayout>
+    ) : (
+      <Navigate to="/login" replace />
+    )
 
   const adminLayout = (page) => {
     if (!token) return <Navigate to="/login" replace />
-    if (role !== 'superadmin') return <Navigate to="/instruments" replace />
-    if (mustChangePassword) return <AppLayout>{null}</AppLayout>
-    return <AppLayout>{page}</AppLayout>
-  }
-
-  const applicatorLayout = (page) => {
-    if (!token) return <Navigate to="/login" replace />
-    if (role !== 'applicator') return <Navigate to="/instruments" replace />
-    if (mustChangePassword) return <AppLayout>{null}</AppLayout>
-    if (needsTerms) return <Navigate to="/terminos" replace />
-    if (needsOnboarding) return <Navigate to="/onboarding" replace />
-    return <AppLayout>{page}</AppLayout>
+    if (getRoleFromToken(token) !== 'administrator') return <Navigate to="/instruments" replace />
+    return <AppLayout onLogout={handleLogout} token={token}>{page}</AppLayout>
   }
 
   return (
-    <>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
+        {/* Dev — galería de componentes, sin autenticación */}
+        <Route path="/gallery" element={<GalleryPage />} />
+
         {/* Configuración inicial de cuenta — enlace enviado por el administrador */}
         <Route path="/setup" element={<SetupPage />} />
 
-        {/* Login público — solo Google */}
+        {/* Login */}
         <Route
           path="/login"
           element={
             token
               ? <Navigate to="/instruments" replace />
-              : <LoginPage onLogin={login} />
+              : <LoginPage onLogin={handleLogin} />
           }
         />
-
-        {/* Acceso de sistema — email+password, exclusivo superadmin */}
-        <Route
-          path={SYSTEM_LOGIN_PATH}
-          element={
-            token
-              ? <Navigate to="/instruments" replace />
-              : <SystemLoginPage onLogin={login} />
-          }
-        />
-
-        {/* Callback de Google OIDC */}
-        <Route path="/auth/callback" element={<AuthCallbackPage onLogin={login} />} />
 
         {/* Módulo 2 — Gestión de Instrumentos */}
-        <Route path="/instruments" element={authedLayout(<GestionInstrumentos />)} />
-        <Route path="/instruments/:id" element={authedLayout(<InstrumentoDetallePage />)} />
-
-        {/* Módulo 4 — Registro Operativo Anonimizado (solo Aplicador) */}
-        <Route
-          path="/registro-operativo"
-          element={applicatorLayout(<RegistroOperativoWizardPage />)}
-        />
-        <Route
-          path="/mis-registros"
-          element={applicatorLayout(<MisRegistrosPage />)}
-        />
+        <Route path="/instruments" element={authedLayout(<GestionInstrumentos token={token} />)} />
 
         {/* Módulo 1 — Gestión de usuarios (solo Administrador) */}
-        <Route path="/usuarios/aplicadores" element={adminLayout(<GestionAplicadores />)} />
-        <Route path="/usuarios/investigadores" element={adminLayout(<GestionInvestigadores />)} />
-        <Route path="/usuarios/aplicadores/:id" element={adminLayout(<DetalleUsuarioPage />)} />
-        <Route
-          path="/usuarios/investigadores/:id"
-          element={adminLayout(
-            <DetalleUsuarioPage backTo="/usuarios/investigadores" backLabel="Investigadores" />
-          )}
-        />
-
-        {/* Módulo 2-PROJECT — Gestión de Proyectos (solo Administrador) */}
-        <Route path="/proyectos" element={adminLayout(<ProjectsPage />)} />
-        <Route path="/proyectos/:id" element={adminLayout(<ProjectDetailPage />)} />
-
-        {/* Sprint 4 — Instituciones y config de perfil (solo Administrador) */}
-        <Route path="/instituciones" element={adminLayout(<InstitutionsPage />)} />
-        <Route path="/configuracion-perfil" element={adminLayout(<SuperadminProfileConfigPage />)} />
-
-        {/* Configuración Operativa global — deprecada (CF-014), redirige a proyectos */}
-        <Route path="/configuracion-operativa" element={<Navigate to="/proyectos" replace />} />
-
-        {/* Sprint 4 — Legal y onboarding */}
-        <Route
-          path="/terminos"
-          element={token ? <TermsPage /> : <Navigate to="/login" replace />}
-        />
-        <Route path="/aviso-privacidad" element={<PrivacyPage />} />
-
-        <Route
-          path="/onboarding"
-          element={token ? <OnboardingPage /> : <Navigate to="/login" replace />}
-        />
+        <Route path="/usuarios/aplicadores" element={adminLayout(<GestionAplicadores token={token} />)} />
+        <Route path="/usuarios/investigadores" element={adminLayout(<GestionInvestigadores token={token} />)} />
 
         {/* Redirect raíz */}
         <Route
@@ -153,27 +112,11 @@ function AppRoutes() {
         <CambiarPasswordModal
           open={true}
           onClose={() => {}}
-          onSuccess={logout}
+          token={token}
+          onSuccess={handleForcedPasswordChanged}
           forced={true}
         />
       )}
-    </>
-  )
-}
-
-function App() {
-  return (
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      <AuthProvider>
-        <UserProvider>
-          <AppRoutes />
-        </UserProvider>
-      </AuthProvider>
     </BrowserRouter>
   )
 }

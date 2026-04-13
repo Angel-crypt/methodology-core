@@ -62,15 +62,9 @@ Queda fuera del alcance de este documento todo lo relativo a fases posteriores: 
 | **Minimización** | Solo se registran los datos estrictamente necesarios para el fin metodológico. |
 | **Separación de identidad** | Los datos identificativos de un sujeto se mantienen desvinculados de sus datos lingüísticos. |
 | **UUID** | Identificador único universal utilizado para registrar sujetos anónimamente. |
-| **user_id (UUID)** | Identificador único e inmutable que representa la identidad real del usuario en el sistema. Se genera al crear el usuario y nunca cambia. Es la fuente de verdad para todas las referencias al usuario en tablas internas (audit_log, etc.). |
-| **UID interno** | Identificador local del usuario, vinculado al subject de Keycloak. Se usa para referenciar usuarios en tablas locales sin exponer el identificador externo del broker. |
-| **Keycloak** | Proveedor de identidad externo (broker) que implementa el modelo de autenticación. Gestiona usuarios, sesiones y políticas de contraseña. El sistema delega autenticación a Keycloak. |
-| **Broker de identidad** | Componente externo (Keycloak) que gestiona la autenticación de usuarios. El backend es la fuente de verdad; el broker solo autentica. |
-| **Magic Link** | Enlace de un solo uso enviado al correo del usuario para verificar su identidad y completar el registro. Se almacena como hash con expiración. |
-| **Separación identidad/autenticación** | El user_id es inmutable y representa la identidad real del usuario. El correo es un atributo de autenticación que puede cambiar. Cambio de correo ≠ cambio de usuario. |
 | **MetricType** | Enumeración de tipos válidos para una métrica: `numeric`, `categorical`, `boolean`, `short_text`. |
 | **JWT** | JSON Web Token. Mecanismo para generar y validar tokens de sesión. |
-| **Access Token** | JWT de sesión única (6 h / 21 600 s) usado para autenticar todas las peticiones al API. La sesión termina por vencimiento natural, logout explícito o desactivación del usuario por el SUPERADMIN. |
+| **Access Token** | JWT de sesión única (6 h / 21 600 s) usado para autenticar todas las peticiones al API. La sesión termina por vencimiento natural, logout explícito o desactivación del usuario por el Administrador. |
 | **PEP** | Policy Enforcement Point. Middleware que intercepta toda solicitud antes de ejecutar lógica de negocio. |
 | **PA** | Policy Administrator. Evalúa token, rol y estado activo en cada petición. |
 | **PE** | Policy Engine. Lógica centralizada de validación JWT y verificación de permisos. |
@@ -84,18 +78,13 @@ Queda fuera del alcance de este documento todo lo relativo a fases posteriores: 
 | Documento | Descripción |
 | --- | --- |
 | [SRS_M1_Autenticacion_v2.0](SRS_M1_Autenticacion_v2.0.md) | SRS específico del Módulo 1 |
-| [SRS_M2_Gestion_Instrumentos_v2.0](SRS_M2_Gestion_Instrumentos_v2.0.md) | SRS específico del Módulo 2 |
+| [SRS_M2_Gestion_Instrumentos_v2.0](SRS_M2_Gestion_Instrumentos_v2.0.MD) | SRS específico del Módulo 2 |
 | [SRS_M3_Definicion_Metricas_v1.0](SRS_M3_Definicion_Metricas_v1.0.md) | SRS específico del Módulo 3 |
 | [SRS_M4_Registro_Operativo_v1.0](SRS_M4_Registro_Operativo_v1.0.md) | SRS específico del Módulo 4 |
-| [ARQUITECTURA_DESPLIEGUE_v1.0](../architecture/ARQUITECTURA_DESPLIEGUE.md) | Arquitectura de despliegue con Zero Trust |
 | [MockContract_M1_Autenticacion_v2](../../mock/responses/MockContract_M1_Autenticacion_v2.xml) | Contrato de mock server M1 (v1.1) |
 | [MockContract_M2_Gestion_Instrumentos_v2](../../mock/responses/MockContract_M2_Gestion_Instrumentos_v2.xml) | Contrato de mock server M2 |
 | [MockContract_M3_Metricas_v1](../../mock/responses/MockContract_M3_Metricas_v1.xml) | Contrato de mock server M3 |
 | [MockContract_M4_RegistroOperativo_v1](../../mock/responses/MockContract_M4_RegistroOperativo_v1.xml) | Contrato de mock server M4 |
-| [Plan inicial de desarrollo backend](../../backend/docs/PLAN_INICIAL_DESARROLLO.md) | Guia operativa para el arranque del backend |
-| [Guia mock server](../../mock/GUIA_IMPLEMENTACION_MOCK_SERVER.md) | Referencia de implementacion y contratos del mock |
-| [Guia despliegue mock server](../../mock/GUIA_DESPLIEGUE_MOCK_SERVER.md) | Instrucciones de despliegue del mock |
-| [Despliegue K3s](../../deploy/k3s/) | Manifiestos K3s por entorno |
 
 ### 1.5 Estructura del Documento
 
@@ -149,8 +138,8 @@ FASES POSTERIORES (fuera del alcance)
 ### 2.5 Flujo General de Interacción
 
 ```bash
-SUPERADMIN
-  → Crea usuarios con rol (superadmin / investigador / aplicador)
+Administrador
+  → Crea usuarios con rol (administrador / investigador / aplicador)
   → Registra instrumentos metodológicos con descripción y periodo de vigencia
   → Define métricas por instrumento (tipo, rango, obligatoriedad)
 
@@ -176,127 +165,35 @@ Investigador
 | **Equipo de desarrollo** | Requisitos claros para implementar correctamente. | Implementar, probar e integrar conforme al SRS y estándares definidos. |
 | **Investigadores / responsables metodológicos** | Integridad y trazabilidad científica del dataset. | Validar instrumentos, métricas y flujo metodológico. |
 | **Profesionales aplicadores** | Sistema usable en campo para registrar aplicaciones. | Aplicar instrumentos y capturar datos conforme al protocolo. |
-| **SUPERADMIN del sistema** | Gestión operativa del sistema. | Crear usuarios, configurar instrumentos y métricas. |
+| **Administrador del sistema** | Gestión operativa del sistema. | Crear usuarios, configurar instrumentos y métricas. |
 | **Proyecto de IA (fases posteriores)** | Recibir un dataset de calidad científica. | Consumir el dataset producido por este sistema. |
 | **Testers / QA** | Criterios verificables para validar el sistema. | Diseñar y ejecutar pruebas funcionales, negativas y de integración. |
 
 ### 3.2 Roles del Sistema
 
-El sistema tiene tres roles globales que son mutuamente excluyentes:
+El sistema tiene exactamente tres roles fijos. No existe gestión granular de permisos en esta versión.
 
-| Rol Global | Descripción | Capacidad base |
+| Rol | Descripción | Permisos principales |
 | --- | --- | --- |
-| **SUPERADMIN** | Control total del sistema (operativo). | Crear/gestionar instrumentos y métricas globalmente, asignar instrumentos a proyectos, gestionar usuarios, acceder a audit_log. Solo ve estadisticas agregadas; no accede a datos detallados. |
-| **Investigador** | Usuario académico de lectura. | Asignado a proyectos para consultar y exportar datos. No puede crear instrumentos ni capturar datos. |
-| **Aplicador** | Profesional habilitado para aplicar instrumentos. | Asignado a proyectos para capturar datos. No puede crear instrumentos ni consultar datos. |
+| **Administrador** | Control total del sistema. | Gestión de usuarios, instrumentos y métricas. Consulta, exportación y audit_log. |
+| **Investigador** | Usuario académico de lectura. | Consulta filtrada de aplicaciones. Exportación del dataset en CSV y JSON. |
+| **Profesional Aplicador** | Profesional habilitado para aplicar instrumentos. | Registro de sujetos, aplicaciones y captura de valores de métricas. |
 
-### 3.3 Control de Acceso por Proyecto
+### 3.3 Matriz de Permisos Global
 
-El **proyecto** es la unidad principal de aislamiento de datos. Cada proyecto tiene sus **instrumentos asignados** y sus **miembros**.
+Esta tabla es la **fuente de verdad para el middleware de autorización**.  
+Debe implementarse como una **constante de configuración centralizada** y nunca duplicarse dentro de endpoints individuales.
 
-```
-SUPERADMIN
-    │
-    ├── Crea proyectos
-    ├── Gestiona instrumentos/métricas (global)
-    └── Asigna instrumentos a proyectos y miembros
-
-Proyecto
-    │
-    ├── tiene → Instrumentos asignados
-    ├── tiene → Miembros (Investigador/Aplicador)
-    └── tiene → Dataset (datos capturados)
-```
-
-#### 3.3.1 Asignación de Instrumentos a Proyecto
-
-Los instrumentos se crean de manera **global** por el SUPERADMIN. Luego se asignan a los proyectos específicos.
-
-| Campo | Tipo | Descripción |
-|---|---|---|
-| `instrument_ids` | Lista de UUIDs | Instrumentos disponibles en este proyecto. |
-
-#### 3.3.2 Miembros del Proyecto
-
-Un miembro es un usuario asignado a un proyecto con un rol global:
-
-| Usuario | Rol Global | Acceso al Proyecto |
-| --- | --- | --- |
-| Investigador | `viewer` | Consultar y exportar datos del proyecto. |
-| Aplicador | `editor` | Capturar datos (sujetos, aplicaciones, métricas). |
-
-> **Nota:** Un usuario puede pertenecer a varios proyectos con el mismo rol global.
-
-#### 3.3.3 Reglas de Acceso
-
-1. **Sin asignación a proyecto**: El usuario no puede acceder a datos de ningún proyecto.
-2. **Con asignación**: El usuario opera según su rol global dentro de ese proyecto.
-3. **ADMINISTRADOR**: Gestiona instrumentos globales, los asigna a proyectos, y gestiona miembros.
-4. **APLICADOR**: Inicia sesión → selecciona proyecto → registra datos usando instrumentos asignados al proyecto.
-5. **INVESTIGADOR**: Inicia sesión → selecciona proyecto → consulta/exporta datos del proyecto.
-
-#### 3.3.4 Flujo de Usuario por Rol
-
-**Aplicador:**
-```
-1. Login
-2. Lista de proyectos donde es miembro → selecciona uno
-3. Lista de instrumentos del proyecto (solo activos) → selecciona uno
-4. Registra sujeto → registra contexto → registra aplicación → captura métricas
-```
-
-**Investigador:**
-```
-1. Login
-2. Lista de proyectos donde es miembro → selecciona uno
-3. Consulta datos del proyecto o exporta (selecciona qué exportar)
-```
-
-#### 3.3.5 Soft Delete
-
-El sistema implementa **soft delete** (eliminación lógica) para mantener trazabilidad e integridad referencial:
-
-| Entidad | Campo de soft delete | Efecto al desactivar |
-|---|---|---|
-| `User` | `state = DELETED` | Usuario no puede acceder. Trazabilidad en audit_log. Irreversible. |
-| `Instrument` | `is_active = false` | Instrumento no puede recibir nuevas aplicaciones. Historial M4 intacto. Reversible. |
-
-> **Instrumentos**: Al desactivar (`is_active=false`), el instrumento deja de aparecer en la lista de instrumentos disponibles del proyecto, pero todas las aplicaciones históricas permanecen intactas. El SUPERADMIN puede reactivarlo.
-
-> **Usuarios**: Al eliminar (`state=DELETED`), el usuario pierde acceso al sistema. La operación es irreversible (debe crearse un nuevo usuario). Se registra en audit_log.
-
-### 3.5 Estados de Usuario
-
-El sistema implementa separación entre identidad y autenticación. Cada usuario tiene un `user_id` (UUID) inmutable que es su identidad real. El correo es un atributo de autenticación que puede cambiar sin alterar el `user_id`.
-
-| Estado | Descripción | Acceso al sistema |
-| --- | --- | --- |
-| **PENDING** | Usuario creado, esperando activacion por Magic Link. | Solo `GET /auth/activate/:token` con Magic Link valido. |
-| **ACTIVE** | Usuario con identidad verificada y autenticación vinculada. | Acceso completo según rol. |
-| **DISABLED** | Usuario deshabilitado por el SUPERADMIN. Sin acceso, reversible por el SUPERADMIN. | Ninguno. Puede reactivarse. |
-| **DELETED** | Usuario eliminado (soft delete). Sin acceso, con trazabilidad en audit_log. | Ninguno. Irreversible. |
-
-> **Nota:** Cambio de correo ≠ cambio de usuario. Cuando un usuario cambia su correo:
-> 1. Se invalidan todas las sesiones activas.
-> 2. Se rompe el vínculo con el broker de identidad.
-> 3. Se reinicia el flujo (estado PENDING).
-> 4. El `user_id` se conserva inmutable.
-
-### 3.6 Matriz de Permisos Global
-
-Esta tabla define los permisos a **nivel de sistema**:
-
-| Acción (Global)                   | SUPERADMIN | Investigador | Aplicador |
-|-----------------------------------|:-------------:|:------------:|:---------:|
-| Crear instrumentos (global)        | ✓ | — | — |
-| Gestionar métricas (global)        | ✓ | — | — |
-| Asignar instrumentos a proyectos  | ✓ | — | — |
-| Gestionar usuarios globales       | ✓ | — | — |
-| Agregar miembros a proyectos       | ✓ | — | — |
-| Ver audit_log                     | ✓ | — | — |
-| Consultar datos detallados (M5)   | — | ✓ | — |
-| Ver estadisticas agregadas (M5)   | ✓ | — | — |
-| Exportar datos (M6)               | — | ✓ | — |
+| Acción                               | Administrador | Investigador | Aplicador |
+|--------------------------------------|:-------------:|:------------:|:---------:|
+| Gestionar usuarios                  | ✓ | — | — |
+| Gestionar instrumentos              | ✓ | — | — |
+| Gestionar métricas                  | ✓ | — | — |
+| Registrar sujetos y aplicaciones    | ✓ | — | ✓ |
+| Capturar valores de métricas        | ✓ | — | ✓ |
+| Consultar aplicaciones y resultados | ✓ | ✓ | — |
+| Exportar datos (CSV / JSON)         | ✓ | ✓ | — |
+| Ver audit_log                       | ✓ | — | — |
 
 ---
 
@@ -311,6 +208,7 @@ Proveer una plataforma de registro estructurado, estandarizado y trazable de mé
 **Fase 1 — Módulos 1–4:**
 
 - Autenticación con JWT de sesión única (6 h) y control de sesión. Sin mecanismo de refresh token.
+- Cambio de contraseña autenticado con validación de contraseña actual.
 - Gestión de usuarios con tres roles diferenciados.
 - Activación/desactivación de usuarios e instrumentos sin pérdida de historial.
 - Registro de instrumentos metodológicos con descripción y periodo de vigencia.
@@ -352,18 +250,13 @@ Estos requisitos aplican a **todos los módulos**. Los SRS específicos de módu
 | RNF-SEC-02 | El control de acceso por rol se aplica en cada solicitud mediante middleware. | 100% de acciones no autorizadas para el rol retornan HTTP 403. |
 | RNF-SEC-03 | El PEP intercepta y valida toda solicitud antes de ejecutar lógica de negocio. | Ningún endpoint ejecuta operaciones sin pasar por validación completa. |
 | RNF-SEC-04 | El PA evalúa token, rol y estado activo antes de conceder acceso. | Usuarios desactivados son rechazados aunque su token sea válido. |
-| RNF-SEC-05 | Access token: 6 h (21 600 s). Se invalida en logout explícito, cambio de estado del usuario, o cambio de correo. Sin mecanismo de refresh. | Tokens expirados retornan HTTP 401. |
-| RNF-SEC-06 | Comunicación cifrada en tránsito en todas las capas. | HTTPS/TLS habilitado; ningún canal sin cifrar. |
-| RNF-SEC-07 | Credenciales y secretos nunca en código fuente ni variables sin cifrar. | Auditoría de código confirma ausencia de secretos expuestos. |
-| RNF-SEC-08 | El frontend no accede directamente a la base de datos. | Solo el backend tiene conexión con PostgreSQL. |
-| RNF-SEC-09 | Ningún registro de sujeto contiene PII. | Revisión de esquema confirma ausencia de PII en `Subject` y `ContextData`. |
-| RNF-SEC-10 | Eventos de seguridad en audit_log con timestamp y usuario. El audit_log almacena el `jti` del token como referencia de sesión; nunca el token JWT completo. | audit_log cubre 100% de eventos: login, logout, intentos fallidos, accesos denegados, cambios de estado, cambio de correo. Ningún registro contiene el JWT completo. |
-| RNF-SEC-11 | Rate limiting transversal: máximo 100 solicitudes por minuto por IP. | Endpoints retornan HTTP 429 al exceder límite. |
-| RNF-SEC-12 | Cifrado de datos sensibles por contexto. Datos cuasi-identificables (ContextData) cifrados con AES-256-GCM usando clave derivada del proyecto (HKDF). Datos críticos (auditoría) almacenados con hash irreversible (blake2b). | Verificación de cifrado en reposo. Clave maestra en Kubernetes Secrets. |
-| RNF-SEC-13 | Logging estructurado en formato JSON con contexto de auditoría. | Todos los logs incluyen timestamp, user_id, action, project_id, contexto. |
-| RNF-SEC-14 | Proteccion ultimo SUPERADMIN: el sistema impide desactivacion del ultimo usuario con rol superadmin. | Endpoint retorna HTTP 409 si se intenta desactivar el ultimo SUPERADMIN. |
-| RNF-SEC-15 | Aislamiento de datos por proyecto. Cada proyecto tiene clave derivada independiente. | Un proyecto comprometido no afecta datos de otros proyectos. |
-| RNF-SEC-16 | La clave maestra nunca se almacena en código fuente ni variables de entorno. | Solo Kubernetes Secrets. Auditoría de código confirma ausencia. |
+| RNF-SEC-05 | Access token: 6 h (21 600 s). Se invalida en logout explícito, desactivación del usuario, o cambio de contraseña (`password_changed_at`). Sin mecanismo de refresh. | Tokens expirados retornan HTTP 401. |
+| RNF-SEC-07 | Comunicación cifrada en tránsito en todas las capas. | HTTPS/TLS habilitado; ningún canal sin cifrar. |
+| RNF-SEC-08 | Contraseñas almacenadas exclusivamente como hash bcrypt. | Ninguna contraseña en texto plano en ninguna capa. |
+| RNF-SEC-09 | Credenciales y secretos nunca en código fuente ni variables sin cifrar. | Auditoría de código confirma ausencia de secretos expuestos. |
+| RNF-SEC-10 | El frontend no accede directamente a la base de datos. | Solo el backend tiene conexión con PostgreSQL. |
+| RNF-SEC-11 | Ningún registro de sujeto contiene PII. | Revisión de esquema confirma ausencia de PII en `Subject` y `ContextData`. |
+| RNF-SEC-12 | Eventos de seguridad en audit_log con timestamp y usuario. El audit_log almacena el `jti` del token como referencia de sesión; nunca el token JWT completo. | audit_log cubre 100% de eventos: login, logout, intentos fallidos, accesos denegados, cambios de contraseña. Ningún registro contiene el JWT completo. |
 
 ### 5.2 Rendimiento
 
@@ -407,16 +300,12 @@ Estos requisitos aplican a **todos los módulos**. Los SRS específicos de módu
 
 | Entidad | Módulo | Descripción |
 |---|---|---|
-| `User` | M1 | Usuario con rol global, organización y estado. user_id inmutable. |
-| `Project` | M1 | Proyecto que agrupa datos. Cada proyecto tiene instrumentos asignados y miembros. |
-| `ProjectMember` | M1 | Relación usuario-proyecto. Define qué proyectos puede acceder el usuario. |
-| `Dataset` | M1 | Conjunto de datos (aplicaciones, valores) de un proyecto. |
-| `Role` | M1 | Rol global: `superadmin`, `researcher`, `applicator`. |
-| `Session` | M1 | Sesiones activas de usuarios con timestamp. |
-| `AuditLog` | M1 | Eventos de seguridad: login, logout, accesos denegados, cambios de estado. |
-| `Instrument` | M2 | Instrumento metodológico global con nombre único, descripción, periodo de vigencia y estado. Se asigna a proyectos. |
-| `Metric` | M3 | Métrica asociada a un instrumento. Definida globalmente, disponible en los proyectos donde el instrumento está asignado. |
-| `Subject` | M4 | Sujeto identificado exclusivamente por UUID. Sin PII. |
+| `User` | M1 | Usuario con rol y estado activo. Sin datos más allá de nombre y correo. |
+| `Role` | M1 | Rol del sistema: `administrator`, `researcher`, `applicator`. |
+| `AuditLog` | M1 | Eventos de sesión: login, logout, accesos denegados, cambios de contraseña. Almacena el `jti` del token como referencia; nunca el token completo. |
+| `Instrument` | M2 | Instrumento metodológico con nombre único, descripción, periodo de vigencia y estado. |
+| `Metric` | M3 | Métrica asociada a un instrumento. Declara `MetricType`, rango opcional y obligatoriedad. |
+| `Subject` | M4 | Sujeto MOCK identificado exclusivamente por UUID. Sin PII. |
 | `ContextData` | M4 | Datos contextuales no identificables asociados a un sujeto. |
 | `TestApplication` | M4 | Aplicación de un instrumento a un sujeto en una fecha dada. |
 | `MetricValue` | M4 | Valor capturado para una métrica en una aplicación específica. |
@@ -436,7 +325,7 @@ Estos requisitos aplican a **todos los módulos**. Los SRS específicos de módu
 |---|---|---|
 | `school_type` | categórico | `public` · `private` · `unknown` |
 | `education_level` | categórico | `preschool` · `primary_lower` (1°–3°) · `primary_upper` (4°–6°) · `secondary` · `unknown` |
-| `age_cohort` | string de rango (regex `^\d+-\d+$`) | ej. `"6-8"` · `"9-11"` · `"12-14"` · `"15-17"` |
+| `age_cohort` | string de rango | ej. `"6-8"` · `"9-11"` · `"12-14"` · `"15-17"` |
 | `gender` | categórico | `male` · `female` · `non_binary` · `prefer_not_to_say` |
 | `socioeconomic_level` | categórico | `low` · `medium` · `high` · `unknown` |
 | `additional_attributes` | objeto JSON abierto | Atributos metodológicos futuros no definidos aún (clave-valor libre). |
@@ -446,152 +335,7 @@ Estos requisitos aplican a **todos los módulos**. Los SRS específicos de módu
 - **Anonimización:** la identidad de los sujetos no puede derivarse de los datos almacenados.
 - **Minimización:** solo se registran los datos estrictamente necesarios para el fin metodológico.
 - **Separación de identidad:** los datos identificativos se mantienen desvinculados de los datos lingüísticos.
-- **No eliminación:** los instrumentos no pueden eliminarse permanentemente. Solo cambio de estado (`is_active` booleano).
-
-### 6.5 Clasificación de Datos
-
-El sistema implementa **Security & Privacy by Design**. Cada dato se clasifica según su nivel de sensibilidad:
-
-| Clasificación | Descripción | Tratamiento |
-|---|---|---|
-| **Público** | Datos sin restricción. | Sin cifrado. |
-| **Sensible** | Datos que identifican indirectamente o pueden afectar la privacidad. | Cifrado simétrico (AES-256). |
-| **Crítico** | Datos de seguridad que no deben ser revelados jamás. | Hash irreversible. |
-
-#### 6.5.1 Clasificación por Entidad
-
-| Entidad | Campo(s) | Clasificación | Tratamiento |
-|---|---|---|---|
-| `Instrument` | `name`, `methodological_description`, `start_date`, `end_date` | Público | Sin cifrado |
-| `Metric` | `name`, `metric_type`, `options`, `min_value`, `max_value`, `required` | Público | Sin cifrado |
-| `Subject` | `subject_id` (UUID) | Público | Sin cifrado (identificador anónimo) |
-| `ContextData` | `age_cohort`, `gender`, `education_level`, `school_type`, `socioeconomic_level`, `additional_attributes` | Sensible | AES-256 por clave de proyecto |
-| `MetricValue` | `value` | Sensible | AES-256 por clave de proyecto |
-| `TestApplication` | `application_date`, `notes` | Sensible | AES-256 por clave de proyecto |
-| `AuditLog` | `jti`, `action`, `details` | Crítico | Hash irreversible (blake2b) |
-| `revoked_tokens` | `jti` | Crítico | Hash irreversible (blake2b) |
-
-### 6.6 Cifrado por Contexto
-
-El sistema implementa cifrado basado en **claves por proyecto**:
-
-```
-Clave Maestra (Kubernetes Secret)
-        │
-        ▼
-   HKDF (derive)
-        │
-        ▼
-  Clave por Proyecto (project_id)
-        │
-        ▼
-  AES-256-GCM
-        │
-        ▼
-  Datos cifrados en reposo
-```
-
-#### 6.6.1 Estrategia de Claves
-
-| Componente | Descripción |
-|---|---|
-| **Clave Maestra** | Almacenada en Kubernetes Secrets. Nunca en código fuente ni variables de entorno. |
-| **Derivación** | HKDF (HMAC-based Key Derivation Function) para derivar clave por proyecto. |
-| **Almacenamiento** | Las claves derivadas **no** se almacenan en BD. Se calculan en tiempo de ejecución. |
-| **Aislamiento** | Cada proyecto tiene su propia clave. Los datos de un proyecto no son descifrables con la clave de otro. |
-
-#### 6.6.2 Datos Cifrados
-
-- **ContextData**: Totalmente cifrado con clave del proyecto.
-- **MetricValue**: El valor se cifra antes de almacenarse.
-- **TestApplication.notes**: Cifrado opcional.
-
-#### 6.6.3 Datos con Hash Irreversible
-
-- **AuditLog**: El `jti` del token se almacena como hash blake2b.
-- **revoked_tokens**: El `jti` se almacena como hash blake2b.
-
-> **Ventajas del modelo:**
-> - Aislamiento total entre proyectos
-> - Si una clave de proyecto se ve comprometida, solo esos datos se afectan
-> - La clave maestra nunca sale del sistema
-> - Colaboración natural: usuarios de un proyecto comparten la misma clave derivada
-
-### 6.7 Sistema de Logging de Auditoría
-
-El sistema implementa **logging estructurado en JSON** para auditoría y compliance. Cada evento se registra con contexto completo para permitir trazabilidad por usuario y por proyecto.
-
-#### 6.7.1 Eventos Registrados
-
-| Evento | Categoría | user_id | project_id | Registro |
-|---|---|---|---|---|
-| Login exitoso | Autenticación | ✓ | — | ✓ |
-| Login fallido | Autenticación | ✓ | — | ✓ |
-| Magic Link usado | Autenticación | ✓ | — | ✓ |
-| Magic Link regenerado | Autenticación | ✓ | — | ✓ |
-| Cambio de estado de usuario | Usuario | ✓ | — | ✓ |
-| Cambio de correo | Usuario | ✓ | — | ✓ |
-| Sincronización con broker | Sistema | ✓ | — | ✓ |
-| Acceso a dataset | Datos | ✓ | ✓ | ✓ |
-| Creacion de proyecto | SUPERADMIN | ✓ | ✓ | ✓ |
-| Asignacion de instrumento a proyecto | SUPERADMIN | ✓ | ✓ | ✓ |
-| Agregar miembro a proyecto | SUPERADMIN | ✓ | ✓ | ✓ |
-| Registro de sujeto | Datos | ✓ | ✓ | ✓ |
-| Registro de aplicación | Datos | ✓ | ✓ | ✓ |
-| Captura de métricas | Datos | ✓ | ✓ | ✓ |
-| Exportación de datos | Datos | ✓ | ✓ | ✓ |
-| Rate limit activado | Sistema | ✓ | — | ✓ |
-| Acceso denegado (403) | Seguridad | ✓ | ✓ | ✓ |
-
-#### 6.7.2 Formato del Log
-
-```json
-{
-  "timestamp": "2026-03-31T10:30:00Z",
-  "level": "INFO",
-  "action": "LOGIN_SUCCESS",
-  "user_id": "550e8400-e29b-41d4-a716-446655440000",
-  "project_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
-  "resource": "auth",
-  "ip_address": "192.168.1.100",
-  "user_agent": "Mozilla/5.0...",
-  "metadata": {
-    "role": "superadmin",
-    "method": "keycloak"
-  }
-}
-```
-
-#### 6.7.3 Campos Obligatorios
-
-| Campo | Descripción |
-|---|---|
-| `timestamp` | ISO 8601 UTC |
-| `level` | INFO, WARNING, ERROR, SECURITY |
-| `action` | Identificador de la acción |
-| `user_id` | UUID del usuario (cuando aplica) |
-| `project_id` | UUID del proyecto (cuando aplica) |
-
-#### 6.7.4 Datos Excluidos (Nunca registrar)
-
-- Tokens JWT completos
-- Contraseñas o hashes de contraseñas
-- Secretos o claves (Kubernetes Secrets)
-- Datos sensibles en claro (ContextData, MetricValue)
-- Tokens de Magic Link
-
-> **Principio**: La auditoría registra **qué** ocurrió, **quién** lo hizo y **desde dónde**, pero nunca expone credenciales o datos de los sujetos.
-
-#### 6.7.5 Auditoría por Contexto
-
-El sistema permite consultas de auditoría por:
-
-- **Usuario**: Todos los eventos de un usuario específico
-- **Proyecto**: Todos los eventos de un proyecto específico
-- **Tiempo**: Eventos en un rango de fechas
-- **Acción**: Eventos de un tipo específico
-
-Esto permite responder a auditorías de compliance preguntando: "¿qué happened in this project?" o "¿qué hizo este usuario en todos los proyectos?"
+- **No eliminación:** ninguna entidad puede eliminarse permanentemente. Solo cambios de estado (`active` / `inactive`).
 
 ---
 
@@ -612,8 +356,8 @@ Esto permite responder a auditorías de compliance preguntando: "¿qué happened
 
 La interfaz web expone al menos:
 
-- Formulario de inicio de sesión.
-- Panel de administracion: gestion de usuarios, instrumentos y metricas.
+- Formulario de inicio de sesión y cambio de contraseña.
+- Panel de administración: gestión de usuarios, instrumentos y métricas.
 - Formulario dinámico de captura de métricas (adapta campos según `MetricType`).
 - Formulario de registro de sujetos y aplicaciones.
 - Tabla paginada de aplicaciones con filtros por instrumento y periodo.
@@ -652,9 +396,9 @@ La interfaz web expone al menos:
 |---|---|
 | **Anonimización obligatoria** | Los sujetos se registran exclusivamente mediante UUID. Sin PII bajo ninguna circunstancia. |
 | **Roles fijos** | Los tres roles son fijos en esta versión. Sin gestión granular de permisos. |
-| **Solo el SUPERADMIN crea usuarios** | No existe registro publico. Solo el SUPERADMIN crea cuentas. |
+| **Solo el admin crea usuarios** | No existe registro público. Solo el Administrador crea cuentas. |
 | **Sin eliminación permanente** | Usuarios, instrumentos y todos los registros históricos son inactivables, no eliminables. |
-| **Backend en Python** | Python 3.11+, FastAPI, SQLAlchemy, Alembic. |
+| **Backend en Python** | Python 3.11+, FastAPI, SQLAlchemy, Alembic, bcrypt. |
 | **Base de datos** | PostgreSQL exclusivamente. Sin otro motor en esta versión. |
 | **Migraciones con Alembic** | Toda modificación de esquema pasa por Alembic. Ninguna tabla se crea manualmente. |
 | **Orden de desarrollo** | M5 y M6 no se inician hasta que M1–M4 estén completos y validados. |
@@ -676,12 +420,12 @@ La interfaz web expone al menos:
 
 El sistema se considera funcionalmente aceptado cuando el siguiente escenario de punta a punta puede ejecutarse completamente sin errores críticos:
 
-1. El SUPERADMIN crea un usuario Investigador y un usuario Aplicador.
+1. El administrador crea un usuario Investigador y un usuario Aplicador.
 2. Ambos usuarios se autentican correctamente y reciben un access token (6 h).
 3. Un token expirado es rechazado con 401; el usuario debe autenticarse nuevamente con sus credenciales.
 4. El aplicador cambia su contraseña tras validar correctamente la contraseña actual.
-5. El SUPERADMIN registra un instrumento con descripcion y periodo de vigencia.
-6. El SUPERADMIN define metricas para el instrumento (tipo, rango, obligatoriedad).
+5. El administrador registra un instrumento con descripción y periodo de vigencia.
+6. El administrador define métricas para el instrumento (tipo, rango, obligatoriedad).
 7. El aplicador registra un sujeto MOCK con UUID automático, sin datos PII.
 8. El aplicador registra datos contextuales no identificables para el sujeto.
 9. El aplicador registra la aplicación del instrumento al sujeto.
@@ -698,75 +442,21 @@ El sistema se considera funcionalmente aceptado cuando el siguiente escenario de
 
 ## 10. Estrategia de Despliegue
 
-El despliegue se realiza en un **clúster K3s** operado sobre los equipos físicos del equipo de desarrollo, siguiendo los principios de **Security & Privacy by Design** y **Zero Trust**.
+El despliegue se realiza en un **clúster Docker Swarm** operado sobre los equipos físicos del equipo de desarrollo.
 
-> **Documento de referencia:** El detalle completo de la arquitectura de despliegue, incluyendo diagramas de red, segmentación, gestión de secretos y procedimientos, está disponible en: [`docs/architecture/ARQUITECTURA_DESPLIEGUE.md`](docs/architecture/ARQUITECTURA_DESPLIEGUE.md)
-
-### 10.1 Principios de Seguridad del Despliegue
-
-| Principio | Descripción |
-|-----------|-------------|
-| **Zero Trust** | Todo servicio autentica y autoriza cada petición, interno o externo |
-| **Defensa en profundidad** | Múltiples capas de seguridad independientes |
-| **Menor privilegio** | Cada servicio tiene permisos mínimos necesarios |
-| **Segmentación de red** | Redes separadas por tier (frontend, backend, data) |
-| **Secretos gestionados** | Kubernetes Secrets exclusivamente, nunca en variables de entorno |
-
-### 10.2 Topología del Clúster
-
-- **1 nodo Manager**: Control plane + Frontend + Backend + Keycloak
-- **≥2 nodos Worker**: PostgreSQL, Redis, Backend adicional
-
-### 10.3 Servicios y Réplicas
-
-| Servicio | Réplicas | Propósito |
-|----------|:--------:|-----------|
-| Frontend | 2 | Interfaz de usuario |
-| Backend | 2 | API (stateless) |
-| Keycloak | 2 | Identity Provider + DB propia |
-| PostgreSQL | 1 primary + 1 replica | Datos del sistema |
-| Redis | 1 master + 1 replica | Cache + Rate limiting |
-| Traefik | 1 | Ingress controller |
-
-### 10.4 Segmentación de Redes
-
-| Red | Propósito | Servicios conectados |
-|-----|-----------|----------------------|
-| `ingress` | Punto de entrada externo | Traefik, Frontend, Backend |
-| `frontend_net` | Comunicación frontend→backend | Frontend, Backend |
-| `backend_net` | Lógica de negocio | Backend, Redis, Keycloak |
-| `data_net` | Datos (aislada) | PostgreSQL, Redis |
-| `keycloak_net` | Keycloak DB (aislada) | Keycloak |
-
-### 10.5 Gestión de Secretos
-
-Todos los secretos se gestionan via **Kubernetes Secrets**:
-
-- Credenciales PostgreSQL (principal, réplica, Keycloak)
-- Clave maestra de cifrado (AES-256)
-- Clave JWT
-- Credenciales SUPERADMIN Keycloak
-
-### 10.6 Modos de Ejecución
-
-| Modo | Componentes | Uso |
-|------|-------------|-----|
-| **Mock** | Frontend → Mock Server | Desarrollo sin backend real |
-| **Real** | Frontend → Backend → PostgreSQL + Redis + Keycloak | Producción |
-
-### 10.7 Etapa 1 — Fase 1 (Módulos 1–4)
+### 10.1 Etapa 1 — Fase 1 (Módulos 1–4)
 
 Módulos interdependientes desplegados simultáneamente (**Big Bang controlado**). No existe tráfico de producción previo. El stack completo se valida en el clúster antes de habilitar acceso al equipo.
 
 Servicios activos: Frontend · Backend (M1–M4) · PostgreSQL.
 
-### 10.8 Etapa 2 — Fase 2 (Módulos 5–6)
+### 10.2 Etapa 2 — Fase 2 (Módulos 5–6)
 
 Los endpoints de consulta y exportación se habilitan primero para Investigadores (**Canary**), se valida la integridad del dataset exportado y se realiza rollout completo una vez confirmado el comportamiento correcto.
 
 **Precondición:** M1–M4 completos y validados conforme a su DoD.
 
-### 10.9 Fases Posteriores — IA
+### 10.3 Fases Posteriores — IA
 
 Estrategia **Blue/Green**: el entorno activo continúa operando mientras el entorno con IA se valida en paralelo. Switch solo cuando Green está completamente validado.
 
@@ -778,24 +468,24 @@ Estrategia **Blue/Green**: el entorno activo continúa operando mientras el ento
 
 | Requisito | Historia de Usuario | Módulo | Entidades | Endpoint principal |
 |---|---|---|---|---|
-| RF-M1-01 | HU1 – Crear usuario | M1 | `User`, `MagicLink` | `POST /users` |
-| RF-M1-02 | HU2 – Gestionar estado de usuario | M1 | `User` | `PATCH /users/{user_id}/status` |
-| RF-M1-03 | HU3 – Login / Activar con Magic Link | M1 | `User`, `MagicLink` | `POST /auth/login` · `GET /auth/activate/:token` |
+| RF-M1-01 | HU1 – Crear usuario | M1 | `User`, `Role` | `POST /users` |
+| RF-M1-02 | HU2 – Activar/desactivar usuario | M1 | `User` | `PATCH /users/{id}/status` |
+| RF-M1-03 | HU3 – Iniciar sesión | M1 | `User`, `AuditLog` | `POST /auth/login` |
+| RF-M1-06 | HU6b – Cambiar contraseña | M1 | `User`, `AuditLog` | `PATCH /users/me/password` |
 | RF-M1-04 | HU4 – Cerrar sesión | M1 | `AuditLog`, Token blacklist | `POST /auth/logout` |
 | RF-M1-05 | HU5 – Restringir por rol | M1 | `Role` | Middleware `/api/v1/*` |
-| RF-M1-06 | Cambiar correo electrónico | M1 | `User`, `MagicLink`, `revoked_tokens` | `PATCH /users/{user_id}/email` |
 | RF-M2-01 | HU6 – Crear instrumento | M2 | `Instrument` | `POST /instruments` |
 | RF-M2-02 | HU7 – Descripción metodológica | M2 | `Instrument` | `PATCH /instruments/{id}` |
 | RF-M2-03 | HU8 – Periodo de aplicación | M2 | `Instrument` | `PATCH /instruments/{id}` |
 | RF-M2-04 | HU9 – Activar/desactivar instrumento | M2 | `Instrument` | `PATCH /instruments/{id}/status` |
-| RF-M3-01 | HU10 – Crear métrica | M3 | `Metric`, `Instrument` | `POST /instruments/{instrument_id}/metrics` |
-| RF-M3-02 | HU11 – Tipo de dato | M3 | `Metric` (`MetricType`) | `POST /instruments/{instrument_id}/metrics` · `PATCH /instruments/{instrument_id}/metrics/{metric_id}` |
-| RF-M3-03 | HU12 – Rango válido | M3 | `Metric` | `PATCH /instruments/{instrument_id}/metrics/{metric_id}` |
-| RF-M3-04 | HU13 – Obligatoriedad | M3 | `Metric` | `POST /instruments/{instrument_id}/metrics` · `PATCH /instruments/{instrument_id}/metrics/{metric_id}` |
-| RF-M4-01 | HU14 – Registrar sujeto | M4 | `Subject` | `POST /projects/{project_id}/subjects` |
-| RF-M4-02 | HU15 – Registrar contexto | M4 | `ContextData`, `Subject` | `POST /projects/{project_id}/subjects/{subject_id}/context` |
-| RF-M4-03 | HU16 – Registrar aplicación | M4 | `TestApplication` | `POST /projects/{project_id}/applications` |
-| RF-M4-04 | HU17 – Capturar valores | M4 | `MetricValue` | `POST /projects/{project_id}/applications/{application_id}/metric-values` |
+| RF-M3-01 | HU10 – Crear métrica | M3 | `Metric`, `Instrument` | `POST /metrics` |
+| RF-M3-02 | HU11 – Tipo de dato | M3 | `Metric` (`MetricType`) | `POST /metrics` |
+| RF-M3-03 | HU12 – Rango válido | M3 | `Metric` | `PATCH /metrics/{id}` |
+| RF-M3-04 | HU13 – Obligatoriedad | M3 | `Metric` | `POST /metrics` · `PATCH /metrics/{id}` |
+| RF-M4-01 | HU14 – Registrar sujeto | M4 | `Subject` | `POST /subjects` |
+| RF-M4-02 | HU15 – Registrar contexto | M4 | `ContextData`, `Subject` | `POST /subjects/{id}/context` |
+| RF-M4-03 | HU16 – Registrar aplicación | M4 | `TestApplication` | `POST /applications` |
+| RF-M4-04 | HU17 – Capturar valores | M4 | `MetricValue` | `POST /metric-values` |
 | RF-M5-01 | HU18 – Consultar aplicaciones | M5 | `TestApplication` | `GET /applications` |
 | RF-M5-02 | HU19 – Filtrar por instrumento | M5 | `Instrument` | `GET /applications?instrument_id=` |
 | RF-M5-03 | HU20 – Filtrar por periodo | M5 | `TestApplication` | `GET /applications?start_date=&end_date=` |
@@ -835,7 +525,7 @@ El sistema captura datos de **sujetos menores de edad** (potencialmente) en cont
 | **Restricción de additional_attributes** | Máx 5 claves, sin campos de PII conocidos, límites de tamaño | `mock/src/routes/m4.js` + lista negra |
 | **Validación de age_cohort** | Solo rangos (`N-N`), no edades exactas | Regex `^\d+-\d+$`, max 20 chars |
 | **Separación de identidad** | Ninguna tabla vincula UUID de sujeto con PII real | Diseño de BD |
-| **Control de acceso** | Solo Aplicador/SUPERADMIN acceden a datos de sujetos | RBAC en todos los endpoints M4 |
+| **Control de acceso** | Solo Aplicador/Administrador acceden a datos de sujetos | RBAC en todos los endpoints M4 |
 | **Audit log** | Registro de accesos a datos de usuarios para compliance | `store.auditLog` + `GET /audit-log` |
 
 ### 12.4 Restricciones de Producción (Pendientes)

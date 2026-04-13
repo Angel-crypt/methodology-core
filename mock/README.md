@@ -1,69 +1,150 @@
-# Mock Server
+# Mock Server – Métricas Lingüísticas
 
-Servidor Express en memoria para desarrollo y pruebas del frontend.
-Todos los datos se pierden al reiniciar — comportamiento esperado.
+Servidor HTTP en memoria que implementa los contratos MockContract M1–M4.  
+Todos los datos se pierden al reiniciar (comportamiento esperado en un mock).
 
-## Arranque rápido
+## Estructura
+
+```
+mock/
+├── responses/          # Contratos XML de referencia (M1–M4)
+├── src/
+│   ├── index.js        # Entry point
+│   ├── store/index.js  # Almacenamiento en memoria
+│   ├── middleware/
+│   │   └── auth.js     # JWT HS256 + RBAC
+│   └── routes/
+│       ├── m1.js       # Autenticación y Control de Acceso
+│       ├── m2.js       # Gestión de Instrumentos
+│       ├── m3.js       # Métricas
+│       └── m4.js       # Registro Operativo
+├── Dockerfile
+├── .env.example
+└── package.json
+```
+
+## Requisitos
+
+- Node.js 18+
+
+## Instalación y ejecución local
 
 ```bash
-cd mock
+# Desde la carpeta mock/
 npm install
-npm run dev      # con nodemon (recarga automática)
-npm start        # sin recarga
+npm start          # producción
+npm run dev        # desarrollo con recarga automática (nodemon)
 ```
 
-Puerto por defecto: **3000**
-URL base: `http://localhost:3000/api/v1`
-Health check: `GET http://localhost:3000/health`
-
-Superadmin pre-sembrado: definir `SUPERADMIN_EMAIL` y `SUPERADMIN_PASSWORD` en `.env`.
-Defaults de desarrollo: `super@methodology.local` / `metodologia-bootstrap-cambiar-pronto` (fuerza cambio de contraseña al primer login).
-
-## Tests
-
-```bash
-npm test            # Jest, una sola ejecución
-npm run test:watch  # modo watch
-npm run test:coverage
-```
-
-## Despliegue en k3s
-
-```bash
-# Desde la raíz del repositorio
-make mock-dev          # desarrollo local
-make k3s-deploy-mock   # despliegue en k3s con overlay mock
-```
+El servidor escucha en `http://localhost:3000` por defecto.
 
 ## Variables de entorno
 
-| Variable | Default | Descripción |
-|----------|---------|-------------|
-| `PORT` | `3000` | Puerto del servidor |
-| `JWT_SECRET` | `mock-jwt-secret-development-only` | Secret JWT. En producción: usar Docker Secret en `/run/secrets/jwt_secret`. |
-| `NODE_ENV` | — | Si es `production` con el secret por defecto, el servidor termina con error. |
+Copia `.env.example` a `.env` y ajusta según sea necesario.
 
-## Endpoints
+| Variable     | Por defecto                          | Descripción               |
+|--------------|--------------------------------------|---------------------------|
+| `PORT`       | `3000`                               | Puerto de escucha         |
+| `JWT_SECRET` | `mock-jwt-secret-development-only`   | Secreto de firma JWT      |
 
-Ver `docs/INVENTARIO.md` §5 para la lista completa y actualizada de todos los endpoints.
+## Credenciales de acceso inicial
 
-### Resumen rápido
+| Campo    | Valor               |
+|----------|---------------------|
+| Email    | `admin@mock.local`  |
+| Password | `Admin123!`         |
+| Rol      | `administrator`     |
 
-| Módulo | Rutas principales |
-|--------|------------------|
-| Auth | `POST /auth/login\|logout\|setup\|password-recovery\|password-reset`, `GET /auth/setup/:token` |
-| Usuarios | `POST/GET /users`, `PATCH /users/:id/status`, `PATCH /users/me/password`, `POST /users/:id/reset-password` |
-| Sesiones | `GET /users/me/sessions`, `GET /users/:id/sessions`, `DELETE /sessions/:jti` |
-| Permisos | `GET/PUT /users/:id/permissions` |
-| Audit log | `GET /audit-log` |
-| Instrumentos | `POST/GET /instruments`, `GET/PATCH/DELETE /instruments/:id`, `PATCH /instruments/:id/status` |
-| Métricas | `POST/GET/PATCH/DELETE /instruments/:id/metrics`, `/instruments/:id/metrics/:metricId` |
-| Registro | `POST /projects/:projectId/subjects`, `POST /subjects/:id/context`, `GET /subjects/:id` |
-| Aplicaciones | `POST /applications`, `GET /applications/my`, `POST /metric-values` |
-| Configuración | `GET/PUT /config/operativo` |
+## Endpoints disponibles
 
-## Notas de seguridad
+Base path: `/api/v1`
 
-- El campo `_mock_setup_token` en respuestas de `POST /users` y `POST /users/:id/reset-password` solo existe en el mock. En producción, el token se envía por email.
-- `POST /auth/password-recovery` devuelve `_mock_recovery_token` en la respuesta. En producción, se envía por email y no se expone en la API.
-- JWT_SECRET por defecto es inseguro y solo apto para desarrollo.
+### M1 – Autenticación
+| Método | Ruta                        | Roles           |
+|--------|-----------------------------|-----------------|
+| POST   | `/auth/login`               | Público         |
+| POST   | `/auth/logout`              | Cualquier rol   |
+| POST   | `/users`                    | administrator   |
+| GET    | `/users`                    | administrator   |
+| PATCH  | `/users/:id/status`         | administrator   |
+| PATCH  | `/users/me/password`        | Cualquier rol   |
+
+### M2 – Instrumentos
+| Método | Ruta                            | Roles         |
+|--------|---------------------------------|---------------|
+| POST   | `/instruments`                  | administrator |
+| GET    | `/instruments`                  | Cualquier rol |
+| PATCH  | `/instruments/:id`              | administrator |
+| PATCH  | `/instruments/:id/status`       | administrator |
+
+### M3 – Métricas
+| Método | Ruta           | Roles         |
+|--------|----------------|---------------|
+| POST   | `/metrics`     | administrator |
+| GET    | `/metrics`     | Cualquier rol |
+| PATCH  | `/metrics/:id` | administrator |
+
+> `GET /metrics` requiere query param `?instrument_id=<UUID>`
+
+### M4 – Registro Operativo
+| Método | Ruta                        | Roles                        |
+|--------|-----------------------------|------------------------------|
+| POST   | `/subjects`                 | applicator, administrator    |
+| POST   | `/subjects/:id/context`     | applicator, administrator    |
+| GET    | `/subjects/:id`             | Cualquier rol                |
+| POST   | `/applications`             | applicator, administrator    |
+| POST   | `/metric-values`            | applicator, administrator    |
+
+### Salud
+| Método | Ruta      | Autenticación |
+|--------|-----------|---------------|
+| GET    | `/health` | Ninguna       |
+
+## Ejemplo de flujo completo
+
+```bash
+# 1. Login
+curl -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@mock.local","password":"Admin123!"}'
+
+# Guarda el access_token devuelto como TOKEN
+
+# 2. Crear instrumento
+curl -X POST http://localhost:3000/api/v1/instruments \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Instrumento A","start_date":"2026-01-01","end_date":"2026-12-31"}'
+
+# 3. Crear métrica
+curl -X POST http://localhost:3000/api/v1/metrics \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"instrument_id":"<UUID>","name":"Comprensión","metric_type":"numeric","required":true,"min_value":0,"max_value":100}'
+
+# 4. Registrar sujeto (body vacío)
+curl -X POST http://localhost:3000/api/v1/subjects \
+  -H "Authorization: Bearer $TOKEN"
+
+# 5. Registrar aplicación
+curl -X POST http://localhost:3000/api/v1/applications \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"subject_id":"<SUBJECT_UUID>","instrument_id":"<INSTRUMENT_UUID>"}'
+
+# 6. Capturar valores
+curl -X POST http://localhost:3000/api/v1/metric-values \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"application_id":"<APP_UUID>","values":[{"metric_id":"<METRIC_UUID>","value":85}]}'
+```
+
+## Docker
+
+```bash
+# Construir imagen
+docker build -t methodology-mock .
+
+# Ejecutar
+docker run -p 3000:3000 methodology-mock
+```

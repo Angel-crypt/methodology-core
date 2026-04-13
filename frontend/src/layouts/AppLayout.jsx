@@ -1,39 +1,36 @@
-/**
- * AppLayout — layout raíz para páginas autenticadas.
- * Lee token, role, logout desde AuthContext; no acepta props de autenticación.
- */
 import { useState } from 'react'
 import PropTypes from 'prop-types'
-import { BookOpen, ClipboardList, ClipboardCheck, FolderOpen, Users, Building2, Settings } from 'lucide-react'
+import { BookOpen, ClipboardList, Users } from 'lucide-react'
 import { Sidebar, GlobalSearch, ProfileDropdown } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
-import SolicitarCambioCorreoModal from '@/components/SolicitarCambioCorreoModal'
-import { useAuth } from '@/contexts/AuthContext'
-import { useUser } from '@/contexts/UserContext'
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function decodeToken(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return {
+      role:     payload.role     ?? null,
+      fullName: payload.full_name ?? '',
+      email:    payload.email    ?? '',
+    }
+  } catch {
+    return { role: null, fullName: '', email: '' }
+  }
+}
 
 function getNavSections(role) {
   const sections = [
     {
       id:    'gestion',
-      label: role === 'superadmin' ? 'GESTIÓN' : null,
+      label: role === 'administrator' ? 'GESTIÓN' : null,
       items: [
         { label: 'Instrumentos', icon: BookOpen, to: '/instruments' },
       ],
     },
   ]
 
-  if (role === 'applicator') {
-    sections.push({
-      id:    'registro',
-      label: 'REGISTRO',
-      items: [
-        { label: 'Registro Operativo', icon: ClipboardCheck, to: '/registro-operativo' },
-        { label: 'Mis Registros',      icon: ClipboardList,  to: '/mis-registros'       },
-      ],
-    })
-  }
-
-  if (role === 'superadmin') {
+  if (role === 'administrator') {
     sections.push({
       id:    'usuarios',
       label: 'USUARIOS',
@@ -42,37 +39,30 @@ function getNavSections(role) {
         { label: 'Investigadores', icon: Users,         to: '/usuarios/investigadores' },
       ],
     })
-    sections.push({
-      id:    'proyectos',
-      label: 'PROYECTOS',
-      items: [
-        { label: 'Proyectos', icon: FolderOpen, to: '/proyectos' },
-      ],
-    })
-    sections.push({
-      id:    'sistema',
-      label: 'SISTEMA',
-      items: [
-        { label: 'Instituciones',       icon: Building2, to: '/instituciones'       },
-        { label: 'Config. de perfil',   icon: Settings,  to: '/configuracion-perfil' },
-      ],
-    })
   }
 
   return sections
 }
 
-function AppLayout({ children }) {
-  const { role, logout } = useAuth()
-  const { user } = useUser()
-  const fullName = user?.full_name ?? ''
-  const email    = user?.email    ?? ''
+// ── Componente ───────────────────────────────────────────────────────────────
+
+/**
+ * AppLayout
+ * Layout raíz para páginas autenticadas.
+ * Compone Sidebar lateral colapsable + Topbar con búsqueda y perfil.
+ *
+ * Props:
+ *   children  ReactNode
+ *   onLogout  () => void
+ *   token     string — JWT activo
+ */
+function AppLayout({ children, onLogout, token }) {
+  const { role, fullName, email } = decodeToken(token)
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('sidebar-collapsed') === 'true'
   )
   const [modalOpen, setModalOpen] = useState(false)
-  const [emailModalOpen, setEmailModalOpen] = useState(false)
 
   function handleToggleSidebar() {
     const next = !sidebarCollapsed
@@ -81,7 +71,7 @@ function AppLayout({ children }) {
   }
 
   const sections = getNavSections(role)
-  const esAdmin  = role === 'superadmin'
+  const esAdmin  = role === 'administrator'
 
   return (
     <div className="app-layout">
@@ -91,20 +81,20 @@ function AppLayout({ children }) {
         isCollapsed={sidebarCollapsed}
         onToggle={handleToggleSidebar}
         user={{ fullName, role }}
-        onLogout={logout}
+        onLogout={onLogout}
       />
 
       <div className="app-content">
 
+        {/* Topbar */}
         <header className="topbar">
-          {esAdmin && <GlobalSearch />}
+          {esAdmin && <GlobalSearch token={token} />}
           <div style={{ flex: 1 }} />
           <ProfileDropdown
             fullName={fullName}
             role={role}
             email={email}
             onChangePassword={() => setModalOpen(true)}
-            onRequestEmailChange={role !== 'superadmin' ? () => setEmailModalOpen(true) : undefined}
           />
         </header>
 
@@ -113,12 +103,8 @@ function AppLayout({ children }) {
         <CambiarPasswordModal
           open={modalOpen}
           onClose={() => setModalOpen(false)}
-          onSuccess={logout}
-        />
-
-        <SolicitarCambioCorreoModal
-          open={emailModalOpen}
-          onClose={() => setEmailModalOpen(false)}
+          token={token}
+          onSuccess={onLogout}
         />
 
       </div>
@@ -128,6 +114,8 @@ function AppLayout({ children }) {
 
 AppLayout.propTypes = {
   children: PropTypes.node.isRequired,
+  onLogout: PropTypes.func.isRequired,
+  token:    PropTypes.string.isRequired,
 }
 
 export default AppLayout

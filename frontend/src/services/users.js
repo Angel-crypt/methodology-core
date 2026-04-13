@@ -25,9 +25,10 @@ function headers(token) {
 }
 
 /**
- * Lista usuarios filtrados por rol y estado. Solo Administrador.
+ * RF-M1-LIST — GET /users
+ * Accesible solo por Administrador.
  * @param {string} token
- * @param {'applicator'|'researcher'|'superadmin'} role
+ * @param {'applicator'|'researcher'|'administrator'} role
  * @param {'true'|'false'|''} activeFilter — '' para todos
  */
 export async function listarUsuarios(token, role, activeFilter = '') {
@@ -38,9 +39,10 @@ export async function listarUsuarios(token, role, activeFilter = '') {
 }
 
 /**
- * Crea un usuario. Solo Administrador.
- * El servidor genera el setup token internamente; la respuesta incluye
- * _mock_setup_token solo en el mock (en producción se envía por email).
+ * RF-M1-01 — POST /users
+ * Solo Administrador. El role viene fijo desde la página que lo llama.
+ * El servidor genera la contraseña temporal internamente (CSPRNG).
+ * La respuesta incluye _mock_temp_password solo en el mock.
  * @param {string} token
  * @param {{ full_name: string, email: string, role: string }} body
  */
@@ -54,7 +56,9 @@ export async function crearUsuario(token, body) {
 }
 
 /**
- * Activa o desactiva una cuenta de usuario. Solo Administrador.
+ * RF-M1-02 — PATCH /users/:id/status
+ * Activa o desactiva una cuenta de usuario.
+ * Solo Administrador.
  * @param {string} token
  * @param {string} id UUID del usuario
  * @param {boolean} active nuevo estado
@@ -82,7 +86,7 @@ export async function listarTodosUsuarios(token) {
 /**
  * GET /users/sessions
  * Lista todas las sesiones activas de todos los usuarios.
- * Solo Administrador. Usado para indicador de sesión en tablas de usuarios.
+ * Solo Administrador.
  * @param {string} token
  */
 export async function listarTodasLasSesiones(token) {
@@ -115,44 +119,17 @@ export async function obtenerUsuario(token, id) {
 }
 
 /**
- * Restablece la contraseña de un usuario (genera un nuevo setup link).
- * Solo Administrador. El usuario queda en estado must_change_password=true.
+ * RF-M1-RESET — POST /users/:id/reset-password
+ * Genera una nueva contraseña temporal para el usuario (pending o active).
+ * Solo Administrador.
+ * Respuesta incluye _mock_temp_password (solo en mock).
  * @param {string} token
  * @param {string} id UUID del usuario
  */
 export async function resetearPassword(token, id) {
-  const res = await fetch(`${BASE}/${id}/magic-link`, {
+  const res = await fetch(`${BASE}/${id}/reset-password`, {
     method: 'POST',
     headers: headers(token),
-  })
-  return parseResponse(res)
-}
-
-/**
- * GET /users/:id/permissions
- * Obtiene los permisos de Registro Operativo de un aplicador.
- * Solo Administrador.
- * @param {string} token
- * @param {string} id UUID del usuario
- */
-export async function obtenerPermisos(token, id) {
-  const res = await fetch(`${BASE}/${id}/permissions`, { headers: headers(token) })
-  return parseResponse(res)
-}
-
-/**
- * PUT /users/:id/permissions
- * Actualiza los permisos de Registro Operativo de un aplicador (patch parcial).
- * Solo Administrador.
- * @param {string} token
- * @param {string} id UUID del usuario
- * @param {{ mode?: string, education_levels?: string[], subject_limit?: number|null }} body
- */
-export async function guardarPermisos(token, id, body) {
-  const res = await fetch(`${BASE}/${id}/permissions`, {
-    method: 'PUT',
-    headers: headers(token),
-    body: JSON.stringify(body),
   })
   return parseResponse(res)
 }

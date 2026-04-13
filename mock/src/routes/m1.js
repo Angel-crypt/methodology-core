@@ -1,9 +1,21 @@
 /**
  * M1 – Autenticación y Control de Acceso
- * Rutas: POST /auth/login|logout|password-recovery|password-reset|setup,
- *        GET /auth/setup/:token, POST/GET /users, PATCH /users/:id/status,
- *        PATCH /users/me/password, POST /users/:id/reset-password,
- *        GET /audit-log, GET/DELETE /sessions
+ * Contratos: RF-M1-01..06, RF-M1-LIST
+ *
+ * Cambios aplicados (GAP-M1-01..M1-09, GAP-SEG-05..10):
+ *   - Mensajes genéricos en español (GAP-SEG-05)
+ *   - Audit log: LOGIN, LOGIN_FALLIDO, RATE_LIMIT_ACTIVADO, LOGOUT,
+ *                CAMBIO_CONTRASENA, CONSULTA_USUARIOS (GAP-M1-03, RNF-SEC-12)
+ *   - JWT con pwd_changed_at en payload (GAP-SEG-07)
+ *   - Sesiones activas: creación en login, limpieza en logout (GAP-SEG-08)
+ *   - GET /users → array directo + paginación máx 50 (GAP-M1-02, GAP-SEG-09)
+ *   - POST /users → validación de email + campos estrictos (GAP-M1-06, GAP-SEG-04)
+ *   - PATCH /users/:id/status → protección contra autodesactivación (GAP-SEG-03)
+ *   - PATCH /users/:id/status → respuesta incluye email + updated_at (GAP-M1-01)
+ *   - GET /audit-log (nuevo endpoint, solo administrador)
+ *   - GET /users/me/sessions (nuevo endpoint) (GAP-SEG-08)
+ *   - DELETE /sessions/:jti (nuevo endpoint) (GAP-SEG-08)
+ *   - POST /auth/password-recovery + POST /auth/password-reset (GAP-SEG-11)
  */
 const crypto = require('crypto');
 const express = require('express');
@@ -16,7 +28,7 @@ const { validateStrictInput } = require('../middleware/validateStrictInput');
 
 const router = express.Router();
 
-const VALID_ROLES = ['superadmin', 'researcher', 'applicator'];
+const VALID_ROLES = ['administrator', 'researcher', 'applicator'];
 const JWT_EXPIRES_IN = 21600; // 6 horas (segundos)
 
 // Parámetros de rate limiting (CA-HU3-06, AD-08)
@@ -46,7 +58,7 @@ function generateSetupToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// POST /auth/login
+// ─── RF-M1-03 · POST /auth/login ────────────────────────────────────────────
 router.post('/auth/login', (req, res) => {
   const { email, password } = req.body || {};
 
@@ -94,18 +106,18 @@ router.post('/auth/login', (req, res) => {
   const iat = Math.floor(Date.now() / 1000);
   const exp = iat + JWT_EXPIRES_IN;
 
-  // pwd_changed_at en payload: el middleware lo compara con iat para invalidar tokens anteriores al cambio de contraseña
+  // Incluir pwd_changed_at en payload para referencia del cliente (GAP-SEG-07)
   const pwdChangedAt = user.password_changed_at
     ? Math.floor(user.password_changed_at.getTime() / 1000)
     : null;
 
   const token = jwt.sign(
-    { sub: user.id, role: user.role, jti, iat, exp, pwd_changed_at: pwdChangedAt },
+    { user_id: user.id, role: user.role, full_name: user.full_name, email: user.email, jti, iat, exp, pwd_changed_at: pwdChangedAt },
     JWT_SECRET,
     { algorithm: 'HS256', noTimestamp: true }
   );
 
-  // Registrar sesión activa para permitir gestión de sesiones por el usuario
+  // Registrar sesión activa (GAP-SEG-08)
   store.sessions.push({
     jti,
     user_id: user.id,
@@ -125,192 +137,15 @@ router.post('/auth/login', (req, res) => {
       token_type: 'Bearer',
       expires_in: JWT_EXPIRES_IN,
       must_change_password: user.must_change_password === true,
-      user: { id: user.id, role: user.role },
     },
   });
 });
 
-// ─── OIDC simulado ────────────────────────────────────────────────────────────
-// En producción estas rutas serían el IdP real (Google). Aquí el mock simula
-// el flujo authorization_code emitiendo codes propios y vinculando broker_subject.
-
-/**
- * oidcCodes: Map<code, { email, sub }>
- * Single-use; se elimina tras el callback.
- */
-if (!store.oidcCodes) store.oidcCodes = new Map();
-
-// GET /auth/oidc/authorize
-// Emite un code de autorización y redirige al redirect_uri.
-// El email del usuario se resuelve desde store.oidcCodes cuando el test lo registra,
-// o desde el sub generado cuando no hay mapeo previo.
-router.get('/auth/oidc/authorize', (req, res) => {
-  const { redirect_uri, state } = req.query;
-  if (!redirect_uri) {
-    return res.status(400).json({ status: 'error', message: 'redirect_uri requerido', data: null });
-  }
-
-  const code = crypto.randomBytes(16).toString('hex');
-  store.oidcCodes.set(code, null);
-
-  // En tests automatizados el test sobreescribe store.oidcCodes antes de que
-  // el callback sea invocado, por lo que nunca llegan aquí con null.
-  // En el browser (desarrollo manual) redirigimos al simulador de Google SSO
-  // para que el desarrollador seleccione con qué cuenta ingresar.
-  // Redirigimos al selector de usuario bajo /api/v1/ para que Vite lo proxie
-  // a este mismo servidor (evita que el SPA intercepte la URL).
-  const ssoUrl = `/api/v1/auth/oidc/mock-sso?code=${code}&redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state ?? '')}`;
-  return res.redirect(302, ssoUrl);
-});
-
-// GET /auth/oidc/mock-sso
-// Simulador visual de Google SSO para desarrollo manual.
-// Lista los usuarios activos no-superadmin para que el dev elija con cuál entrar.
-router.get('/auth/oidc/mock-sso', (req, res) => {
-  const { code, redirect_uri, state } = req.query;
-  if (!code || !redirect_uri) {
-    return res.status(400).send('Parámetros faltantes.');
-  }
-
-  const candidates = store.users.filter((u) => u.role !== 'superadmin' && u.active);
-
-  const items = candidates.length
-    ? candidates.map((u) => `
-        <a href="/api/v1/auth/oidc/mock-sso/select?code=${encodeURIComponent(code)}&email=${encodeURIComponent(u.email)}&redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state ?? '')}" class="user-btn">
-          <div class="user-email">${u.email}</div>
-          <div class="user-meta">${u.full_name ?? ''} · ${u.role}</div>
-        </a>`).join('')
-    : '<p class="empty">No hay usuarios activos. Activa al menos uno con el magic link primero.</p>';
-
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  return res.send(`<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mock Google SSO — SPL Dev</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f1f3f4; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.15); padding: 40px 36px; width: 100%; max-width: 400px; }
-    .logo { font-size: 13px; color: #5f6368; margin-bottom: 24px; }
-    h1 { font-size: 22px; color: #202124; margin-bottom: 4px; }
-    .subtitle { font-size: 14px; color: #5f6368; margin-bottom: 28px; }
-    .badge { display: inline-block; background: #fef08a; color: #713f12; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-bottom: 20px; }
-    .user-btn { display: block; padding: 14px 16px; border: 1px solid #dadce0; border-radius: 8px; margin-bottom: 10px; cursor: pointer; text-decoration: none; color: inherit; transition: background .15s; }
-    .user-btn:hover { background: #f8f9fa; }
-    .user-email { font-size: 15px; color: #202124; }
-    .user-meta { font-size: 12px; color: #5f6368; margin-top: 2px; }
-    .empty { color: #5f6368; font-size: 14px; text-align: center; padding: 20px 0; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="logo">Google</div>
-    <h1>Iniciar sesión</h1>
-    <p class="subtitle">Selecciona una cuenta para continuar en SPL</p>
-    <div class="badge">🔧 Mock SSO — Solo desarrollo</div>
-    ${items}
-  </div>
-</body>
-</html>`);
-});
-
-// GET /auth/oidc/mock-sso/select
-// Vincula el code al email seleccionado y redirige al callback.
-router.get('/auth/oidc/mock-sso/select', (req, res) => {
-  const { code, email, redirect_uri, state } = req.query;
-  if (!code || !email || !redirect_uri) {
-    return res.status(400).send('Parámetros faltantes.');
-  }
-  if (!store.oidcCodes.has(code)) {
-    return res.status(400).send('Código expirado o inválido.');
-  }
-  store.oidcCodes.set(code, email);
-  const location = `${redirect_uri}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state ?? '')}`;
-  return res.redirect(302, location);
-});
-
-// POST /auth/oidc/callback
-// Valida el code, vincula broker_subject si es primer login, emite JWT.
-router.post('/auth/oidc/callback', (req, res) => {
-  const { code } = req.body || {};
-  const ERR = { status: 'error', message: 'Credenciales inválidas', data: null };
-
-  if (!code || !store.oidcCodes.has(code)) {
-    addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Código inválido o no existe');
-    return res.status(401).json(ERR);
-  }
-
-  const mapping = store.oidcCodes.get(code);
-  store.oidcCodes.delete(code); // single-use
-
-  // mapping puede ser: null | string (email) | { email, sub }
-  let email, incomingSub;
-  if (mapping === null) {
-    addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Code sin email asociado');
-    return res.status(401).json(ERR);
-  } else if (typeof mapping === 'string') {
-    email = mapping;
-    incomingSub = `google-sub-${crypto.randomBytes(8).toString('hex')}`;
-  } else {
-    email = mapping.email;
-    incomingSub = mapping.sub ?? `google-sub-${crypto.randomBytes(8).toString('hex')}`;
-  }
-
-  const user = store.users.find((u) => u.email === email);
-  if (!user || !user.active) {
-    addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, `Usuario no encontrado o inactivo: ${email}`);
-    return res.status(401).json(ERR);
-  }
-
-  // Verificar broker_subject si ya está vinculado
-  if (user.broker_subject && user.broker_subject !== incomingSub) {
-    addAuditEvent('OIDC_SUB_MISMATCH', user.id, req.ip, `Sub esperado: ${user.broker_subject} | recibido: ${incomingSub}`);
-    return res.status(401).json(ERR);
-  }
-
-  // Vincular sub en primer login OIDC
-  if (!user.broker_subject) {
-    user.broker_subject = incomingSub;
-    user.updated_at = new Date();
-  }
-
-  const jti = uuidv4();
-  const iat = Math.floor(Date.now() / 1000);
-  const exp = iat + JWT_EXPIRES_IN;
-
-  const token = jwt.sign(
-    { sub: user.id, role: user.role, jti, iat, exp },
-    JWT_SECRET,
-    { algorithm: 'HS256', noTimestamp: true }
-  );
-
-  store.sessions.push({
-    jti,
-    user_id: user.id,
-    ip: req.ip,
-    user_agent: req.headers['user-agent'] || null,
-    created_at: new Date(),
-    expires_at: exp,
-  });
-
-  addAuditEvent('OIDC_LOGIN', user.id, req.ip, `Email: ${email}`);
-
-  return res.status(200).json({
-    status: 'success',
-    data: {
-      access_token: token,
-      user: { id: user.id, role: user.role },
-    },
-  });
-});
-
-// POST /auth/logout
+// ─── RF-M1-04 · POST /auth/logout ───────────────────────────────────────────
 router.post('/auth/logout', authMiddleware(), (req, res) => {
   store.revokedTokens.set(req.user.jti, req.user.exp);
 
-  // Eliminar sesión del store para que no aparezca en GET /sessions
+  // Eliminar sesión del store (GAP-SEG-08)
   store.sessions = store.sessions.filter((s) => s.jti !== req.user.jti);
 
   addAuditEvent('LOGOUT', req.user.id, req.ip, null);
@@ -318,67 +153,7 @@ router.post('/auth/logout', authMiddleware(), (req, res) => {
   return res.status(200).json({ status: 'success', message: 'Sesión cerrada correctamente', data: null });
 });
 
-// ─── Documentos legales (CF-S4-004) ─────────────────────────────────────────
-// Rutas públicas — no requieren autenticación.
-
-router.get('/legal/terms', (_req, res) => {
-  return res.status(200).json({
-    status: 'success',
-    data: {
-      version: '1.0',
-      updated_at: '2026-04-01',
-      content: `**Términos y Condiciones de Uso**
-
-Al utilizar esta plataforma aceptas los presentes términos y condiciones. Este sistema está destinado exclusivamente a investigadores y aplicadores autorizados por la institución administradora.
-
-**1. Uso permitido**
-El acceso a esta plataforma es personal e intransferible. Está prohibido compartir credenciales de acceso.
-
-**2. Tratamiento de datos**
-Los datos recolectados son de carácter anónimo y su uso está restringido a fines de investigación lingüística y metodológica. Consulta el Aviso de Privacidad para más detalle.
-
-**3. Obligaciones del usuario**
-El usuario se compromete a utilizar la plataforma de forma ética, respetando la privacidad de los sujetos evaluados.
-
-**4. Modificaciones**
-La institución administradora se reserva el derecho de actualizar estos términos. Se notificará a los usuarios registrados ante cambios relevantes.
-
-_Versión 1.0 — Abril 2026_`,
-    },
-  });
-});
-
-router.get('/legal/privacy', (_req, res) => {
-  return res.status(200).json({
-    status: 'success',
-    data: {
-      version: '1.0',
-      updated_at: '2026-04-01',
-      content: `**Aviso de Privacidad**
-
-En cumplimiento con la normativa vigente de protección de datos personales, se informa lo siguiente:
-
-**Responsable del tratamiento**
-La institución administradora del sistema de registro metodológico es responsable del tratamiento de los datos personales proporcionados.
-
-**Datos recopilados**
-Se recopilan únicamente los datos estrictamente necesarios para el funcionamiento del sistema: nombre, correo electrónico, rol e institución del usuario. Los registros operativos son anónimos y no permiten identificar a los sujetos evaluados.
-
-**Finalidad**
-Los datos se utilizan exclusivamente para la gestión de acceso, trazabilidad de registros y mejora de los instrumentos de evaluación.
-
-**Derechos del titular**
-El usuario puede solicitar en cualquier momento el acceso, rectificación, cancelación u oposición al tratamiento de sus datos personales dirigiéndose al administrador del sistema.
-
-**Transferencia de datos**
-No se realizan transferencias de datos a terceros sin consentimiento expreso.
-
-_Versión 1.0 — Abril 2026_`,
-    },
-  });
-});
-
-// POST /auth/password-recovery
+// ─── POST /auth/password-recovery ─── Mock: devuelve token directamente (GAP-SEG-11)
 // NOTA DE SEGURIDAD: En producción, enviar token por email y NO exponerlo en la respuesta.
 router.post(
   '/auth/password-recovery',
@@ -417,7 +192,7 @@ router.post(
   }
 );
 
-// POST /auth/password-reset
+// ─── POST /auth/password-reset ─── (GAP-SEG-11)
 router.post(
   '/auth/password-reset',
   validateStrictInput(['recovery_token', 'new_password']),
@@ -453,99 +228,15 @@ router.post(
   }
 );
 
-// GET /users/me — perfil del usuario autenticado
-router.get('/users/me', authMiddleware(), (req, res) => {
-  const user = store.users.find((u) => u.id === req.user.id);
-  if (!user) {
-    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
-  }
-
-  return res.status(200).json({
-    status: 'success',
-    data: {
-      id: user.id,
-      full_name: user.full_name,
-      email: user.email,
-      role: user.role,
-      active: user.active,
-      must_change_password: user.must_change_password === true,
-      phone: user.phone ?? null,
-      institution: user.institution ?? null,
-      terms_accepted_at: user.terms_accepted_at ?? null,
-      onboarding_completed: user.onboarding_completed === true,
-      created_at: user.created_at,
-      updated_at: user.updated_at,
-    },
-  });
-});
-
-// PATCH /users/me/profile — actualizar perfil propio
-router.patch('/users/me/profile', authMiddleware(), validateStrictInput(['phone', 'institution', 'onboarding_completed']), (req, res) => {
-  const user = store.users.find((u) => u.id === req.user.id);
-  if (!user) {
-    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
-  }
-
-  const { phone, institution, onboarding_completed } = req.body || {};
-
-  if (phone !== undefined) user.phone = phone || null;
-  if (institution !== undefined) {
-    // Normalizar: lowercase, sin acentos, solo alfanumérico y espacios, trim
-    user.institution = institution
-      ? institution
-          .trim()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toLowerCase()
-          .replace(/[^a-z0-9\s]/g, '')
-          .replace(/\s+/g, ' ')
-          .trim() || null
-      : null;
-  }
-  if (onboarding_completed !== undefined) user.onboarding_completed = Boolean(onboarding_completed);
-  user.updated_at = new Date();
-
-  addAuditEvent('ACTUALIZAR_PERFIL', user.id, req.ip, null);
-
-  return res.status(200).json({
-    status: 'success',
-    data: {
-      id: user.id,
-      full_name: user.full_name,
-      email: user.email,
-      phone: user.phone,
-      institution: user.institution,
-    },
-  });
-});
-
-// POST /users/me/accept-terms — aceptar términos y condiciones
-router.post('/users/me/accept-terms', authMiddleware(), (req, res) => {
-  const user = store.users.find((u) => u.id === req.user.id);
-  if (!user) {
-    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
-  }
-
-  user.terms_accepted_at = new Date();
-  user.updated_at = new Date();
-
-  addAuditEvent('ACEPTAR_TERMINOS', user.id, req.ip, null);
-
-  return res.status(200).json({
-    status: 'success',
-    data: { terms_accepted_at: user.terms_accepted_at },
-  });
-});
-
-// POST /users
+// ─── RF-M1-01 · POST /users ─────────────────────────────────────────────────
 // El admin NO provee contraseña en el cuerpo — el servidor genera el setup token.
 // En producción: _mock_setup_token no se expone; se entrega por canal seguro.
 router.post(
   '/users',
-  authMiddleware(['superadmin']),
-  validateStrictInput(['full_name', 'email', 'role', 'institution']),
+  authMiddleware(['administrator']),
+  validateStrictInput(['full_name', 'email', 'role']),
   (req, res) => {
-    const { full_name, email, role, institution } = req.body || {};
+    const { full_name, email, role } = req.body || {};
 
     if (!full_name || !email || !role) {
       return res.status(400).json({ status: 'error', message: 'Campos obligatorios: full_name, email, role', data: null });
@@ -560,8 +251,8 @@ router.post(
       return res.status(409).json({ status: 'error', message: 'El email ya está registrado', data: null });
     }
 
-    // password_hash contiene un placeholder aleatorio; el usuario no puede autenticarse
-    // con él. La identidad se establece en el primer login OIDC (binding de broker_subject).
+    // password_hash contiene un placeholder aleatorio que nunca se expone; el usuario
+    // no puede autenticarse con él y lo sobreescribe al completar el setup.
     const placeholderPwd = crypto.randomBytes(32).toString('hex');
     const user = {
       id: uuidv4(),
@@ -569,31 +260,20 @@ router.post(
       email,
       password_hash: bcrypt.hashSync(placeholderPwd, 12),
       role,
-      active: false,          // inactivo hasta que el usuario active su cuenta con el magic link
-      must_change_password: false,
-      broker_subject: null,
-      token_version: 0,
+      active: true,
+      must_change_password: true,
       created_at: new Date(),
       updated_at: null,
       password_changed_at: null,
-      // Perfil extendido (Sprint 4)
-      phone: null,
-      institution: institution
-        ? institution.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim() || null
-        : null,
-      terms_accepted_at: null,
-      onboarding_completed: false,
     };
     store.users.push(user);
 
-    // Generar activation token (single-use, TTL 24h)
-    const activationToken = generateSetupToken();
-    store.setupTokens.set(activationToken, {
+    // Generar setup token (single-use, TTL 24h)
+    const setupToken = generateSetupToken();
+    store.setupTokens.set(setupToken, {
       userId: user.id,
       expiresAt: Math.floor(Date.now() / 1000) + SETUP_TOKEN_TTL,
     });
-
-    const mockMagicLink = `/api/v1/auth/activate/${activationToken}`;
 
     return res.status(201).json({
       status: 'success',
@@ -604,121 +284,18 @@ router.post(
         email: user.email,
         role: user.role,
         active: user.active,
+        must_change_password: user.must_change_password,
         created_at: user.created_at,
-        _mock_magic_link: mockMagicLink, // En producción: enviar por email; no exponer en API
+        _mock_setup_token: setupToken, // ELIMINAR en producción — en prod enviar por email
       },
     });
   }
 );
 
-// ─── Solicitudes de cambio de correo ──────────────────────────────────────────
-// No autoservicio: el usuario solicita, el superadmin aprueba.
-// Aprobar: PATCH /users/:id/email → invalida broker_subject, incrementa token_version.
-
-// POST /users/me/email-change-request — crear solicitud (usuario autenticado)
-router.post('/users/me/email-change-request', authMiddleware(), (req, res) => {
-  const { new_email, reason = '' } = req.body || {};
-
-  if (!new_email) {
-    return res.status(400).json({ status: 'error', message: 'El campo new_email es obligatorio', data: null });
-  }
-  if (!EMAIL_REGEX.test(new_email)) {
-    return res.status(400).json({ status: 'error', message: 'Formato de correo inválido', data: null });
-  }
-
-  const userId = req.user.id;
-  const existing = store.emailChangeRequests.find((r) => r.user_id === userId);
-  if (existing) {
-    return res.status(409).json({ status: 'error', message: 'Ya tienes una solicitud de cambio de correo pendiente', data: { code: 'PENDING_REQUEST_EXISTS' } });
-  }
-  if (store.users.find((u) => u.email === new_email)) {
-    return res.status(409).json({ status: 'error', message: 'Ese correo ya está registrado', data: { code: 'EMAIL_ALREADY_EXISTS' } });
-  }
-
-  const currentUser = store.users.find((u) => u.id === userId);
-  const req_id = uuidv4();
-  store.emailChangeRequests.push({
-    id: req_id,
-    user_id: userId,
-    current_email: currentUser?.email ?? '',
-    new_email,
-    reason,
-    created_at: new Date(),
-  });
-
-  addAuditEvent('EMAIL_CHANGE_REQUEST', userId, req.ip, `new_email: ${new_email}`);
-
-  return res.status(201).json({
-    status: 'success',
-    message: 'Solicitud enviada. El administrador la revisará.',
-    data: { id: req_id, user_id: userId, new_email, created_at: new Date() },
-  });
-});
-
-// GET /users/email-change-requests — listar solicitudes (solo superadmin)
-router.get('/users/email-change-requests', authMiddleware(['superadmin']), (req, res) => {
-  return res.status(200).json({
-    status: 'success',
-    data: store.emailChangeRequests,
-  });
-});
-
-// DELETE /users/email-change-requests/:id — rechazar/cancelar solicitud (solo superadmin)
-router.delete('/users/email-change-requests/:id', authMiddleware(['superadmin']), (req, res) => {
-  const idx = store.emailChangeRequests.findIndex((r) => r.id === req.params.id);
-  if (idx === -1) {
-    return res.status(404).json({ status: 'error', message: 'Solicitud no encontrada', data: null });
-  }
-  store.emailChangeRequests.splice(idx, 1);
-  return res.status(204).end();
-});
-
-// PATCH /users/:id/email — aprobar cambio de correo (solo superadmin)
-// Invalida broker_subject y revoca sesiones activas del usuario incrementando token_version.
-router.patch('/users/:id/email', authMiddleware(['superadmin']), (req, res) => {
-  const { email } = req.body || {};
-  if (!email || !EMAIL_REGEX.test(email)) {
-    return res.status(400).json({ status: 'error', message: 'Formato de correo inválido', data: null });
-  }
-
-  const user = store.users.find((u) => u.id === req.params.id);
-  if (!user) {
-    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
-  }
-
-  const collision = store.users.find((u) => u.email === email && u.id !== user.id);
-  if (collision) {
-    return res.status(409).json({ status: 'error', message: 'Ese correo ya está registrado', data: { code: 'EMAIL_ALREADY_EXISTS' } });
-  }
-
-  user.email          = email;
-  user.broker_subject = null;
-  user.token_version  = (user.token_version ?? 0) + 1;
-  user.updated_at     = new Date();
-
-  // Eliminar solicitudes pendientes del usuario
-  store.emailChangeRequests = store.emailChangeRequests.filter((r) => r.user_id !== user.id);
-
-  // Revocar sesiones activas del usuario
-  store.sessions = store.sessions.filter((s) => {
-    if (s.user_id === user.id) {
-      store.revokedTokens.set(s.jti, s.expires_at);
-      return false;
-    }
-    return true;
-  });
-
-  addAuditEvent('EMAIL_CAMBIADO', req.user.id, req.ip, `Usuario ${user.id} → ${email}`);
-
-  return res.status(200).json({
-    status: 'success',
-    message: 'Correo actualizado. El usuario fue desconectado.',
-    data: { id: user.id, email: user.email },
-  });
-});
-
-// GET /users — respuesta paginada (máx 50), con audit log por acceso
-router.get('/users', authMiddleware(['superadmin']), (req, res) => {
+// ─── RF-M1-LIST · GET /users ────────────────────────────────────────────────
+// GAP-M1-02: respuesta es array directo (no {users:[...]})
+// GAP-SEG-09: paginación máx 50, audit_log por acceso
+router.get('/users', authMiddleware(['administrator']), (req, res) => {
   // Validación de filtros
   if (req.query.role && !VALID_ROLES.includes(req.query.role)) {
     return res.status(400).json({ status: 'error', message: `Rol de filtro inválido. Valores aceptados: ${VALID_ROLES.join(' | ')}`, data: null });
@@ -734,7 +311,7 @@ router.get('/users', authMiddleware(['superadmin']), (req, res) => {
     users = users.filter((u) => u.role === req.query.role);
   }
 
-  // Paginación: máximo 50 usuarios por página para proteger el sistema de consultas masivas
+  // Paginación (GAP-SEG-09): máximo 50 por página
   const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
   const offset = (page - 1) * limit;
@@ -746,25 +323,21 @@ router.get('/users', authMiddleware(['superadmin']), (req, res) => {
   return res.status(200).json({
     status: 'success',
     message: 'Usuarios recuperados',
-    data: paginatedUsers.map((u) => {
-      const base = {
-        id: u.id,
-        full_name: u.full_name,
-        email: u.email,
-        role: u.role,
-        active: u.active,
-        institution: u.institution ?? null,
-        created_at: u.created_at,
-      };
-      if (u.role === 'superadmin') base.must_change_password = u.must_change_password === true;
-      return base;
-    }),
+    data: paginatedUsers.map((u) => ({
+      id: u.id,
+      full_name: u.full_name,
+      email: u.email,
+      role: u.role,
+      active: u.active,
+      must_change_password: u.must_change_password === true,
+      created_at: u.created_at,
+    })),
     meta: { total, page, limit, pages: Math.ceil(total / limit) },
   });
 });
 
-// PATCH /users/me/password
-// Debe ir ANTES de /users/:id/status para que "me" no sea capturado por :id
+// ─── RF-M1-06 · PATCH /users/me/password ────────────────────────────────────
+// NOTA: debe ir ANTES de /users/:id/status para que "me" no sea capturado por :id
 // allowPending=true: el usuario en estado "pending" PUEDE cambiar su contraseña (es el flujo forzado)
 router.patch('/users/me/password', authMiddleware([], { allowPending: true }), (req, res) => {
   const { current_password, new_password } = req.body || {};
@@ -806,15 +379,15 @@ router.patch('/users/me/password', authMiddleware([], { allowPending: true }), (
   });
 });
 
-// PATCH /users/:id/status
-router.patch('/users/:id/status', authMiddleware(['superadmin']), (req, res) => {
+// ─── RF-M1-02 · PATCH /users/:id/status ────────────────────────────────────
+router.patch('/users/:id/status', authMiddleware(['administrator']), (req, res) => {
   const { active } = req.body || {};
 
   if (typeof active !== 'boolean') {
     return res.status(400).json({ status: 'error', message: 'El campo active debe ser un booleano', data: null });
   }
 
-  // Un admin no puede desactivar su propia cuenta (evitar quedar sin acceso al sistema)
+  // Protección contra autodesactivación (GAP-SEG-03)
   if (!active && req.user.id === req.params.id) {
     return res.status(403).json({
       status: 'error',
@@ -828,13 +401,13 @@ router.patch('/users/:id/status', authMiddleware(['superadmin']), (req, res) => 
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
   }
 
-  // Protección: último superadmin activo no puede ser desactivado (CA-HU2-05)
-  if (!active && user.role === 'superadmin') {
-    const activeAdmins = store.users.filter((u) => u.role === 'superadmin' && u.active);
+  // Protección: último administrador activo no puede ser desactivado (CA-HU2-05)
+  if (!active && user.role === 'administrator') {
+    const activeAdmins = store.users.filter((u) => u.role === 'administrator' && u.active);
     if (activeAdmins.length === 1 && activeAdmins[0].id === user.id) {
       return res.status(409).json({
         status: 'error',
-        message: 'No es posible desactivar al único superadmin activo',
+        message: 'No es posible desactivar al único administrador activo',
         data: null,
       });
     }
@@ -843,6 +416,7 @@ router.patch('/users/:id/status', authMiddleware(['superadmin']), (req, res) => 
   user.active = active;
   user.updated_at = new Date();
 
+  // GAP-M1-01: respuesta incluye email y updated_at
   return res.status(200).json({
     status: 'success',
     message: 'Estado del usuario actualizado',
@@ -850,77 +424,144 @@ router.patch('/users/:id/status', authMiddleware(['superadmin']), (req, res) => 
   });
 });
 
-// POST /users/:id/reset-password
+// ─── RF-M1-RESET · POST /users/:id/reset-password ────────────────────────────
 // Funciona en estado "pending" (regenerar) y "active" (restablecer → vuelve a pending).
 // NOTA DE SEGURIDAD: Solo en mock se devuelve la contraseña en texto plano.
-// POST /users/:id/magic-link — reenvío de enlace de activación (solo superadmin)
-// Regenera un magic link para un usuario existente (activo o inactivo).
-// En producción: el enlace se entrega por email; no se expone en la API.
-router.post('/users/:id/magic-link', authMiddleware(['superadmin']), (req, res) => {
+// En producción: nunca exponer en API; entregar por canal seguro fuera de banda.
+router.post('/users/:id/reset-password', authMiddleware(['administrator']), (req, res) => {
   const user = store.users.find((u) => u.id === req.params.id);
   if (!user) {
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
   }
+  if (!user.active) {
+    return res.status(409).json({
+      status: 'error',
+      message: 'No se puede restablecer la contraseña de un usuario inactivo. Actívalo primero.',
+      data: null,
+    });
+  }
 
-  const activationToken = generateSetupToken();
-  store.setupTokens.set(activationToken, {
+  // Se genera un setup link de un solo uso (TTL 24h).
+  // password_hash no se modifica: el usuario puede seguir autenticándose con su contraseña anterior,
+  // pero el middleware lo bloquea (must_change_password=true) hasta que complete el setup.
+  user.must_change_password = true;
+  user.password_changed_at = new Date(); // invalida tokens activos del usuario
+  user.updated_at = new Date();
+
+  const setupToken = generateSetupToken();
+  store.setupTokens.set(setupToken, {
     userId: user.id,
     expiresAt: Math.floor(Date.now() / 1000) + SETUP_TOKEN_TTL,
   });
 
-  const mockMagicLink = `/api/v1/auth/activate/${activationToken}`;
-
-  addAuditEvent('MAGIC_LINK_GENERADO', req.user.id, req.ip, `Para usuario ${user.id}`);
+  addAuditEvent(
+    'RESET_CONTRASENA',
+    req.user.id,
+    req.ip,
+    `Admin ${req.user.id} restableció contraseña de usuario ${user.id}`
+  );
 
   return res.status(200).json({
     status: 'success',
-    message: 'Enlace de activación generado.',
+    message: 'Enlace de configuración generado. El usuario deberá crear su nueva contraseña antes de 24 horas.',
     data: {
       id: user.id,
       email: user.email,
-      _mock_magic_link: mockMagicLink,
+      must_change_password: true,
+      _mock_setup_token: setupToken, // ELIMINAR en producción — en prod enviar por email
     },
   });
 });
 
-// GET /auth/activate/:token
-// Activa la cuenta del usuario y lo redirige a /login.
-// Endpoint público — no requiere JWT. Token single-use.
-router.get('/auth/activate/:token', (req, res) => {
+// ─── RF-M1-SETUP · GET /auth/setup/:token ────────────────────────────────────
+// Valida un setup token y devuelve los datos públicos del usuario (sin secretos).
+// Endpoint público — no requiere JWT. El frontend lo usa para mostrar nombre y email
+// en la pantalla de configuración de contraseña.
+router.get('/auth/setup/:token', (req, res) => {
   const now = Math.floor(Date.now() / 1000);
   const tokenData = store.setupTokens.get(req.params.token);
 
   if (!tokenData || tokenData.expiresAt < now) {
     store.setupTokens.delete(req.params.token);
-    return res.status(410).json({
+    return res.status(404).json({
       status: 'error',
-      message: 'El enlace de activación es inválido o ha expirado.',
-      data: { code: 'LINK_EXPIRED_OR_USED' },
+      message: 'El enlace de configuración es inválido o ha expirado.',
+      data: null,
     });
   }
 
   const user = store.users.find((u) => u.id === tokenData.userId);
   if (!user) {
-    store.setupTokens.delete(req.params.token);
-    return res.status(410).json({
+    return res.status(404).json({
       status: 'error',
-      message: 'El enlace de activación es inválido o ha expirado.',
-      data: { code: 'LINK_EXPIRED_OR_USED' },
+      message: 'El enlace de configuración es inválido o ha expirado.',
+      data: null,
     });
   }
 
-  user.active = true;
-  user.broker_subject = null;
-  user.updated_at = new Date();
-  store.setupTokens.delete(req.params.token); // single-use
-
-  addAuditEvent('CUENTA_ACTIVADA', user.id, req.ip, `Token de activación usado`);
-
-  return res.redirect(302, '/login?activated=1');
+  return res.status(200).json({
+    status: 'success',
+    message: 'Enlace válido',
+    data: { email: user.email, full_name: user.full_name },
+  });
 });
 
-// GET /audit-log — solo administrador; soporta filtros por event, user_id, from, to
-router.get('/audit-log', authMiddleware(['superadmin']), (req, res) => {
+// ─── RF-M1-SETUP · POST /auth/setup ──────────────────────────────────────────
+// El usuario establece su contraseña usando el setup token.
+// Endpoint público — no requiere JWT (el token actúa como credencial temporal).
+// Token single-use: se invalida inmediatamente tras su uso.
+router.post(
+  '/auth/setup',
+  validateStrictInput(['token', 'password']),
+  (req, res) => {
+    const { token, password } = req.body || {};
+
+    if (!token || !password) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Campos obligatorios: token, password',
+        data: null,
+      });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const tokenData = store.setupTokens.get(token);
+
+    if (!tokenData || tokenData.expiresAt < now) {
+      store.setupTokens.delete(token);
+      return res.status(400).json({
+        status: 'error',
+        message: 'El enlace de configuración es inválido o ha expirado.',
+        data: null,
+      });
+    }
+
+    const user = store.users.find((u) => u.id === tokenData.userId);
+    if (!user) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'El enlace de configuración es inválido o ha expirado.',
+        data: null,
+      });
+    }
+
+    user.password_hash = bcrypt.hashSync(password, 12);
+    user.must_change_password = false;
+    user.password_changed_at = new Date();
+    store.setupTokens.delete(token); // single-use: invalidar inmediatamente
+
+    addAuditEvent('CAMBIO_CONTRASENA', user.id, req.ip, 'Configuración de contraseña vía setup link');
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Contraseña configurada correctamente. Ya puedes iniciar sesión.',
+      data: null,
+    });
+  }
+);
+
+// ─── GET /audit-log ─── Solo administrador (GAP-M1-03, RNF-SEC-12) ──────────
+router.get('/audit-log', authMiddleware(['administrator']), (req, res) => {
   let entries = store.auditLog;
 
   // Filtros opcionales
@@ -955,7 +596,7 @@ router.get('/audit-log', authMiddleware(['superadmin']), (req, res) => {
 
 // ─── GET /users/sessions ─── todas las sesiones activas ─────────────────────
 // IMPORTANTE: debe ir ANTES de /users/:id para que "sessions" no sea capturado por :id
-router.get('/users/sessions', authMiddleware(['superadmin']), (req, res) => {
+router.get('/users/sessions', authMiddleware(['administrator']), (req, res) => {
   const nowSec = Math.floor(Date.now() / 1000);
   const sessions = store.sessions
     .filter((s) => s.expires_at > nowSec)
@@ -971,7 +612,7 @@ router.get('/users/sessions', authMiddleware(['superadmin']), (req, res) => {
 });
 
 // ─── GET /users/:id ──────────────────────────────────────────────────────────
-router.get('/users/:id', authMiddleware(['superadmin']), (req, res) => {
+router.get('/users/:id', authMiddleware(['administrator']), (req, res) => {
   const user = store.users.find((u) => u.id === req.params.id);
   if (!user) {
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado.', data: null });
@@ -980,8 +621,8 @@ router.get('/users/:id', authMiddleware(['superadmin']), (req, res) => {
   return res.json({ status: 'success', data: safeUser });
 });
 
-// GET /users/me/sessions
-// Debe ir ANTES de /users/:id/sessions para que "me" no sea capturado por :id
+// ─── GET /users/me/sessions ─── (GAP-SEG-08) ─────────────────────────────────
+// IMPORTANTE: debe ir ANTES de /users/:id/sessions para que "me" no sea capturado por :id
 router.get('/users/me/sessions', authMiddleware(), (req, res) => {
   const nowSec = Math.floor(Date.now() / 1000);
   const sessions = store.sessions
@@ -1003,7 +644,7 @@ router.get('/users/me/sessions', authMiddleware(), (req, res) => {
 });
 
 // ─── GET /users/:id/sessions ─────────────────────────────────────────────────
-router.get('/users/:id/sessions', authMiddleware(['superadmin']), (req, res) => {
+router.get('/users/:id/sessions', authMiddleware(['administrator']), (req, res) => {
   const nowSec = Math.floor(Date.now() / 1000);
   const sessions = store.sessions
     .filter((s) => s.user_id === req.params.id && s.expires_at > nowSec)
@@ -1017,54 +658,7 @@ router.get('/users/:id/sessions', authMiddleware(['superadmin']), (req, res) => 
   return res.json({ status: 'success', data: sessions });
 });
 
-// ─── GET /users/:id/permissions ──────────────────────────────────────────────
-router.get('/users/:id/permissions', authMiddleware(['superadmin']), (req, res) => {
-  const user = store.users.find((u) => u.id === req.params.id);
-  if (!user) {
-    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
-  }
-
-  const perms = store.userPermissions.get(req.params.id) || {
-    mode: 'libre',
-    education_levels: [],
-    subject_limit: null,
-  };
-
-  return res.json({ status: 'success', data: perms });
-});
-
-// ─── PUT /users/:id/permissions ───────────────────────────────────────────────
-router.put('/users/:id/permissions', authMiddleware(['superadmin']), (req, res) => {
-  const user = store.users.find((u) => u.id === req.params.id);
-  if (!user) {
-    return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
-  }
-
-  const { mode, education_levels, subject_limit } = req.body;
-
-  if (mode !== undefined && !['libre', 'restricted'].includes(mode)) {
-    return res.status(400).json({ status: 'error', message: 'mode no válido.', data: null });
-  }
-  if (education_levels !== undefined && !Array.isArray(education_levels)) {
-    return res.status(400).json({ status: 'error', message: 'education_levels debe ser un arreglo.', data: null });
-  }
-  if (subject_limit !== undefined && subject_limit !== null && (typeof subject_limit !== 'number' || subject_limit < 1)) {
-    return res.status(400).json({ status: 'error', message: 'subject_limit debe ser un entero positivo o null.', data: null });
-  }
-
-  const current = store.userPermissions.get(req.params.id) || { mode: 'libre', education_levels: [], subject_limit: null };
-  const updated = {
-    mode:             mode             !== undefined ? mode             : current.mode,
-    education_levels: education_levels !== undefined ? education_levels : current.education_levels,
-    subject_limit:    subject_limit    !== undefined ? subject_limit    : current.subject_limit,
-  };
-
-  store.userPermissions.set(req.params.id, updated);
-
-  return res.json({ status: 'success', message: 'Permisos actualizados.', data: updated });
-});
-
-// DELETE /sessions/:jti — cierra una sesión específica del usuario autenticado
+// ─── DELETE /sessions/:jti ─── (GAP-SEG-08) ──────────────────────────────────
 router.delete('/sessions/:jti', authMiddleware(), (req, res) => {
   const { jti } = req.params;
 
@@ -1086,30 +680,6 @@ router.delete('/sessions/:jti', authMiddleware(), (req, res) => {
     status: 'success',
     message: 'Sesión cerrada correctamente',
     data: null,
-  });
-});
-
-// ─── Configuración de perfil requerido (CF-S4-005) ───────────────────────────
-
-// GET /superadmin/profile-config — leer config (accesible a cualquier usuario autenticado)
-router.get('/superadmin/profile-config', authMiddleware(), (_req, res) => {
-  return res.status(200).json({
-    status: 'success',
-    data: store.profileConfig,
-  });
-});
-
-// PUT /superadmin/profile-config — actualizar config
-router.put('/superadmin/profile-config', authMiddleware(['superadmin']), (req, res) => {
-  const { require_phone, require_institution, require_terms } = req.body || {};
-
-  if (require_phone !== undefined) store.profileConfig.require_phone = Boolean(require_phone);
-  if (require_institution !== undefined) store.profileConfig.require_institution = Boolean(require_institution);
-  if (require_terms !== undefined) store.profileConfig.require_terms = Boolean(require_terms);
-
-  return res.status(200).json({
-    status: 'success',
-    data: store.profileConfig,
   });
 });
 

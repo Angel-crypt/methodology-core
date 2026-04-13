@@ -1,8 +1,19 @@
 /**
- * M4 – Registro Operativo Anonimizado
- * Rutas: POST /projects/:projectId/subjects, POST /subjects (legacy),
- *        POST /subjects/:id/context, GET /subjects/:id,
- *        POST /applications, GET /applications/my, POST /metric-values
+ * M4 – Registro Operativo
+ * Contratos: RF-M4-01..04, RF-M4-GET-SUBJECT
+ *
+ * Cambios aplicados (GAP-M4-01..M4-07, GAP-SEG-04..05):
+ *   - POST /subjects: corrección del guard de body vacío (GAP-M4-07)
+ *   - POST /subjects/:id/context: 409 si contexto ya existe (GAP-M4-04)
+ *   - POST /subjects/:id/context: validateStrictInput (GAP-SEG-04)
+ *   - POST /subjects/:id/context: validación age_cohort patrón N-N ≤20 chars (GAP-M4-05)
+ *   - POST /subjects/:id/context: restricciones additional_attributes PII (GAP-SEG-04)
+ *   - POST /subjects/:id/context: respuesta filtrada (sin id, subject_id, created_at) (GAP-M4-03)
+ *   - GET /subjects/:id: context filtrado a 6 campos lógicos (GAP-M4-03)
+ *   - POST /applications: comparación de fechas timezone-safe (GAP-M4-06)
+ *   - POST /metric-values: values_recorded → values_count (GAP-M4-01)
+ *   - POST /metric-values: reason → error + metric_name en errores (GAP-M4-01)
+ *   - Mensajes genéricos en español (GAP-SEG-05)
  */
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
@@ -12,7 +23,7 @@ const { validateStrictInput } = require('../middleware/validateStrictInput');
 
 const router = express.Router();
 
-const APPLICATOR_ROLES = ['applicator', 'superadmin'];
+const APPLICATOR_ROLES = ['applicator', 'administrator'];
 
 // Enums definidos en los contratos XML (M4 contextAttributes)
 const VALID_SCHOOL_TYPES = ['public', 'private', 'unknown'];
@@ -20,10 +31,10 @@ const VALID_EDUCATION_LEVELS = ['preschool', 'primary_lower', 'primary_upper', '
 const VALID_GENDERS = ['male', 'female', 'non_binary', 'prefer_not_to_say'];
 const VALID_SOCIO_LEVELS = ['low', 'medium', 'high', 'unknown'];
 
-// Validación age_cohort: patrón "N-N" (ej: "6-8"), máximo 20 caracteres
+// Validación age_cohort: patrón "N-N", máximo 20 caracteres (GAP-M4-05)
 const AGE_COHORT_REGEX = /^\d+-\d+$/;
 
-// Restricciones additional_attributes (Privacy by Design: evitar PII en campos libres)
+// Restricciones additional_attributes (GAP-SEG-04, Privacy by Design)
 const ADDITIONAL_ATTR_MAX_KEYS = 5;
 const ADDITIONAL_ATTR_KEY_MAX_LEN = 50;
 const ADDITIONAL_ATTR_VALUE_MAX_LEN = 200;
@@ -73,70 +84,17 @@ function validateAdditionalAttributes(additional_attributes) {
   return null;
 }
 
-// POST /projects/:projectId/subjects (ruta canónica)
-// También existe POST /subjects (legacy) mientras el frontend completa la migración
-function createSubjectHandler(projectId) {
-  return (req, res) => {
-    // Privacy by Design (AD-09): el body debe estar vacío
-    if (req.body !== undefined && Object.keys(req.body || {}).length > 0) {
-      return res.status(400).json({ status: 'error', message: 'El cuerpo de la solicitud debe estar vacío', data: null });
-    }
-
-    // Verificar subject_limit del aplicador (SRS General §3.4)
-    const perms = store.userPermissions.get(req.user.id);
-    if (perms?.subject_limit != null) {
-      const count = store.subjects.filter((s) => s.created_by === req.user.id).length;
-      if (count >= perms.subject_limit) {
-        return res.status(422).json({ status: 'error', message: 'Límite de sujetos registrables alcanzado.', data: null });
-      }
-    }
-
-    const subject = {
-      id: uuidv4(),
-      project_id: projectId,
-      created_by: req.user.id,
-      created_at: new Date(),
-      context: null,
-    };
-    store.subjects.push(subject);
-
-    return res.status(201).json({
-      status: 'success',
-      message: 'Sujeto registrado correctamente',
-      data: { id: subject.id, project_id: subject.project_id, created_at: subject.created_at },
-    });
-  };
-}
-
-router.post('/projects/:projectId/subjects', authMiddleware(APPLICATOR_ROLES), (req, res) => {
-  return createSubjectHandler(req.params.projectId)(req, res);
-});
-
-// POST /subjects (legacy — conservar mientras el frontend migra a /projects/:id/subjects)
+// ─── RF-M4-01 · POST /subjects ───────────────────────────────────────────────
 router.post('/subjects', authMiddleware(APPLICATOR_ROLES), (req, res) => {
-  // Privacy by Design: el cuerpo debe estar vacío (no se aceptan datos identificables aquí)
-  // req.body puede ser undefined con ciertos parsers; el guard || {} lo cubre
+  // Privacy by Design (AD-09): el body debe estar vacío
+  // GAP-M4-07: corrección del guard — req.body puede ser undefined con ciertos parsers
   if (req.body !== undefined && Object.keys(req.body || {}).length > 0) {
     return res.status(400).json({ status: 'error', message: 'El cuerpo de la solicitud debe estar vacío', data: null });
-  }
-
-  // Verificar subject_limit del aplicador (SRS General §3.4)
-  const perms = store.userPermissions.get(req.user.id);
-  if (perms?.subject_limit != null) {
-    const count = store.subjects.filter((s) => s.created_by === req.user.id).length;
-    if (count >= perms.subject_limit) {
-      return res.status(422).json({
-        status: 'error',
-        message: 'Límite de sujetos registrables alcanzado.',
-        data: null,
-      });
-    }
   }
 
   const subject = {
     id: uuidv4(),
     created_at: new Date(),
-    created_by: req.user.id,
     context: null,
   };
   store.subjects.push(subject);
@@ -148,7 +106,7 @@ router.post('/subjects', authMiddleware(APPLICATOR_ROLES), (req, res) => {
   });
 });
 
-// POST /subjects/:id/context
+// ─── RF-M4-02 · POST /subjects/:id/context ───────────────────────────────────
 router.post(
   '/subjects/:id/context',
   authMiddleware(APPLICATOR_ROLES),
@@ -159,7 +117,7 @@ router.post(
       return res.status(404).json({ status: 'error', message: 'Sujeto no encontrado', data: null });
     }
 
-    // El contexto es inmutable una vez registrado (operación de un solo uso por sujeto)
+    // GAP-M4-04: 409 si el contexto ya existe
     if (subject.context !== null) {
       return res.status(409).json({
         status: 'error',
@@ -184,7 +142,7 @@ router.post(
       return res.status(400).json({ status: 'error', message: `socioeconomic_level inválido. Valores aceptados: ${VALID_SOCIO_LEVELS.join(' | ')}`, data: null });
     }
 
-    // age_cohort debe tener el formato "N-N" (ej: "6-8") y máximo 20 caracteres
+    // GAP-M4-05: validar age_cohort — patrón "N-N", máximo 20 caracteres
     if (age_cohort !== undefined && age_cohort !== null) {
       if (typeof age_cohort !== 'string' || age_cohort.length > 20 || !AGE_COHORT_REGEX.test(age_cohort)) {
         return res.status(400).json({
@@ -195,7 +153,7 @@ router.post(
       }
     }
 
-    // Validar restricciones de additional_attributes (evitar PII en campos libres)
+    // GAP-SEG-04: validar restricciones Privacy by Design en additional_attributes
     const attrError = validateAdditionalAttributes(additional_attributes);
     if (attrError) {
       return res.status(400).json({ status: 'error', message: attrError, data: null });
@@ -214,7 +172,7 @@ router.post(
     };
     subject.context = context;
 
-    // Respuesta filtrada: solo los 6 campos de contexto (sin id, subject_id ni created_at internos)
+    // GAP-M4-03: respuesta filtrada — solo los 6 campos lógicos (sin id, subject_id, created_at)
     return res.status(201).json({
       status: 'success',
       message: 'Contexto registrado correctamente',
@@ -230,14 +188,14 @@ router.post(
   }
 );
 
-// GET /subjects/:id
+// ─── RF-M4-GET-SUBJECT · GET /subjects/:id ───────────────────────────────────
 router.get('/subjects/:id', authMiddleware(), (req, res) => {
   const subject = store.subjects.find((s) => s.id === req.params.id);
   if (!subject) {
     return res.status(404).json({ status: 'error', message: 'Sujeto no encontrado', data: null });
   }
 
-  // Exponer solo los 6 campos de contexto (sin id, subject_id ni created_at internos)
+  // GAP-M4-03: filtrar contexto — exponer solo los 6 campos lógicos (no id, subject_id, created_at)
   const contextData = subject.context
     ? {
         school_type: subject.context.school_type,
@@ -259,7 +217,7 @@ router.get('/subjects/:id', authMiddleware(), (req, res) => {
   });
 });
 
-// POST /applications
+// ─── RF-M4-03 · POST /applications ───────────────────────────────────────────
 router.post('/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
   const { subject_id, instrument_id, application_date, notes } = req.body || {};
 
@@ -277,7 +235,7 @@ router.post('/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
     return res.status(404).json({ status: 'error', message: 'Instrumento no encontrado', data: null });
   }
 
-  if (!instrument.is_active) {
+  if (instrument.status !== 'active') {
     return res.status(422).json({
       status: 'error',
       message: 'El instrumento está inactivo y no puede recibir nuevas aplicaciones',
@@ -285,7 +243,7 @@ router.post('/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
     });
   }
 
-  // Normalizar fecha a YYYY-MM-DD para comparaciones timezone-safe
+  // Normalizar fecha de aplicación a YYYY-MM-DD (timezone-safe – GAP-M4-06)
   let appDateStr;
   if (application_date) {
     // Validar que sea una fecha ISO 8601 válida
@@ -325,51 +283,7 @@ router.post('/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
   });
 });
 
-// ─── GET /applications/my ─────────────────────────────────────────────────────
-// Devuelve todas las aplicaciones del aplicador autenticado, enriquecidas con
-// nombre del instrumento y valores de métrica capturados.
-router.get('/applications/my', authMiddleware(APPLICATOR_ROLES), (req, res) => {
-  const mySubjectIds = new Set(
-    store.subjects.filter((s) => s.created_by === req.user.id).map((s) => s.id)
-  );
-
-  const myApplications = store.applications.filter((a) => mySubjectIds.has(a.subject_id));
-
-  const result = myApplications.map((app) => {
-    const instrument = store.instruments.find((i) => i.id === app.instrument_id);
-    const values = store.metricValues.filter((v) => v.application_id === app.id);
-
-    return {
-      application_id: app.id,
-      subject_id:     app.subject_id,
-      instrument_id:  app.instrument_id,
-      instrument_name: instrument ? instrument.name : '—',
-      application_date: app.application_date,
-      notes:          app.notes,
-      created_at:     app.created_at,
-      values_count:   values.length,
-      metric_values:  values.map((v) => {
-        const metric = store.metrics.find((m) => m.id === v.metric_id);
-        return {
-          metric_id:   v.metric_id,
-          metric_name: metric ? metric.name : '—',
-          metric_type: metric ? metric.metric_type : '—',
-          value:       v.value,
-        };
-      }),
-    };
-  });
-
-  result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-  return res.status(200).json({
-    status:  'success',
-    message: 'Registros recuperados',
-    data:    result,
-  });
-});
-
-// POST /metric-values
+// ─── RF-M4-04 · POST /metric-values ──────────────────────────────────────────
 router.post('/metric-values', authMiddleware(APPLICATOR_ROLES), (req, res) => {
   const { application_id, values } = req.body || {};
 
@@ -398,6 +312,7 @@ router.post('/metric-values', authMiddleware(APPLICATOR_ROLES), (req, res) => {
       status: 'error',
       message: 'Faltan valores para métricas obligatorias',
       data: {
+        // GAP-M4-01: usar "error" + "metric_name" en lugar de "reason"
         errors: missing.map((m) => ({
           metric_id: m.id,
           metric_name: m.name,
@@ -472,7 +387,7 @@ router.post('/metric-values', authMiddleware(APPLICATOR_ROLES), (req, res) => {
     message: 'Valores de métrica registrados correctamente',
     data: {
       application_id,
-      values_count: recorded.length,
+      values_count: recorded.length,  // GAP-M4-01: antes era values_recorded
       values: recorded.map((v) => ({ id: v.id, metric_id: v.metric_id, value: v.value })),
     },
   });

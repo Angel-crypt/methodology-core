@@ -1,5 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { ChevronDown, KeyRound, Mail } from 'lucide-react'
+import { ChevronDown, KeyRound } from 'lucide-react'
 import PropTypes from 'prop-types'
 import UserAvatar from './UserAvatar'
 import RoleBadge from './RoleBadge'
@@ -12,11 +12,11 @@ import { jwtRoleToDisplay } from '@/lib/utils'
  *
  * Props:
  *   fullName          string
- *   role              'superadmin'|'researcher'|'applicator' — rol JWT
+ *   role              'administrator'|'researcher'|'applicator' — rol JWT
  *   email             string
  *   onChangePassword  () => void — abre CambiarPasswordModal
  */
-function ProfileDropdown({ fullName, role, email, onChangePassword, onRequestEmailChange }) {
+function ProfileDropdown({ fullName, role, email, onChangePassword }) {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -58,17 +58,6 @@ function ProfileDropdown({ fullName, role, email, onChangePassword, onRequestEma
             <KeyRound size={14} aria-hidden="true" />
             Cambiar contraseña
           </DropdownMenu.Item>
-
-          {/* Solicitar cambio de correo — solo para roles no-superadmin */}
-          {role !== 'superadmin' && onRequestEmailChange && (
-            <DropdownMenu.Item
-              className="profile-dropdown__item"
-              onSelect={onRequestEmailChange}
-            >
-              <Mail size={14} aria-hidden="true" />
-              Solicitar cambio de correo
-            </DropdownMenu.Item>
-          )}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
@@ -76,11 +65,10 @@ function ProfileDropdown({ fullName, role, email, onChangePassword, onRequestEma
 }
 
 ProfileDropdown.propTypes = {
-  fullName:             PropTypes.string.isRequired,
-  role:                 PropTypes.oneOf(['superadmin', 'researcher', 'applicator']).isRequired,
-  email:                PropTypes.string.isRequired,
-  onChangePassword:     PropTypes.func.isRequired,
-  onRequestEmailChange: PropTypes.func,
+  fullName:         PropTypes.string.isRequired,
+  role:             PropTypes.oneOf(['administrator', 'researcher', 'applicator']).isRequired,
+  email:            PropTypes.string.isRequired,
+  onChangePassword: PropTypes.func.isRequired,
 }
 
 export default ProfileDropdown

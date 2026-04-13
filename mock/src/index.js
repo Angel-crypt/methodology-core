@@ -3,6 +3,7 @@
  * Implementa los contratos MockContract M1–M4 con almacenamiento en memoria.
  */
 const express = require('express');
+const fs = require('fs');
 const { store } = require('./store');
 const { JWT_SECRET, DEFAULT_SECRET } = require('./middleware/auth');
 
@@ -18,16 +19,13 @@ app.use(API, require('./routes/m1'));
 app.use(API, require('./routes/m2'));
 app.use(API, require('./routes/m3'));
 app.use(API, require('./routes/m4'));
-app.use(API, require('./routes/projects'));
-app.use(API, require('./routes/config'));
-app.use(`${API}/institutions`, require('./routes/institutions'));
 
 // Health check público (whitelist, sin autenticación – CA-HU5-06)
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'mock-server', timestamp: new Date().toISOString() });
 });
 
-// 404 genérico para rutas no registradas
+// ── 404 genérico (GAP-SEG-05) ────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
     status: 'error',
@@ -36,7 +34,7 @@ app.use((req, res) => {
   });
 });
 
-// Error handler global: loguea el detalle en servidor, responde con mensaje genérico al cliente
+// ── Error handler global (GAP-SYS-01) ───────────────────────────────────────
 // Captura errores no controlados; loguea detalle en servidor, responde genérico al cliente.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
@@ -60,7 +58,7 @@ setInterval(() => {
     }
   }
 
-  // Sesiones expiradas
+  // Sesiones expiradas (GAP-SEG-08)
   const prevLen = store.sessions.length;
   store.sessions = store.sessions.filter((s) => s.expires_at > nowSec);
   if (store.sessions.length !== prevLen) {
@@ -83,25 +81,10 @@ app.listen(PORT, () => {
   console.log('╚══════════════════════════════════════════════════╝');
   console.log(`  API:    http://localhost:${PORT}${API}`);
   console.log(`  Health: http://localhost:${PORT}/health`);
-  console.log(`  Admin:  ${store._superadminEmail}`);
+  console.log(`  Admin:  admin@mock.local  /  Admin123!`);
   console.log('  Todos los datos son en memoria (se pierden al reiniciar).');
 
-  if (store._usingBootstrapDefaults) {
-    console.warn('');
-    console.warn('  ╔═══════════════════════════════════════════════╗');
-    console.warn('  ║  ADVERTENCIA — CREDENCIALES POR DEFECTO       ║');
-    console.warn('  ╠═══════════════════════════════════════════════╣');
-    console.warn('  ║  SUPERADMIN_EMAIL y/o SUPERADMIN_PASSWORD     ║');
-    console.warn('  ║  no están definidas. Usando valores de        ║');
-    console.warn('  ║  desarrollo inseguros.                        ║');
-    console.warn('  ║  El superadmin tendrá must_change_password.   ║');
-    console.warn('  ║  En producción: definir ambas variables de    ║');
-    console.warn('  ║  entorno o usar un gestor de secretos.        ║');
-    console.warn('  ╚═══════════════════════════════════════════════╝');
-    console.warn('');
-  }
-
-  // Advertencia de seguridad si se usa JWT_SECRET por defecto
+  // Advertencia de seguridad si se usa JWT_SECRET por defecto (GAP-SEG-02)
   if (JWT_SECRET === DEFAULT_SECRET) {
     console.warn('');
     console.warn('  ╔═══════════════════════════════════════════════╗');

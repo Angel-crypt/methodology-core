@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { Monitor } from 'lucide-react'
 import { Modal, RoleBadge, StatusBadge } from '@/components/app'
-import { useAuth } from '@/contexts/AuthContext'
 import { listarSesionesUsuario } from '@/services/users'
 
 /**
@@ -18,8 +17,7 @@ import { listarSesionesUsuario } from '@/services/users'
  *   token       string — JWT del admin (para cargar sesiones)
  *   esAdmin     boolean
  */
-function DetalleUsuarioDrawer({ open, onClose, usuario, formatFecha, esAdmin }) {
-  const { token } = useAuth()
+function DetalleUsuarioDrawer({ open, onClose, usuario, formatFecha, token, esAdmin }) {
   const [sesiones, setSesiones] = useState([])
   const [cargandoSesiones, setCargandoSesiones] = useState(false)
   const [errorSesiones, setErrorSesiones] = useState(false)
@@ -39,7 +37,7 @@ function DetalleUsuarioDrawer({ open, onClose, usuario, formatFecha, esAdmin }) 
       })
       .catch(() => setErrorSesiones(true))
       .finally(() => setCargandoSesiones(false))
-  }, [open, usuario, esAdmin, token])
+  }, [open, usuario?.id, esAdmin, token])
 
   if (!usuario) return null
 
@@ -50,7 +48,7 @@ function DetalleUsuarioDrawer({ open, onClose, usuario, formatFecha, esAdmin }) 
       : 'active'
 
   const roleKey =
-    usuario.role === 'superadmin' ? 'admin'
+    usuario.role === 'administrator' ? 'admin'
     : usuario.role === 'applicator'  ? 'aplicador'
     : 'researcher'
 
@@ -157,6 +155,7 @@ DetalleUsuarioDrawer.propTypes = {
     updated_at: PropTypes.string,
   }),
   formatFecha: PropTypes.func.isRequired,
+  token: PropTypes.string,
   esAdmin: PropTypes.bool,
 }
 

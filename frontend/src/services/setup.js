@@ -1,6 +1,6 @@
 /**
  * services/setup.js
- * Flujo de configuración inicial de cuenta.
+ * Flujo de configuración inicial de cuenta (RF-M1-SETUP).
  *
  * Endpoints públicos — no requieren Authorization header.
  * Base path: /api/v1/auth/setup
@@ -17,7 +17,8 @@ async function parseResponse(res) {
 }
 
 /**
- * Valida el setup token y devuelve los datos públicos del usuario (email, full_name).
+ * RF-M1-SETUP — GET /auth/setup/:token
+ * Valida el setup token y devuelve los datos públicos del usuario.
  * @param {string} token
  * @returns {{ status, data: { email, full_name } }}
  */
@@ -27,8 +28,9 @@ export async function validarSetupToken(token) {
 }
 
 /**
- * Establece la contraseña del usuario usando el setup token.
- * El token queda invalidado inmediatamente tras completar el setup.
+ * RF-M1-SETUP — POST /auth/setup
+ * Establece la contraseña del usuario con el setup token.
+ * Token single-use: queda invalidado tras este llamado.
  * @param {string} token
  * @param {string} password
  */
