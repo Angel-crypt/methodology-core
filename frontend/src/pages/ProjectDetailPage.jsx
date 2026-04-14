@@ -72,6 +72,8 @@ function TabMiembros({ projectId, token, toast }) {
   const [adding, setAdding]       = useState(false)
   const [selectedUser, setSelUser] = useState('')
   const [addError, setAddError]   = useState('')
+  const [userSearch, setUserSearch] = useState('')
+  const [comboOpen, setComboOpen]   = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -110,6 +112,12 @@ function TabMiembros({ projectId, token, toast }) {
   }
 
   const availableUsers = users.filter((u) => !members.some((m) => m.user_id === u.id))
+  const selectedUserObj = availableUsers.find((u) => u.id === selectedUser)
+  const filteredUsers = availableUsers.filter((u) =>
+    !userSearch ||
+    u.full_name.toLowerCase().includes(userSearch.toLowerCase()) ||
+    u.email.toLowerCase().includes(userSearch.toLowerCase())
+  )
   const noUsersInSystem = !loading && users.length === 0
 
   if (loading) return <div style={{ padding: 'var(--space-6)' }}><Spinner /></div>
@@ -131,18 +139,57 @@ function TabMiembros({ projectId, token, toast }) {
             <Alert variant="info">No hay más usuarios disponibles para agregar.</Alert>
         ) : (
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-            <select
-              className="input-base"
-              style={{ flex: 1, minWidth: 220 }}
-              value={selectedUser}
-              onChange={(e) => setSelUser(e.target.value)}
-            >
-              <option value="">Selecciona un usuario...</option>
-              {availableUsers.map((u) => {
-                const roleLabel = u.role === 'researcher' ? 'Investigador' : 'Aplicador'
-                return <option key={u.id} value={u.id}>{u.full_name} — {roleLabel}</option>
-              })}
-            </select>
+            <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
+              <input
+                className="input-base"
+                style={{ width: '100%' }}
+                placeholder="Buscar usuario por nombre o correo..."
+                value={comboOpen ? userSearch : (selectedUserObj ? `${selectedUserObj.full_name} (${selectedUserObj.email})` : userSearch)}
+                onChange={(e) => { setUserSearch(e.target.value); setSelUser(''); setComboOpen(true) }}
+                onFocus={() => { setComboOpen(true); setUserSearch('') }}
+                onBlur={() => setTimeout(() => setComboOpen(false), 150)}
+                role="combobox"
+                aria-expanded={comboOpen}
+                aria-haspopup="listbox"
+                aria-autocomplete="list"
+              />
+              {comboOpen && (
+                <ul
+                  role="listbox"
+                  style={{
+                    position: 'absolute', zIndex: 100, top: '100%', left: 0, right: 0,
+                    background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)', maxHeight: 220, overflowY: 'auto',
+                    margin: 0, padding: 0, listStyle: 'none', marginTop: 2,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  }}
+                >
+                  {filteredUsers.length === 0 ? (
+                    <li style={{ padding: 'var(--space-2) var(--space-3)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-small)' }}>
+                      Sin coincidencias
+                    </li>
+                  ) : filteredUsers.map((u) => {
+                    const roleLabel = u.role === 'researcher' ? 'Investigador' : 'Aplicador'
+                    return (
+                      <li
+                        key={u.id}
+                        role="option"
+                        aria-selected={selectedUser === u.id}
+                        onMouseDown={() => { setSelUser(u.id); setUserSearch(''); setComboOpen(false) }}
+                        style={{
+                          padding: 'var(--space-2) var(--space-3)', cursor: 'pointer',
+                          background: selectedUser === u.id ? 'var(--color-primary-subtle)' : undefined,
+                          fontSize: 'var(--font-size-small)',
+                        }}
+                      >
+                        <strong>{u.full_name}</strong>{' '}
+                        <span style={{ color: 'var(--color-text-secondary)' }}>{u.email} · {roleLabel}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
             <Button onClick={handleAdd} loading={adding}>Agregar</Button>
           </div>
         )}

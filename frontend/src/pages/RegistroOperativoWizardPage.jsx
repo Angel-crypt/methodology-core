@@ -143,25 +143,23 @@ function Step1Subject({
         </Alert>
       ) : (
         <>
-          {/* Toggle de modo — "Mis sujetos" solo si ya hay registros */}
-          {mySubjects.length > 0 && (
-            <div className="date-mode-toggle">
-              <button
-                type="button"
-                className={`date-mode-btn${mode === 'new' ? ' date-mode-btn--active' : ''}`}
-                onClick={() => onModeChange('new')}
-              >
-                Nuevo sujeto
-              </button>
-              <button
-                type="button"
-                className={`date-mode-btn${mode === 'mine' ? ' date-mode-btn--active' : ''}`}
-                onClick={() => onModeChange('mine')}
-              >
-                Mis sujetos
-              </button>
-            </div>
-          )}
+          {/* Toggle de modo — siempre visible para que el aplicador pueda explorar su historial */}
+          <div className="date-mode-toggle">
+            <button
+              type="button"
+              className={`date-mode-btn${mode === 'new' ? ' date-mode-btn--active' : ''}`}
+              onClick={() => onModeChange('new')}
+            >
+              Nuevo sujeto
+            </button>
+            <button
+              type="button"
+              className={`date-mode-btn${mode === 'mine' ? ' date-mode-btn--active' : ''}`}
+              onClick={() => onModeChange('mine')}
+            >
+              Mis sujetos
+            </button>
+          </div>
 
           {mode === 'new' && (
             <>
@@ -844,7 +842,7 @@ function RegistroOperativoWizardPage() {
     try {
       const [configRes, instRes] = await Promise.all([
         fetch(`/api/v1/projects/${pid}/config/operativo`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`/api/v1/projects/${pid}/instruments`,      { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/v1/projects/${pid}/instruments?is_active=true`, { headers: { Authorization: `Bearer ${token}` } }),
       ])
       const [configData, instData] = await Promise.all([parseResponse(configRes), parseResponse(instRes)])
       if (configData.status === 'success') setOperativoConfig(configData.data)
