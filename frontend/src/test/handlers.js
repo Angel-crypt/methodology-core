@@ -229,6 +229,10 @@ export const handlers = [
     HttpResponse.json({ status: 'success', data: null }, { status: 201 })
   ),
 
+  http.post(`${API}/subjects/:id/context`, () =>
+    HttpResponse.json({ status: 'success', data: null }, { status: 201 })
+  ),
+
   http.patch(`${API}/subjects/:id/context`, () =>
     HttpResponse.json({ status: 'success', data: null })
   ),
@@ -298,7 +302,10 @@ export const handlers = [
   ),
 
   http.get(`${API}/projects/:projectId/instruments`, () =>
-    HttpResponse.json({ status: 'success', data: [] })
+    HttpResponse.json({
+      status: 'success',
+      data: [{ id: 'inst-proj-1', name: 'Instrumento del Proyecto', is_active: true }],
+    })
   ),
 
   http.delete(`${API}/projects/:id/instruments/:instrumentId`, () => new HttpResponse(null, { status: 204 })),
