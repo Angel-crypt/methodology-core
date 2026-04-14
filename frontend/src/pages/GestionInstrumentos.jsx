@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import PropTypes from 'prop-types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Power, RotateCw, BookOpen, Search, Trash2, Eye, X } from 'lucide-react'
@@ -142,6 +143,18 @@ function TagChipInput({ label, inputId, tags, tagInput, catalog, onAdd, onRemove
       <p className="field-helper">Las etiquetas ayudan a agrupar instrumentos por dominio o nivel.</p>
     </div>
   )
+}
+
+TagChipInput.propTypes = {
+  label: PropTypes.string.isRequired,
+  inputId: PropTypes.string.isRequired,
+  tags: PropTypes.arrayOf(PropTypes.string).isRequired,
+  tagInput: PropTypes.string.isRequired,
+  catalog: PropTypes.arrayOf(PropTypes.string).isRequired,
+  onAdd: PropTypes.func.isRequired,
+  onRemove: PropTypes.func.isRequired,
+  onInputChange: PropTypes.func.isRequired,
+  onKeyDown: PropTypes.func.isRequired,
 }
 
 function emptyMetricForm() {

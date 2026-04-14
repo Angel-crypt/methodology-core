@@ -21,7 +21,7 @@ function buildAuthorizeUrl() {
   return `${OIDC_AUTHORIZE}?${params}`
 }
 
-function LoginPage({ onLogin: _onLogin }) {
+function LoginPage() {
   const [loginMessage] = useState(() => {
     const msg = sessionStorage.getItem('login_message')
     if (msg) sessionStorage.removeItem('login_message')

@@ -110,6 +110,12 @@ function Step0Project({ projects, loading, onSelect }) {
   )
 }
 
+Step0Project.propTypes = {
+  projects: PropTypes.array.isRequired,
+  loading: PropTypes.bool.isRequired,
+  onSelect: PropTypes.func.isRequired,
+}
+
 function Step1Subject({
   onCreate,
   loading,
@@ -213,6 +219,19 @@ function Step1Subject({
       )}
     </section>
   )
+}
+
+Step1Subject.propTypes = {
+  onCreate: PropTypes.func.isRequired,
+  loading: PropTypes.bool,
+  apiError: PropTypes.string,
+  subjectId: PropTypes.string,
+  mode: PropTypes.string.isRequired,
+  onModeChange: PropTypes.func.isRequired,
+  onLoadExisting: PropTypes.func.isRequired,
+  loadingExisting: PropTypes.bool,
+  mySubjects: PropTypes.array.isRequired,
+  loadingMySubjects: PropTypes.bool.isRequired,
 }
 
 const BADGE_COHORT = {
@@ -347,6 +366,22 @@ function Step2Context({
       </div>
     </section>
   )
+}
+
+Step2Context.propTypes = {
+  contextData: PropTypes.object.isRequired,
+  onChange: PropTypes.func.isRequired,
+  onSubmit: PropTypes.func.isRequired,
+  onBack: PropTypes.func.isRequired,
+  loading: PropTypes.bool,
+  apiError: PropTypes.string,
+  validationError: PropTypes.string,
+  contextOptions: PropTypes.object.isRequired,
+  cohortMode: PropTypes.string.isRequired,
+  ageCohortOptions: PropTypes.array.isRequired,
+  isValid: PropTypes.bool,
+  alreadySaved: PropTypes.bool,
+  contextDirty: PropTypes.bool,
 }
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']

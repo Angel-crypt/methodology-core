@@ -4,17 +4,18 @@
  * Tabs: General · Miembros · Instrumentos · Configuración Operativa
  */
 import { useState, useEffect, useCallback } from 'react'
+import PropTypes from 'prop-types'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Users, BookOpen, Settings, Info } from 'lucide-react'
 import {
   Button, Alert, Spinner, Typography, ToastContainer, useToast,
-  StatusBadge, PillToggle,
+  StatusBadge,
 } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
 import {
   obtenerProyecto, listarMiembros, agregarMiembro, eliminarMiembro,
   listarInstrumentosProyecto, asignarInstrumento, quitarInstrumento,
-  obtenerConfigProyecto, guardarConfigProyecto, obtenerSystemDefaults,
+  obtenerConfigProyecto, guardarConfigProyecto,
 } from '@/services/projects'
 import { listarTodosUsuarios } from '@/services/users'
 import { listarInstrumentos } from '@/services/instruments'
@@ -50,6 +51,16 @@ function TabGeneral({ project }) {
       </div>
     </div>
   )
+}
+
+TabGeneral.propTypes = {
+  project: PropTypes.shape({
+    name: PropTypes.string,
+    description: PropTypes.string,
+    member_count: PropTypes.number,
+    instrument_count: PropTypes.number,
+    created_at: PropTypes.string,
+  }).isRequired,
 }
 
 // ── Tab Miembros ──────────────────────────────────────────────────────────────
@@ -173,6 +184,12 @@ function TabMiembros({ projectId, token, toast }) {
   )
 }
 
+TabMiembros.propTypes = {
+  projectId: PropTypes.string.isRequired,
+  token: PropTypes.string.isRequired,
+  toast: PropTypes.func.isRequired,
+}
+
 // ── Tab Instrumentos ──────────────────────────────────────────────────────────
 
 function TabInstrumentos({ projectId, token, toast }) {
@@ -283,6 +300,12 @@ function TabInstrumentos({ projectId, token, toast }) {
       )}
     </div>
   )
+}
+
+TabInstrumentos.propTypes = {
+  projectId: PropTypes.string.isRequired,
+  token: PropTypes.string.isRequired,
+  toast: PropTypes.func.isRequired,
 }
 
 // ── Tab Configuración Operativa ───────────────────────────────────────────────
@@ -516,6 +539,12 @@ function TabConfig({ projectId, token, toast }) {
       </div>
     </div>
   )
+}
+
+TabConfig.propTypes = {
+  projectId: PropTypes.string.isRequired,
+  token: PropTypes.string.isRequired,
+  toast: PropTypes.func.isRequired,
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────
