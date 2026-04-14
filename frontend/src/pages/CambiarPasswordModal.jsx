@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { Modal, FormField, Button, Alert } from '@/components/app'
+import { useAuth } from '@/contexts/AuthContext'
 
 /**
  * CambiarPasswordModal
- * Permite al usuario autenticado cambiar su contraseña (RF-M1-06).
+ * Permite al usuario autenticado cambiar su contraseña.
  * Tras el cambio exitoso llama onSuccess — el servidor invalida todas
  * las sesiones previas via password_changed_at, por lo que onSuccess
  * debe cerrar la sesión local.
@@ -17,7 +18,8 @@ import { Modal, FormField, Button, Alert } from '@/components/app'
  *   forced    boolean (opcional) — si true, el modal no puede cerrarse
  *             y muestra un mensaje de cambio obligatorio
  */
-function CambiarPasswordModal({ open, onClose, token, onSuccess, forced = false }) {
+function CambiarPasswordModal({ open, onClose, onSuccess, forced = false }) {
+  const { token } = useAuth()
   const [form, setForm] = useState({ current_password: '', new_password: '', confirm: '' })
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
@@ -148,7 +150,6 @@ function CambiarPasswordModal({ open, onClose, token, onSuccess, forced = false 
 CambiarPasswordModal.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  token: PropTypes.string.isRequired,
   onSuccess: PropTypes.func.isRequired,
   forced: PropTypes.bool,
 }

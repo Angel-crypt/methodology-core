@@ -1,42 +1,17 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timedelta
-from pathlib import Path
-
-import jwt
-from jwt.exceptions import InvalidTokenError
-
-from app.config import settings
-
-
-def _load_jwt_secret() -> str:
-    return settings.JWT_SECRET_KEY
+# security.py
+# Módulo: core
+# Responsabilidad: utilidades de seguridad JWT y validación de estado
+# Criterios de aceptación relacionados: CA-STATE-01, CA-MAGIC-01
+# Ver: backend/docs/ACCEPTANCE_CRITERIA.md
+#
+# TODO: implementar según BACKEND_SPEC.md sección 4
 
 
-def create_access_token(subject: str, email: str, role) -> str:
-    jti = uuid.uuid4()
-    exp = datetime.utcnow() + timedelta(hours=settings.JWT_EXPIRATION_HOURS)
-
-    payload = {
-        "sub": subject,
-        "email": email,
-        "role": role.value if hasattr(role, "value") else str(role),
-        "jti": str(jti),
-        "exp": exp.isoformat(),
-        "iat": datetime.utcnow().isoformat(),
-    }
-
-    return jwt.encode(payload, _load_jwt_secret(), algorithm=settings.JWT_ALGORITHM)
+def create_access_token() -> str:
+    raise NotImplementedError
 
 
-def decode_access_token(token: str) -> dict:
-    try:
-        payload = jwt.decode(
-            token,
-            _load_jwt_secret(),
-            algorithms=[settings.JWT_ALGORITHM],
-        )
-        return payload
-    except InvalidTokenError as e:
-        raise ValueError(f"Invalid token: {e}")
+def decode_access_token() -> dict[str, object]:
+    raise NotImplementedError

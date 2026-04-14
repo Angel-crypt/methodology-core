@@ -1,0 +1,27 @@
+---
+- name: Install k3s server
+  hosts: k3s_servers
+  become: true
+  tasks:
+    - name: Install k3s server
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | sh -
+      args:
+        executable: /bin/bash
+
+    - name: Read server token
+      ansible.builtin.command: cat /var/lib/rancher/k3s/server/token
+      register: k3s_server_token
+      changed_when: false
+
+    - name: Expose token fact
+      ansible.builtin.set_fact:
+        k3s_join_token: "{{ k3s_server_token.stdout }}"
+
+- name: Propagate join token to localhost
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Keep token for later plays
+      ansible.builtin.set_fact:
+        k3s_join_token: "{{ hostvars[groups['k3s_servers'][0]].k3s_join_token }}"

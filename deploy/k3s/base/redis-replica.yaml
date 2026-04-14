@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-replica
+  namespace: methodology
+spec:
+  selector:
+    app: redis-replica
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-replica
+  namespace: methodology
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-replica
+  template:
+    metadata:
+      labels:
+        app: redis-replica
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command:
+            - sh
+            - -ec
+            - |
+              REDIS_PASSWORD="$(cat /run/secrets/redis_password)"
+              exec redis-server --appendonly yes --replicaof redis-master 6379 --masterauth "$REDIS_PASSWORD" --requirepass "$REDIS_PASSWORD"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: secrets
+              mountPath: /run/secrets
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: redis-replica-pvc
+        - name: secrets
+          secret:
+            secretName: methodology-secrets
+            items:
+              - key: redis_password
+                path: redis_password
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-replica-pvc
+  namespace: methodology
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
