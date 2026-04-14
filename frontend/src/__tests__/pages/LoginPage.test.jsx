@@ -2,7 +2,7 @@
  * Tests de LoginPage — inicio de sesión con Google (OIDC).
  * LoginPage solo muestra el botón de Google; no tiene inputs de email/password.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import LoginPage from '@/pages/LoginPage'
