@@ -161,6 +161,7 @@ const SYSTEM_DEFAULTS_CONFIG = {
     'Primaria mayor': '9-12',
     'Secundaria':     '12-15',
   },
+  age_cohort_ranges: ['3-6', '6-9', '9-12', '12-15'],
   cohort_mode:   'libre',
   subject_limit: 50,
   mode:          'normal',
