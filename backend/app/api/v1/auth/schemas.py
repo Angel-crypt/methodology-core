@@ -184,7 +184,7 @@ class PasswordChangeRequest(BaseModel):
     new_password: str = Field(..., min_length=8)
 
     @model_validator(mode="after")
-    def passwords_must_differ(self) -> "PasswordChangeRequest":
+    def passwords_must_differ(self) -> PasswordChangeRequest:
         if self.current_password == self.new_password:
             raise ValueError("La nueva contraseña debe ser diferente a la actual")
         return self

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 
-class AuditEvent(str, enum.Enum):
+class AuditEvent(enum.StrEnum):
     # Auth
     LOGIN = "LOGIN"
     LOGIN_FAILED = "LOGIN_FAILED"

@@ -9,13 +9,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, BaseModelMixin
 
 
-class Role(str, enum.Enum):
+class Role(enum.StrEnum):
     superadmin = "superadmin"
     researcher = "researcher"
     applicator = "applicator"
 
 
-class UserState(str, enum.Enum):
+class UserState(enum.StrEnum):
     pending = "pending"
     active = "active"
     disabled = "disabled"
@@ -56,7 +56,9 @@ class User(Base, BaseModelMixin):
     sync_pending: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
-    sync_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    sync_retries: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     # Actualizado en cada cambio de contraseña; middleware rechaza tokens con iat anterior
     password_changed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

@@ -29,7 +29,9 @@ class UserPermission(Base, BaseModelMixin):
         index=True,
     )
     # 'libre' | 'restricted'
-    mode: Mapped[str] = mapped_column(String(20), nullable=False, default="libre", server_default="libre")
+    mode: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="libre", server_default="libre"
+    )
     # Array de strings con niveles educativos permitidos (vacío = sin restricción en mode=libre)
     education_levels: Mapped[list[Any]] = mapped_column(
         ARRAY(String), nullable=False, default=list, server_default="{}"

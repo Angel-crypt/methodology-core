@@ -17,7 +17,7 @@ async def log_event(
     user_id: uuid.UUID | None = None,
     ip: str | None = None,
     details: str | None = None,
-):
+) -> None:
     audit = AuditLog(event=event, user_id=user_id, ip=ip, details=details)
     db.add(audit)
     await db.commit()

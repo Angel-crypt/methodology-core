@@ -59,7 +59,11 @@ def upgrade() -> None:
         sa.Column("full_name", sa.String(255), nullable=False),
         sa.Column("email", sa.String(320), nullable=False),
         sa.Column("password_hash", sa.String(255), nullable=True),
-        sa.Column("role", sa.Enum("superadmin", "researcher", "applicator", name="user_role"), nullable=False),
+        sa.Column(
+            "role",
+            sa.Enum("superadmin", "researcher", "applicator", name="user_role"),
+            nullable=False,
+        ),
         sa.Column(
             "state",
             sa.Enum("pending", "active", "disabled", "deleted", name="user_state"),
