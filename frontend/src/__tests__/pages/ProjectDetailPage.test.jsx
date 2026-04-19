@@ -1,7 +1,11 @@
 /**
  * Tests de ProjectDetailPage (CF-013)
  */
+<<<<<<< HEAD
 import { render, screen } from '@testing-library/react'
+=======
+import { render, screen, waitFor } from '@testing-library/react'
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { http, HttpResponse } from 'msw'
@@ -77,11 +81,17 @@ describe('ProjectDetailPage — Tab Miembros', () => {
     renderPage()
     await screen.findAllByText('Estudio Piloto 2026')
     await user.click(screen.getByRole('button', { name: /Miembros/i }))
+<<<<<<< HEAD
     // buscar el usuario por correo en el combobox
     const searchInput = await screen.findByPlaceholderText(/Buscar usuario/i)
     await user.type(searchInput, 'r@t')
     const option = await screen.findByRole('option', { name: /r@t\.com/ })
     await user.click(option)
+=======
+    // esperar a que cargue la opción del usuario (buscar por email para no confundir con "Investigador")
+    const option = await screen.findByRole('option', { name: /r@t\.com/ })
+    await user.selectOptions(option.closest('select'), 'u-r')
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
     await user.click(screen.getByRole('button', { name: /^Agregar$/i }))
     expect(await screen.findByText(/Miembro agregado/i)).toBeInTheDocument()
   })
@@ -104,10 +114,15 @@ describe('ProjectDetailPage — Tab Miembros', () => {
     renderPage()
     await screen.findAllByText('Estudio Piloto 2026')
     await user.click(screen.getByRole('button', { name: /Miembros/i }))
+<<<<<<< HEAD
     const searchInput = await screen.findByPlaceholderText(/Buscar usuario/i)
     await user.type(searchInput, 'r@t')
     const option = await screen.findByRole('option', { name: /r@t\.com/ })
     await user.click(option)
+=======
+    const option = await screen.findByRole('option', { name: /r@t\.com/ })
+    await user.selectOptions(option.closest('select'), 'u-r')
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
     await user.click(screen.getByRole('button', { name: /^Agregar$/i }))
     expect(await screen.findByText(/ya es miembro/i)).toBeInTheDocument()
   })

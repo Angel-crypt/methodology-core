@@ -3,7 +3,10 @@
  * Ruta: /proyectos | Rol: superadmin
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
+<<<<<<< HEAD
 import PropTypes from 'prop-types'
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 import { useNavigate } from 'react-router-dom'
 import { FolderOpen, Plus, Search } from 'lucide-react'
 import {
@@ -171,6 +174,7 @@ function CrearProyectoModal({ open, onClose, onCreated, token }) {
   )
 }
 
+<<<<<<< HEAD
 CrearProyectoModal.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
@@ -178,6 +182,8 @@ CrearProyectoModal.propTypes = {
   token: PropTypes.string,
 }
 
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export default function ProjectsPage() {

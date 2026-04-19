@@ -39,12 +39,22 @@ beforeEach(() => {
         },
       })
     ),
+<<<<<<< HEAD
     // Capturar llamadas al endpoint de instrumentos del proyecto (CF-015/CF-017)
     http.get('/api/v1/projects/:projectId/instruments', ({ request }) => {
       capturedInstrumentsRequests.push(new URL(request.url))
       return HttpResponse.json({
         status: 'success',
         data: [{ id: 'inst-active', name: 'Activo', is_active: true }],
+=======
+    http.get('/api/v1/instruments', ({ request }) => {
+      capturedInstrumentsRequests.push(new URL(request.url))
+      return HttpResponse.json({
+        status: 'success',
+        data: [
+          { id: 'inst-active', name: 'Activo', is_active: true },
+        ],
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
       })
     })
   )
@@ -62,6 +72,7 @@ async function seleccionarProyecto(user) {
 }
 
 async function avanzarHastaPaso3(user) {
+<<<<<<< HEAD
   // Simular que el aplicador ya tiene un sujeto registrado con contexto
   // (beforeEach tiene handler para GET /subjects/:id que devuelve contexto)
   server.use(
@@ -83,6 +94,21 @@ async function avanzarHastaPaso3(user) {
 
   // Sujeto con contexto → Step 2 con "Continuar →" habilitado
   await screen.findByRole('heading', { name: /paso 2: registrar contexto/i })
+=======
+  // CF-015: primero hay que seleccionar un proyecto
+  await seleccionarProyecto(user)
+
+  await screen.findByRole('heading', { name: /paso 1: identificar sujeto/i })
+
+  await user.click(screen.getByRole('button', { name: /sujeto existente/i }))
+
+  const uuidInput = screen.getByPlaceholderText(/xxxxxxxx-xxxx-xxxx-xxxx/i)
+  await user.type(uuidInput, SUBJECT_UUID)
+  await user.click(screen.getByRole('button', { name: /cargar sujeto/i }))
+
+  await screen.findByRole('heading', { name: /paso 2: registrar contexto/i })
+
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
   await user.click(screen.getByRole('button', { name: /continuar/i }))
 
   await screen.findByRole('heading', { name: /paso 3: registrar aplicación/i })

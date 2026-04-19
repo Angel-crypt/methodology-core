@@ -110,12 +110,15 @@ function Step0Project({ projects, loading, onSelect }) {
   )
 }
 
+<<<<<<< HEAD
 Step0Project.propTypes = {
   projects: PropTypes.array.isRequired,
   loading: PropTypes.bool.isRequired,
   onSelect: PropTypes.func.isRequired,
 }
 
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 function Step1Subject({
   onCreate,
   loading,
@@ -143,6 +146,7 @@ function Step1Subject({
         </Alert>
       ) : (
         <>
+<<<<<<< HEAD
           {/* Toggle de modo — siempre visible para que el aplicador pueda explorar su historial */}
           <div className="date-mode-toggle">
             <button
@@ -160,6 +164,27 @@ function Step1Subject({
               Mis sujetos
             </button>
           </div>
+=======
+          {/* Toggle de modo — "Mis sujetos" solo si ya hay registros */}
+          {mySubjects.length > 0 && (
+            <div className="date-mode-toggle">
+              <button
+                type="button"
+                className={`date-mode-btn${mode === 'new' ? ' date-mode-btn--active' : ''}`}
+                onClick={() => onModeChange('new')}
+              >
+                Nuevo sujeto
+              </button>
+              <button
+                type="button"
+                className={`date-mode-btn${mode === 'mine' ? ' date-mode-btn--active' : ''}`}
+                onClick={() => onModeChange('mine')}
+              >
+                Mis sujetos
+              </button>
+            </div>
+          )}
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 
           {mode === 'new' && (
             <>
@@ -219,6 +244,7 @@ function Step1Subject({
   )
 }
 
+<<<<<<< HEAD
 Step1Subject.propTypes = {
   onCreate: PropTypes.func.isRequired,
   loading: PropTypes.bool,
@@ -232,6 +258,8 @@ Step1Subject.propTypes = {
   loadingMySubjects: PropTypes.bool.isRequired,
 }
 
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 const BADGE_COHORT = {
   restricted: { label: 'Restringido', bg: 'var(--color-warning-bg)', color: 'var(--color-warning-text)' },
   libre:      { label: 'Libre',       bg: 'var(--color-info-bg)',    color: 'var(--color-info-text)'    },
@@ -366,6 +394,7 @@ function Step2Context({
   )
 }
 
+<<<<<<< HEAD
 Step2Context.propTypes = {
   contextData: PropTypes.object.isRequired,
   onChange: PropTypes.func.isRequired,
@@ -382,6 +411,8 @@ Step2Context.propTypes = {
   contextDirty: PropTypes.bool,
 }
 
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 function fmtISO(iso) {
   const [y, m, d] = iso.split('-')
@@ -842,7 +873,11 @@ function RegistroOperativoWizardPage() {
     try {
       const [configRes, instRes] = await Promise.all([
         fetch(`/api/v1/projects/${pid}/config/operativo`, { headers: { Authorization: `Bearer ${token}` } }),
+<<<<<<< HEAD
         fetch(`/api/v1/projects/${pid}/instruments?is_active=true`, { headers: { Authorization: `Bearer ${token}` } }),
+=======
+        fetch(`/api/v1/projects/${pid}/instruments`,      { headers: { Authorization: `Bearer ${token}` } }),
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
       ])
       const [configData, instData] = await Promise.all([parseResponse(configRes), parseResponse(instRes)])
       if (configData.status === 'success') setOperativoConfig(configData.data)

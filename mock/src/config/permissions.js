@@ -7,16 +7,16 @@
  */
 
 const ROLES = {
-  ADMINISTRATOR: 'administrator',
+  SUPERADMIN: 'superadmin',
   RESEARCHER: 'researcher',
   APPLICATOR: 'applicator',
 };
 
-/** Solo administradores */
-const ADMIN_ONLY = [ROLES.ADMINISTRATOR];
+/** Solo superadmin */
+const ADMIN_ONLY = [ROLES.SUPERADMIN];
 
-/** Aplicadores y administradores (operaciones de campo: M4) */
-const APPLICATOR_ROLES = [ROLES.APPLICATOR, ROLES.ADMINISTRATOR];
+/** Aplicadores y superadmin (operaciones de campo: M4) */
+const APPLICATOR_ROLES = [ROLES.APPLICATOR, ROLES.SUPERADMIN];
 
 /** Cualquier usuario autenticado (sin restricción de rol) */
 const ALL_AUTHENTICATED = [];

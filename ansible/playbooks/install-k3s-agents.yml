@@ -1,0 +1,13 @@
+---
+- name: Install k3s agents
+  hosts: k3s_agents
+  become: true
+  vars:
+    server_ip: "{{ hostvars[groups['k3s_servers'][0]].ansible_host }}"
+    server_token: "{{ hostvars[groups['k3s_servers'][0]].k3s_join_token | default(hostvars['localhost'].k3s_join_token, true) }}"
+  tasks:
+    - name: Install k3s agent
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ server_ip }}:6443 K3S_TOKEN={{ server_token }} sh -
+      args:
+        executable: /bin/bash

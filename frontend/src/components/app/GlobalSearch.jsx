@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import PropTypes from 'prop-types'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Search, BookOpen, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import RoleBadge from './RoleBadge'
 import StatusBadge from './StatusBadge'
+import { useAuth } from '@/contexts/AuthContext'
 import { listarTodosUsuarios } from '@/services/users'
 import { listarInstrumentos } from '@/services/instruments'
 
@@ -43,7 +43,8 @@ const ACCIONES = [
   },
 ]
 
-function GlobalSearch({ token }) {
+function GlobalSearch() {
+  const { token } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -222,7 +223,7 @@ function GlobalSearch({ token }) {
                       ? 'pending'
                       : 'active'
                   const roleKey =
-                    user.role === 'administrator' ? 'admin'
+                    user.role === 'superadmin' ? 'admin'
                     : user.role === 'applicator' ? 'aplicador'
                     : 'researcher'
                   return (
@@ -313,10 +314,6 @@ function GlobalSearch({ token }) {
       </Dialog.Portal>
     </Dialog.Root>
   )
-}
-
-GlobalSearch.propTypes = {
-  token: PropTypes.string.isRequired,
 }
 
 export default GlobalSearch

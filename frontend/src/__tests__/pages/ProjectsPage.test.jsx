@@ -37,7 +37,11 @@ describe('ProjectsPage', () => {
       )
     )
     renderPage()
+<<<<<<< HEAD
     expect(await screen.findByText(/Sin proyectos registrados/i)).toBeInTheDocument()
+=======
+    expect(await screen.findByText(/No hay proyectos registrados/i)).toBeInTheDocument()
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
   })
 
   it('botón "Nuevo proyecto" abre modal', async () => {
@@ -80,7 +84,11 @@ describe('ProjectsPage', () => {
     await user.click(screen.getByRole('button', { name: /crear proyecto/i }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+<<<<<<< HEAD
     expect(await screen.findByText('Test Proj', { selector: 'span' })).toBeInTheDocument()
+=======
+    expect(await screen.findByRole('heading', { name: 'Test Proj' })).toBeInTheDocument()
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
   })
 
   it('POST 400 → muestra error, modal no cierra', async () => {

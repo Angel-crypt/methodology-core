@@ -6,11 +6,11 @@ export function cn(...inputs) {
 }
 
 /**
- * Convierte el rol del JWT ('administrator'|'researcher'|'applicator')
+ * Convierte el rol del JWT ('superadmin'|'researcher'|'applicator')
  * al formato que espera RoleBadge ('admin'|'researcher'|'aplicador').
  */
 export function jwtRoleToDisplay(role) {
-  if (role === 'administrator') return 'admin'
+  if (role === 'superadmin') return 'admin'
   if (role === 'applicator') return 'aplicador'
   return 'researcher'
 }

@@ -1,15 +1,15 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useToast } from '@/components/app'
+import { useAuth } from '@/contexts/AuthContext'
 import { listarUsuarios, crearUsuario, cambiarEstadoUsuario, resetearPassword, listarTodasLasSesiones } from '@/services/users'
 
 export const FILTROS_ESTADO = [
   { value: '', label: 'Todos' },
   { value: 'true', label: 'Activos' },
-  { value: 'pending', label: 'Pendientes' },
   { value: 'false', label: 'Inactivos' },
 ]
 
-export const FORM_INICIAL = { full_name: '', email: '' }
+export const FORM_INICIAL = { full_name: '', email: '', institution: '' }
 
 export function formatFecha(iso) {
   if (!iso) return '—'
@@ -21,14 +21,13 @@ export function formatFecha(iso) {
 }
 
 /**
- * Deriva el estado de un usuario a partir de sus campos booleanos.
- * pending  → active=true  AND must_change_password=true
- * active   → active=true  AND must_change_password=false
- * inactive → active=false
+ * Deriva el estado de un usuario a partir de sus campos.
+ * Investigadores y aplicadores usan OIDC y solo tienen active/disabled.
+ * Superadmin usa auth local y puede tener must_change_password.
  */
 export function getUserStatus(user) {
-  if (!user.active) return 'inactive'
-  if (user.must_change_password) return 'pending'
+  if (!user.active) return 'disabled'
+  if (user.must_change_password) return 'pending'   // solo superadmin con contraseña local
   return 'active'
 }
 
@@ -37,18 +36,12 @@ export function getUserStatus(user) {
  * Encapsula todo el estado y los handlers compartidos por
  * GestionAplicadores y GestionInvestigadores.
  *
- * @param {{ token: string, role: string, labelSingular: string }} params
+ * @param {{ role: string, labelSingular: string }} params
  *   labelSingular — ej. 'aplicador' o 'investigador' (para mensajes de UI)
  */
-export function useGestionUsuarios({ token, role, labelSingular }) {
-  // ─── Rol del usuario desde el JWT ─────────────────────────────
-  const esAdmin = (() => {
-    try {
-      return JSON.parse(atob(token.split('.')[1])).role === 'administrator'
-    } catch {
-      return false
-    }
-  })()
+export function useGestionUsuarios({ role, labelSingular }) {
+  const { token, role: authRole } = useAuth()
+  const esAdmin = authRole === 'superadmin'
 
   // ─── Estado principal ──────────────────────────────────────────
   const [usuarios, setUsuarios] = useState([])
@@ -70,6 +63,7 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
   const [erroresCrear, setErroresCrear] = useState({})
   const [errorApiCrear, setErrorApiCrear] = useState('')
   const [guardandoCrear, setGuardandoCrear] = useState(false)
+  const [institutionDetected, setInstitutionDetected] = useState(null) // string | null
 
   // ─── Estado cambio de estado ───────────────────────────────────
   const [errorApiEstado, setErrorApiEstado] = useState('')
@@ -103,12 +97,8 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
   const cargarUsuarios = useCallback(async () => {
     setCargando(true)
     try {
-      // El filtro 'pending' y 'true' (activos reales) requieren cargar
-      // los usuarios con active=true y filtrar cliente-side por must_change_password.
-      // El filtro 'false' (inactivos) usa el parámetro del API directamente.
       const apiActiveFilter =
-        filtroEstado === 'pending' ? 'true'
-        : filtroEstado === 'true' ? 'true'
+        filtroEstado === 'true'  ? 'true'
         : filtroEstado === 'false' ? 'false'
         : ''
 
@@ -118,14 +108,7 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
       ])
 
       if (data.status === 'success') {
-        let lista = data.data
-        // Filtrado cliente-side para distinguir pending de active
-        if (filtroEstado === 'pending') {
-          lista = lista.filter((u) => u.must_change_password)
-        } else if (filtroEstado === 'true') {
-          lista = lista.filter((u) => !u.must_change_password)
-        }
-        setUsuarios(lista)
+        setUsuarios(data.data)
       } else {
         toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo cargar la lista.' })
       }
@@ -149,7 +132,29 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     setFormCrear(FORM_INICIAL)
     setErroresCrear({})
     setErrorApiCrear('')
+    setInstitutionDetected(null)
     setModalCrear(true)
+  }
+
+  async function handleEmailBlur() {
+    const email = formCrear.email.trim()
+    if (!email || !email.includes('@')) return
+    setInstitutionDetected(null)
+    try {
+      const res = await fetch(`/api/v1/institutions/resolve?email=${encodeURIComponent(email)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const json = await res.json()
+        const detected = json.data?.institution ?? null
+        setInstitutionDetected(detected)
+        if (detected && !formCrear.institution) {
+          setFormCrear((prev) => ({ ...prev, institution: detected }))
+        }
+      }
+    } catch {
+      // no op — institution detection is best-effort
+    }
   }
 
   function handleChangeCrear(campo) {
@@ -174,18 +179,20 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     setErrorApiCrear('')
 
     try {
-      const data = await crearUsuario(token, {
+      const payload = {
         full_name: formCrear.full_name.trim(),
         email: formCrear.email.trim(),
         role,
-      })
+      }
+      if (formCrear.institution.trim()) payload.institution = formCrear.institution.trim()
+      const data = await crearUsuario(token, payload)
       if (data.status === 'success') {
         setModalCrear(false)
         setFormCrear(FORM_INICIAL)
-        // Mostrar setup link al admin una sola vez (TTL 24h, single-use)
+        // Mostrar magic link al admin una sola vez (TTL 24h, single-use)
         setCredencialesNuevas({
           email: data.data.email,
-          setupToken: data.data._mock_setup_token,
+          magicLink: data.data._mock_magic_link,
           nombreUsuario: data.data.full_name,
         })
         setModalCredenciales(true)
@@ -250,10 +257,10 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     try {
       const data = await resetearPassword(token, usuario.id)
       if (data.status === 'success') {
-        // Mostrar setup link al admin (TTL 24h, single-use)
+        // Mostrar magic link al admin (TTL 24h, single-use)
         setCredencialesNuevas({
           email: usuario.email,
-          setupToken: data.data._mock_setup_token,
+          magicLink: data.data._mock_magic_link,
           nombreUsuario: usuario.full_name,
         })
         setModalCredenciales(true)
@@ -294,6 +301,8 @@ export function useGestionUsuarios({ token, role, labelSingular }) {
     dismiss,
     abrirModalCrear,
     handleChangeCrear,
+    handleEmailBlur,
+    institutionDetected,
     handleGuardarCrear,
     abrirModalEstado,
     handleConfirmarEstado,

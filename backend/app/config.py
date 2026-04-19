@@ -8,30 +8,43 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
 
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
-    JWT_SECRET_KEY: str = "super-secret-key-change-in-production"
-    JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRATION_HOURS: int = 6
+    app_name: str = "methodology-backend"
+    app_env: str = "development"
+    app_port: int = 8000
+    log_level: str = "INFO"
 
-    MAGIC_LINK_TTL_SECONDS: int = 86400
+    database_url: str = Field(
+        default="postgresql+asyncpg://methodology:change_me@postgres:5432/methodology"
+    )
 
-    KEYCLOAK_URL: str = "http://localhost:8080"
-    KEYCLOAK_REALM: str = "methodology"
-    KEYCLOAK_CLIENT_ID: str = "methodology-api"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_seconds: int = 21600
+    jwt_secret_file: str = "/run/secrets/jwt_secret"
 
-    @property
-    def keycloak_client_secret(self) -> str:
-        path = Path(self.keycloak_client_secret_file)
-        if path.exists():
-            return path.read_text().strip()
-        return ""
+    keycloak_url: str = "http://keycloak:8080"
+    keycloak_realm: str = "methodology"
+    keycloak_client_id: str = "backend"
+    keycloak_client_secret: str = "change_me"
+    keycloak_client_secret_file: str | None = None
+
+    magic_link_ttl_seconds: int = 86400
+    redis_url: str = "redis://redis:6379/0"
+    permissions_cache_ttl_seconds: int = 600
+
+    sync_interval_seconds: int = 120
+    sync_max_retries: int = 5
+
+    cors_allow_origins: str = "http://localhost:5173"
+    rate_limit_login: str = "5/minute"
+
+    master_key_secret_file: str = "/run/secrets/master_key"
 
 
 settings = Settings()
 
-KEYCLOAK_CLIENT_SECRET_FILE = os.environ.get(
-    "KEYCLOAK_CLIENT_SECRET_FILE",
-    "keycloak-client-secret.txt",
-)
+if settings.keycloak_client_secret_file and os.path.exists(settings.keycloak_client_secret_file):
+    settings.keycloak_client_secret = (
+        Path(settings.keycloak_client_secret_file).read_text(encoding="utf-8").strip()
+    )

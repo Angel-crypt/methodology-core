@@ -478,3 +478,85 @@ Decisión: mantener visible solo para rol `administrator`, sin cambios.
 | `frontend/src/components/app/Sidebar.jsx` | +`<div className="sidebar__logout-separator">` entre perfil y logout |
 | `frontend/src/index.css` | -`border-top` de `.sidebar__footer`; +`.sidebar__logout-separator`; +`min-height: 40px` en `.sidebar-item` y `.sidebar__logout`; `--space-1-5` → `--space-2` en `.search-trigger` |
 | `frontend/src/pages/DetalleUsuarioDrawer.jsx` | `--space-1-5` → `--space-2` en gap de label |
+
+---
+
+## 11. Decisiones M4 MVP Frontend — 2026-03-24
+
+**Módulo:** M4 — Registro Operativo Anonimizado
+**Ruta frontend:** `/registro-operativo`
+
+### Decisiones aprobadas
+
+1. **Wizard en una sola página**
+   - Se implementa HU14-HU17 como flujo secuencial de 4 pasos en una sola ruta.
+   - Motivo: UX continua, menor complejidad de routing y entrega rápida del MVP.
+
+2. **Exclusión de `additional_attributes` en contexto**
+   - El paso de contexto envía body parcial y no incluye UI de `additional_attributes`.
+   - Motivo: reducir complejidad del MVP sin bloquear el flujo principal de captura.
+
+3. **Exclusión de `GET /subjects/:id` en MVP frontend**
+   - RF-M4-GET-SUBJECT queda fuera del alcance inicial.
+   - Motivo: priorizar flujo de captura HU14-HU17; consulta se difiere a iteración futura.
+
+---
+
+## 12. Revisiones de Módulo M4 — Cierre y Plan de Acción (2026-03-30)
+
+### Reviews utilizadas y eliminadas
+
+| Archivo | Versión | Fecha | Estado |
+|---------|---------|-------|--------|
+| `MODULE_REVIEW_M4.md` | v1 | 2026-03-24 | Hallazgos incorporados → archivo eliminado del repo |
+| `MODULE_REVIEW_Modulo4_v2.md` | v2 | 2026-03-24 | Hallazgos incorporados → archivo eliminado del repo |
+
+Los hallazgos de ambas revisiones fueron cruzados con `POST_MERGE_AUDIT.md` (2026-03-30) y consolidados en el plan de acción de esta sección. Los archivos de revisión se eliminaron del directorio raíz del repositorio conforme a [CODE-TRANS-05] del audit.
+
+### Resumen de hallazgos incorporados
+
+**MODULE_REVIEW_M4 v1 (5 críticos, 8 importantes, 7 menores):**
+- C-01/C-02: Role guard y sidebar sin entrada → pendiente IT-5
+- C-03: Re-submit en Step4 → pendiente IT-5
+- C-04: values:[] → pendiente IT-5
+- C-05: useEffect deps frágiles → pendiente IT-5
+- LANG-06/07, FUNC-01: incorporados en plan IT-5
+
+**MODULE_REVIEW_Modulo4_v2 — Confirmaciones post-corrección:**
+- SEG-02/04: role guard y estado completado (implementados, luego parcialmente revertidos)
+- LANG-06: etiquetas enum en inglés → pendiente IT-5
+- LANG-07: ~19 tildes faltantes → pendiente IT-5
+- FUNC-01: descripción Step3 corregida
+- FUNC-02: data.errors[] no mostrado (menor, IT-5 backlog)
+
+### Plan de Acción — IT-5
+
+#### Crítico
+
+| ID | Descripción | Archivo | Estado |
+|----|-------------|---------|--------|
+| C-01 | Role guard `/registro-operativo` — usar `applicatorLayout` en lugar de `authedLayout` | `App.jsx:103` | ⏳ Pendiente |
+| C-02 | Sidebar sin entrada "Registro Operativo" para aplicador | `AppLayout.jsx:22` | ⏳ Pendiente |
+| C-03 | `subject_limit` no se aplica en `POST /subjects` | `mock/src/routes/m4.js` | ⏳ Pendiente |
+| C-04 | `GestionUsuariosPage.jsx` — archivo huérfano (488 líneas, sin ruta) | `frontend/src/pages/` | ⏳ Pendiente (eliminar) |
+
+#### Idioma / UX
+
+| ID | Descripción | Archivo | Estado |
+|----|-------------|---------|--------|
+| U-01 | Botón cerrar sesión sin identidad visual — `background: transparent` en rest, muted color, invisible en sidebar compactada | `src/index.css:.sidebar__logout` | ⏳ Pendiente |
+| U-02 | Layout filtros en columna vertical — cambiar a fila horizontal: `[🔍 search] [pills] [btn]` | `GestionAplicadores`, `GestionInvestigadores`, `GestionInstrumentos` | ⏳ Pendiente |
+| U-03 | Acciones de tabla inconsistentes — botones inline en Aplicadores/Investigadores vs iconos sin texto en Instrumentos → unificar en dropdown "Acciones" con texto+icono | Todas las páginas de lista | ⏳ Pendiente |
+| U-04 | Etiquetas enum en inglés en wizard Step2 (`preschool`, `public`, `male`…) | `RegistroOperativoWizardPage.jsx` | ⏳ Pendiente |
+| U-05 | Tildes faltantes ~19 instancias ("Aplicacion", "Metricas", "numerico"…) | `RegistroOperativoWizardPage.jsx` | ⏳ Pendiente |
+| U-06 | Sin botón copiar correo en detalle de usuario | `DetalleAplicadorPage.jsx` | ⏳ Pendiente |
+| U-07 | Fechas automáticas en creación de instrumentos (hoy + 6 meses por defecto, pills de duración) | `GestionInstrumentos.jsx` | ✅ Implementado (2026-03-30) |
+
+#### Documentación
+
+| ID | Descripción | Archivo | Estado |
+|----|-------------|---------|--------|
+| D-01 | POST_MERGE_AUDIT §7 — [CODE-TRANS-01] revertido intencionalmente (usuario decidió páginas separadas) | `POST_MERGE_AUDIT.md` | ⏳ Pendiente |
+| D-02 | [FUNC-M1-02] RF-M1-SETUP sin ID formal en SRS M1 | `docs/srs/SRS_M1_*` | ⏳ Pendiente |
+| D-03 | [FUNC-TRANS-02] SRS M4 §3.2 desalineado con SRS General v1.1 (admin no registra en M4) | `docs/srs/SRS_M4_*` | ⏳ Pendiente |
+| D-04 | [DS-TRANS-02] `frontend/README.md §8` — componentes del barrel desactualizados | `frontend/README.md` | ⏳ Pendiente |

@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Install dependencies (cached layer — only re-runs if package files change)
 COPY package*.json ./
-RUN npm ci --frozen-lockfile
+RUN npm ci
 
 # Copy source
 COPY . .
@@ -16,6 +16,12 @@ COPY . .
 # These must be set via --build-arg or docker-compose build.args
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_KEYCLOAK_URL
+ENV VITE_KEYCLOAK_URL=$VITE_KEYCLOAK_URL
+ARG VITE_REALM
+ENV VITE_REALM=$VITE_REALM
+ARG VITE_CLIENT_ID
+ENV VITE_CLIENT_ID=$VITE_CLIENT_ID
 
 # Build production bundle
 RUN npm run build

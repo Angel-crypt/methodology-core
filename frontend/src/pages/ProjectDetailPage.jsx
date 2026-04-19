@@ -4,18 +4,29 @@
  * Tabs: General · Miembros · Instrumentos · Configuración Operativa
  */
 import { useState, useEffect, useCallback } from 'react'
+<<<<<<< HEAD
 import PropTypes from 'prop-types'
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Users, BookOpen, Settings, Info } from 'lucide-react'
 import {
   Button, Alert, Spinner, Typography, ToastContainer, useToast,
+<<<<<<< HEAD
   StatusBadge,
+=======
+  StatusBadge, PillToggle,
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
 import {
   obtenerProyecto, listarMiembros, agregarMiembro, eliminarMiembro,
   listarInstrumentosProyecto, asignarInstrumento, quitarInstrumento,
+<<<<<<< HEAD
   obtenerConfigProyecto, guardarConfigProyecto,
+=======
+  obtenerConfigProyecto, guardarConfigProyecto, obtenerSystemDefaults,
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 } from '@/services/projects'
 import { listarTodosUsuarios } from '@/services/users'
 import { listarInstrumentos } from '@/services/instruments'
@@ -53,6 +64,7 @@ function TabGeneral({ project }) {
   )
 }
 
+<<<<<<< HEAD
 TabGeneral.propTypes = {
   project: PropTypes.shape({
     name: PropTypes.string,
@@ -63,6 +75,8 @@ TabGeneral.propTypes = {
   }).isRequired,
 }
 
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 // ── Tab Miembros ──────────────────────────────────────────────────────────────
 
 function TabMiembros({ projectId, token, toast }) {
@@ -72,8 +86,11 @@ function TabMiembros({ projectId, token, toast }) {
   const [adding, setAdding]       = useState(false)
   const [selectedUser, setSelUser] = useState('')
   const [addError, setAddError]   = useState('')
+<<<<<<< HEAD
   const [userSearch, setUserSearch] = useState('')
   const [comboOpen, setComboOpen]   = useState(false)
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -112,12 +129,15 @@ function TabMiembros({ projectId, token, toast }) {
   }
 
   const availableUsers = users.filter((u) => !members.some((m) => m.user_id === u.id))
+<<<<<<< HEAD
   const selectedUserObj = availableUsers.find((u) => u.id === selectedUser)
   const filteredUsers = availableUsers.filter((u) =>
     !userSearch ||
     u.full_name.toLowerCase().includes(userSearch.toLowerCase()) ||
     u.email.toLowerCase().includes(userSearch.toLowerCase())
   )
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
   const noUsersInSystem = !loading && users.length === 0
 
   if (loading) return <div style={{ padding: 'var(--space-6)' }}><Spinner /></div>
@@ -139,6 +159,7 @@ function TabMiembros({ projectId, token, toast }) {
             <Alert variant="info">No hay más usuarios disponibles para agregar.</Alert>
         ) : (
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+<<<<<<< HEAD
             <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
               <input
                 className="input-base"
@@ -190,6 +211,20 @@ function TabMiembros({ projectId, token, toast }) {
                 </ul>
               )}
             </div>
+=======
+            <select
+              className="input-base"
+              style={{ flex: 1, minWidth: 220 }}
+              value={selectedUser}
+              onChange={(e) => setSelUser(e.target.value)}
+            >
+              <option value="">Selecciona un usuario...</option>
+              {availableUsers.map((u) => {
+                const roleLabel = u.role === 'researcher' ? 'Investigador' : 'Aplicador'
+                return <option key={u.id} value={u.id}>{u.full_name} — {roleLabel}</option>
+              })}
+            </select>
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
             <Button onClick={handleAdd} loading={adding}>Agregar</Button>
           </div>
         )}
@@ -231,12 +266,15 @@ function TabMiembros({ projectId, token, toast }) {
   )
 }
 
+<<<<<<< HEAD
 TabMiembros.propTypes = {
   projectId: PropTypes.string.isRequired,
   token: PropTypes.string.isRequired,
   toast: PropTypes.func.isRequired,
 }
 
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 // ── Tab Instrumentos ──────────────────────────────────────────────────────────
 
 function TabInstrumentos({ projectId, token, toast }) {
@@ -349,12 +387,15 @@ function TabInstrumentos({ projectId, token, toast }) {
   )
 }
 
+<<<<<<< HEAD
 TabInstrumentos.propTypes = {
   projectId: PropTypes.string.isRequired,
   token: PropTypes.string.isRequired,
   toast: PropTypes.func.isRequired,
 }
 
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 // ── Tab Configuración Operativa ───────────────────────────────────────────────
 
 /**
@@ -588,12 +629,15 @@ function TabConfig({ projectId, token, toast }) {
   )
 }
 
+<<<<<<< HEAD
 TabConfig.propTypes = {
   projectId: PropTypes.string.isRequired,
   token: PropTypes.string.isRequired,
   toast: PropTypes.func.isRequired,
 }
 
+=======
+>>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
 // ── Página principal ──────────────────────────────────────────────────────────
 
 const TABS = [
