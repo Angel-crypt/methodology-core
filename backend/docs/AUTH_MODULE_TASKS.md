@@ -1,4 +1,4 @@
-# Módulo de Autenticación Backend — Guía de Desarrollo por Integrante
+# Módulo de Autenticación Backend — Guía de Desarrollo
 
 **Rama de trabajo:** `feature/backend/auth-module`  
 **Fuente de verdad:** rama `dev` (ya mergeada en esta rama)  
@@ -93,7 +93,7 @@ Para cada endpoint:
 
 ---
 
-## Lo que ya está hecho (líder de backend)
+## Tareas completadas
 
 ### Tarea 1 — Modelos SQLAlchemy (`db/models/`)
 
@@ -176,10 +176,6 @@ Para revertir: `cd backend && uv run alembic downgrade -1`
 ---
 
 ## Tareas de Diego
-
-> **Criterio de asignación:** menor cantidad de tareas, máxima complejidad técnica.
-
-Diego implementa la infraestructura de seguridad y sincronización que todo lo demás consume. Sus archivos son dependencias directas del service y el router.
 
 ---
 
@@ -502,10 +498,6 @@ Archivo: `tests/integration/auth/test_permissions_cache.py`
 ---
 
 ## Tareas de Alfonso
-
-> **Criterio de asignación:** mayor cantidad de tareas, todos los niveles de dificultad.
-
-Alfonso implementa las capas de negocio completas: repository, service, router, dependencias y todos los tests de integración. Sus tareas tienen dependencias directas de los modelos (ya listos) y de los archivos de Diego.
 
 **Orden de implementación recomendado:**
 1. `auth/repository.py` (no depende de Diego)
