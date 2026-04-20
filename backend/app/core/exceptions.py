@@ -14,15 +14,23 @@ class AppError(Exception):
 
 
 class UnauthorizedError(AppError):
-    pass
+    def __init__(self, message: str = "No autenticado", status_code: int = 401) -> None:
+        super().__init__(message, status_code)
 
 
 class ForbiddenError(AppError):
-    pass
+    def __init__(self, message: str = "Acceso no permitido", status_code: int = 403) -> None:
+        super().__init__(message, status_code)
 
 
 class NotFoundError(AppError):
-    pass
+    def __init__(self, message: str = "Recurso no encontrado", status_code: int = 404) -> None:
+        super().__init__(message, status_code)
+
+
+class ConflictError(AppError):
+    def __init__(self, message: str = "Conflicto", status_code: int = 409) -> None:
+        super().__init__(message, status_code)
 
 
 async def app_error_handler(_request: Request, exc: Exception) -> JSONResponse:
