@@ -16,8 +16,12 @@ async function parseResponse(res) {
   } catch {
     return { status: 'error', message: `Error del servidor (HTTP ${res.status})` }
   }
-  if (res.status === 401 && body?.data?.code === 'SESSION_REVOKED') {
-    window.dispatchEvent(new Event('auth:session-revoked'))
+  if (res.status === 401) {
+    if (body?.data?.code === 'SESSION_REVOKED') {
+      window.dispatchEvent(new Event('auth:session-revoked'))
+    } else {
+      window.dispatchEvent(new CustomEvent('auth:session-expired'))
+    }
   }
   return body
 }

@@ -6,18 +6,12 @@
  * Todas las peticiones requieren Authorization: Bearer {token}
  */
 
+import { parseResponse } from '@/lib/api'
+
 function headers(token) {
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
-  }
-}
-
-async function parseResponse(res) {
-  try {
-    return await res.json()
-  } catch {
-    return { status: 'error', message: `Error del servidor (HTTP ${res.status})`, data: null }
   }
 }
 
