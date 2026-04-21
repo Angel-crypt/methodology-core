@@ -15,6 +15,7 @@ function buildParams(params = {}) {
   if (params.instrument_id) q.set('instrument_id', params.instrument_id)
   if (params.start_date)    q.set('start_date',    params.start_date)
   if (params.end_date)      q.set('end_date',      params.end_date)
+  if (params.lang)          q.set('lang',          params.lang)
   return q.toString()
 }
 
