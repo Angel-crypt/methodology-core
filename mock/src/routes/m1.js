@@ -27,6 +27,26 @@ const RATE_LIMIT_BLOCK_MS = 5 * 60 * 1000;   // 5 minutos
 // Validación básica de formato email
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// C-03: reglas de fortaleza de contraseña para SUPERADMIN
+// Mínimo 8 caracteres, 1 mayúscula, 1 número, 1 carácter especial
+const PASSWORD_STRENGTH_REGEX = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{}|;':",.<>?/`~\\]).{8,}$/;
+
+function validatePasswordStrength(password) {
+  if (!password || password.length < 8) {
+    return 'La contraseña debe tener al menos 8 caracteres.';
+  }
+  if (!/[A-Z]/.test(password)) {
+    return 'La contraseña debe contener al menos una letra mayúscula.';
+  }
+  if (!/\d/.test(password)) {
+    return 'La contraseña debe contener al menos un número.';
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{}|;\':",.<>?/`~\\]/.test(password)) {
+    return 'La contraseña debe contener al menos un carácter especial.';
+  }
+  return null;
+}
+
 // Tiempo de expiración de tokens de recuperación: 15 minutos
 const RECOVERY_TOKEN_TTL = 15 * 60; // segundos
 
@@ -428,6 +448,11 @@ router.post(
       return res.status(400).json({ status: 'error', message: 'Campos obligatorios: recovery_token, new_password', data: null });
     }
 
+    const strengthError = validatePasswordStrength(new_password);
+    if (strengthError) {
+      return res.status(422).json({ status: 'error', message: strengthError, data: null });
+    }
+
     const tokenData = store.passwordRecoveryTokens.get(recovery_token);
     if (!tokenData || tokenData.expiresAt < Math.floor(Date.now() / 1000)) {
       store.passwordRecoveryTokens.delete(recovery_token);
@@ -775,15 +800,19 @@ router.patch('/users/me/password', authMiddleware([], { allowPending: true }), (
 
   const user = store.users.find((u) => u.id === req.user.id);
   if (!user) {
-    // No debería ocurrir con JWT válido, pero defensivo
     return res.status(500).json({ status: 'error', message: 'Error interno del servidor', data: null });
   }
 
   if (!bcrypt.compareSync(current_password, user.password_hash)) {
-    return res.status(401).json({ status: 'error', message: 'La contraseña actual es incorrecta', data: null });
+    return res.status(422).json({ status: 'error', message: 'La contraseña actual es incorrecta', data: null });
   }
   if (bcrypt.compareSync(new_password, user.password_hash)) {
-    return res.status(400).json({ status: 'error', message: 'La nueva contraseña debe ser diferente a la actual', data: null });
+    return res.status(422).json({ status: 'error', message: 'La nueva contraseña debe ser diferente a la actual', data: null });
+  }
+
+  const strengthError = validatePasswordStrength(new_password);
+  if (strengthError) {
+    return res.status(422).json({ status: 'error', message: strengthError, data: null });
   }
 
   const eraPendiente = user.must_change_password === true;
