@@ -4,7 +4,7 @@
  */
 import { useState } from 'react'
 import PropTypes from 'prop-types'
-import { BookOpen, ClipboardList, ClipboardCheck, Database, Download, FolderOpen, Users, Building2, Settings, ShieldAlert } from 'lucide-react'
+import { BookOpen, ClipboardList, ClipboardCheck, Database, Download, FolderOpen, Users, Building2, Settings, ShieldAlert, RefreshCw } from 'lucide-react'
 import { Sidebar, GlobalSearch, ProfileDropdown } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
 import SolicitarCambioCorreoModal from '@/components/SolicitarCambioCorreoModal'
@@ -119,6 +119,28 @@ function AppLayout({ children }) {
         <header className="topbar">
           {esAdmin && <GlobalSearch />}
           <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            title="Actualizar página"
+            style={{
+              display:     'flex',
+              alignItems:  'center',
+              gap:         'var(--space-1)',
+              padding:     'var(--space-1) var(--space-2)',
+              background:  'transparent',
+              border:      'none',
+              borderRadius:'var(--radius-sm)',
+              cursor:      'pointer',
+              color:       'var(--color-text-secondary)',
+              fontSize:    'var(--font-size-caption)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-bg-subtle)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+          >
+            <RefreshCw size={14} />
+            <span>Actualizar</span>
+          </button>
           <ProfileDropdown
             fullName={fullName}
             role={role}
