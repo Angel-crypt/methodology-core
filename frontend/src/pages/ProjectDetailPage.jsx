@@ -74,6 +74,7 @@ function TabMiembros({ projectId, token, toast }) {
   const [addError, setAddError]   = useState('')
   const [userSearch, setUserSearch] = useState('')
   const [comboOpen, setComboOpen]   = useState(false)
+  const [roleFilter, setRoleFilter] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -113,11 +114,14 @@ function TabMiembros({ projectId, token, toast }) {
 
   const availableUsers = users.filter((u) => !members.some((m) => m.user_id === u.id))
   const selectedUserObj = availableUsers.find((u) => u.id === selectedUser)
-  const filteredUsers = availableUsers.filter((u) =>
-    !userSearch ||
-    u.full_name.toLowerCase().includes(userSearch.toLowerCase()) ||
-    u.email.toLowerCase().includes(userSearch.toLowerCase())
-  )
+  const filteredUsers = availableUsers.filter((u) => {
+    if (roleFilter && u.role !== roleFilter) return false
+    if (!userSearch) return true
+    return (
+      u.full_name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.email.toLowerCase().includes(userSearch.toLowerCase())
+    )
+  })
   const noUsersInSystem = !loading && users.length === 0
 
   if (loading) return <div style={{ padding: 'var(--space-6)' }}><Spinner /></div>
@@ -138,6 +142,27 @@ function TabMiembros({ projectId, token, toast }) {
         ) : availableUsers.length === 0 ? (
             <Alert variant="info">No hay más usuarios disponibles para agregar.</Alert>
         ) : (
+          <>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+            {[
+              { value: '', label: 'Todos' },
+              { value: 'applicator', label: 'Aplicadores' },
+              { value: 'researcher', label: 'Investigadores' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => { setRoleFilter(value); setSelUser(''); setUserSearch('') }}
+                style={{
+                  padding: '2px var(--space-3)', borderRadius: 'var(--radius-full)',
+                  border: '1px solid var(--color-border)', cursor: 'pointer',
+                  background: roleFilter === value ? 'var(--color-primary)' : 'var(--color-bg-surface)',
+                  color: roleFilter === value ? '#fff' : 'var(--color-text-secondary)',
+                  fontSize: 'var(--font-size-caption)', fontWeight: roleFilter === value ? 'var(--font-weight-medium)' : 'normal',
+                }}
+              >{label}</button>
+            ))}
+          </div>
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
               <input
@@ -158,7 +183,7 @@ function TabMiembros({ projectId, token, toast }) {
                   role="listbox"
                   style={{
                     position: 'absolute', zIndex: 100, top: '100%', left: 0, right: 0,
-                    background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
                     borderRadius: 'var(--radius-md)', maxHeight: 220, overflowY: 'auto',
                     margin: 0, padding: 0, listStyle: 'none', marginTop: 2,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
@@ -178,7 +203,7 @@ function TabMiembros({ projectId, token, toast }) {
                         onMouseDown={() => { setSelUser(u.id); setUserSearch(''); setComboOpen(false) }}
                         style={{
                           padding: 'var(--space-2) var(--space-3)', cursor: 'pointer',
-                          background: selectedUser === u.id ? 'var(--color-primary-subtle)' : undefined,
+                          background: selectedUser === u.id ? 'var(--color-primary-subtle)' : 'var(--color-surface)',
                           fontSize: 'var(--font-size-small)',
                         }}
                       >
@@ -192,6 +217,7 @@ function TabMiembros({ projectId, token, toast }) {
             </div>
             <Button onClick={handleAdd} loading={adding}>Agregar</Button>
           </div>
+          </>
         )}
       </div>
 
@@ -253,8 +279,8 @@ function TabInstrumentos({ projectId, token, toast }) {
       listarInstrumentosProyecto(token, projectId),
       listarInstrumentos(token),
     ])
-    if (piRes.ok)  setProjInstruments(piRes.data)
-    if (allRes.ok) setAllInstruments(allRes.data)
+    if (piRes.ok)                     setProjInstruments(piRes.data)
+    if (allRes.status === 'success')  setAllInstruments(allRes.data)
     setLoading(false)
   }, [token, projectId])
 
