@@ -52,6 +52,7 @@ function GestionInvestigadores() {
     handleChangeCrear,
     handleEmailBlur,
     institutionDetected,
+    emailDomainError,
     handleGuardarCrear,
     abrirModalEstado,
     handleConfirmarEstado,
@@ -243,17 +244,22 @@ function GestionInvestigadores() {
             onChange={handleChangeCrear('full_name')}
             error={erroresCrear.full_name}
           />
-          <FormField
-            id="inv-crear-email"
-            label="Correo electrónico"
-            type="email"
-            placeholder="usuario@institución.edu"
-            required
-            value={formCrear.email}
-            onChange={handleChangeCrear('email')}
-            onBlur={handleEmailBlur}
-            error={erroresCrear.email}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <FormField
+              id="inv-crear-email"
+              label="Correo electrónico"
+              type="email"
+              placeholder="usuario@institución.edu"
+              required
+              value={formCrear.email}
+              onChange={handleChangeCrear('email')}
+              onBlur={handleEmailBlur}
+              error={erroresCrear.email}
+            />
+            {emailDomainError && (
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-error)' }}>{emailDomainError}</span>
+            )}
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
             <FormField
               id="inv-crear-institucion"
