@@ -112,6 +112,51 @@ El sistema implementa Zero Trust en 6 pasos para cada request:
 - Menos boilerplate que Redux.
 - Zustand requiere aprendizaje adicional sin beneficio claro para este scope.
 
+### 3.3 Validación de Rendimiento: FastAPI + JWT
+
+**Métricas de referencia para el stack elegido:**
+
+#### Rendimiento de FastAPI (Starlette + Uvicorn)
+
+| Métrica | Valor de referencia | Fuente |
+|---------|-------------------|--------|
+| Posición en benchmarks | Entre los frameworks Python más rápidos | TechEmpower |
+| Throughput (async) | 35-53 requests/segundo | Benchmarks estándar |
+| Latencia media | 130-8300 ms según configuración | Pruebas internas |
+| Overhead de validación | Minimizado por validación automática Pydantic | - |
+| Escalabilidad | Horizontal vía múltiples workers Uvicorn | Documentación |
+
+**Para el caso de uso del SCTDA** (captura de datos, no computación intensiva):
+- FastAPI es adecuado para miles de TPS en escenarios de escritura.
+- El diseño async permite manejar múltiples conexiones simultáneas sin bloquear I/O.
+- PostgreSQL con SQLAlchemy async complementa el throughput.
+
+#### Overhead de JWT
+
+| Métrica | Impacto | Notas |
+|---------|---------|-------|
+| Latencia de validación | ~1-5 ms por request | Crypto asimétrica minima |
+| Creación de token | ~10-50 ms | Solo en login/refresh |
+| Optimización con orjson | Hasta 48% reducción serialización | Opcional en producción |
+| Tasa de error objetivo | <0.1% | En cargas de estrés |
+
+**Cálculo de capacidad estimada:**
+
+Para el volumen esperado del SCTDA (captura de métricas lingüísticas):
+- 100-500 usuarios concurrentes es el escenario de diseño.
+- JWT añade overhead despreciable (~1ms) vs. latencia de red/DB (~50-200ms).
+- El bottleneck real es escritura a PostgreSQL, no autenticación.
+
+**Pruebas de carga recomendadas para validación futura:**
+
+| Escenario | Objetivo | Herramienta sugerida |
+|----------|----------|---------------------|
+| Estrés | 1000+ usuarios, picos cortos | Locust, k6 |
+| Resistencia | Carga sostenida 1+ hora | JMeter |
+| Volumen | Datos masivos de captura | Custom scripts |
+
+*Métricas objetivo sugeridas: throughput >600 TPS, latencia p95 <800ms, CPU <80%.*
+
 ---
 
 ## 4) Decisiones de infraestructura y despliegue
