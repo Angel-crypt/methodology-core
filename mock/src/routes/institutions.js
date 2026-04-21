@@ -27,23 +27,6 @@ function normalizeName(raw) {
     .trim();
 }
 
-/**
- * Extrae el dominio base de un email: psicologia.unam.mx → unam.mx
- * Si hay subdominio, lo去除 y devuelve solo el dominio base.
- */
-function extractBaseDomain(email) {
-  const domain = email.split('@')[1]?.toLowerCase() || null;
-  if (!domain) return null;
-
-  const parts = domain.split('.');
-  // Si hay más de 2 partes,假设 tercer nivel (www.psicologia.unam.mx) o segundo (unam.mx)
-  if (parts.length > 2) {
-    // Devolver últimas 2 partes: unam.mx, uach.edu.mx
-    return parts.slice(-2).join('.');
-  }
-  return domain;
-}
-
 // GET /institutions — lista para administración
 router.get('/', authMiddleware(['superadmin']), (req, res) => {
   return res.status(200).json({
@@ -82,6 +65,8 @@ router.post('/', authMiddleware(['superadmin']), (req, res) => {
 });
 
 // GET /institutions/resolve?email=X — resolver institución por dominio del correo (soporta subdominios)
+// Regla: unam.edu.mx y globaluniversity.edu.mx son distintas; el discriminador es el label antes del TLD compartido.
+// Algoritmo: stripping progresivo del subdominio más a la izquierda hasta encontrar match o quedar con <2 partes.
 router.get('/resolve', authMiddleware(), (req, res) => {
   const { email } = req.query;
 
@@ -89,15 +74,18 @@ router.get('/resolve', authMiddleware(), (req, res) => {
     return res.status(400).json({ status: 'error', message: 'El parámetro email es obligatorio', data: null });
   }
 
-  const baseDomain = extractBaseDomain(email);
-  if (!baseDomain) {
+  const raw = email.split('@')[1]?.toLowerCase();
+  if (!raw) {
     return res.status(400).json({ status: 'error', message: 'Email inválido', data: null });
   }
 
-  // Buscar por dominio exacto o por dominio base (soporta subdominios: psicologia.unam.mx → unam.mx)
-  const matched = store.institutions.find(
-    (i) => i.domain === baseDomain || (baseDomain.includes(i.domain) && baseDomain.endsWith(i.domain))
-  );
+  const parts = raw.split('.');
+  let matched = null;
+  for (let i = 0; i <= parts.length - 2; i++) {
+    const candidate = parts.slice(i).join('.');
+    matched = store.institutions.find((inst) => inst.domain === candidate);
+    if (matched) break;
+  }
 
   return res.status(200).json({
     status: 'success',
