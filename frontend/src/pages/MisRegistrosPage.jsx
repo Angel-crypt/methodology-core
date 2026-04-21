@@ -177,6 +177,7 @@ function MisRegistrosPage() {
   const [filtroDesde, setFiltroDesde]     = useState('')
   const [filtroHasta, setFiltroHasta]     = useState('')
   const [filtroProyecto, setFiltroProyecto] = useState('')
+  const [filtroUsuario, setFiltroUsuario] = useState('')
 
   // Acumula todos los registros cargados para derivar listas de filtros
   const [todosRegistros, setTodosRegistros] = useState([])
@@ -191,12 +192,13 @@ function MisRegistrosPage() {
         from: filtroDesde || undefined,
         to: filtroHasta || undefined,
         project_id: filtroProyecto || undefined,
+        anonymous_code: filtroUsuario || undefined,
       })
       setCargando(false)
       if (res.ok) {
         setRegistros(res.data || [])
         setMeta(res.meta || { total: (res.data || []).length, page, page_size: pageSize, pages: 1 })
-        if (!filtroInstrumento && !filtroDesde && !filtroHasta && !filtroProyecto && page === 1) {
+        if (!filtroInstrumento && !filtroDesde && !filtroHasta && !filtroProyecto && !filtroUsuario && page === 1) {
           setTodosRegistros(res.data || [])
         }
       } else {
@@ -205,12 +207,23 @@ function MisRegistrosPage() {
     }
     cargar()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, page, pageSize, filtroInstrumento, filtroDesde, filtroHasta, filtroProyecto])
+  }, [token, page, pageSize, filtroInstrumento, filtroDesde, filtroHasta, filtroProyecto, filtroUsuario])
 
   const instrumentos = useMemo(
     () => [...new Set(todosRegistros.map((r) => r.instrument_name))].filter(Boolean).sort(),
     [todosRegistros]
   )
+
+  const usuarios = useMemo(
+    () => [...new Set(todosRegistros.map((r) => r.anonymous_code))].filter(Boolean).sort(),
+    [todosRegistros]
+  )
+
+  // Filtro client-side por usuario (fallback si backend no soporta anonymous_code param)
+  const registrosFiltrados = useMemo(() => {
+    if (!filtroUsuario) return registros
+    return registros.filter((r) => r.anonymous_code === filtroUsuario)
+  }, [registros, filtroUsuario])
 
   const proyectos = useMemo(
     () => {
@@ -221,13 +234,14 @@ function MisRegistrosPage() {
     [todosRegistros]
   )
 
-  const hayFiltros = filtroInstrumento || filtroDesde || filtroHasta || filtroProyecto
+  const hayFiltros = filtroInstrumento || filtroDesde || filtroHasta || filtroProyecto || filtroUsuario
 
   function limpiarFiltros() {
     setFiltroInstrumento('')
     setFiltroDesde('')
     setFiltroHasta('')
     setFiltroProyecto('')
+    setFiltroUsuario('')
     setPage(1)
   }
 
@@ -266,6 +280,20 @@ function MisRegistrosPage() {
                 <option value="">Todos</option>
                 {proyectos.map(([id, name]) => (
                   <option key={id} value={id}>{name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field-label" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', flex: '1 1 150px', maxWidth: 200 }}>
+              Usuario
+              <select
+                className="input-base"
+                value={filtroUsuario}
+                onChange={(e) => { setFiltroUsuario(e.target.value); setPage(1) }}
+              >
+                <option value="">Todos</option>
+                {usuarios.map((code) => (
+                  <option key={code} value={code}>{code}</option>
                 ))}
               </select>
             </label>
@@ -336,12 +364,12 @@ function MisRegistrosPage() {
             ))}
           </div>
 
-          {registros.length === 0 ? (
+          {registrosFiltrados.length === 0 ? (
             <p style={{ fontSize: 'var(--font-size-small)', color: 'var(--color-text-tertiary)', padding: 'var(--space-4)' }}>
               Ningún registro coincide con los filtros aplicados.
             </p>
           ) : (
-            registros.map((r) => <RegistroRow key={r.application_id} registro={r} />)
+            registrosFiltrados.map((r) => <RegistroRow key={r.application_id} registro={r} />)
           )}
 
           <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>

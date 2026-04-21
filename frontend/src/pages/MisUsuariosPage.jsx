@@ -5,10 +5,22 @@ import { useState, useEffect, useMemo } from 'react'
 import PropTypes from 'prop-types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/app'
-import { Typography, Button, EmptyState, Spinner, ToastContainer } from '@/components/app'
-import { ChevronRight, Users, ClipboardList, Calendar, X } from 'lucide-react'
-import { listarMisSujetos, listarAplicacionesSujeto } from '@/services/subjects'
+import { Typography, Button, EmptyState, Spinner, ToastContainer, Modal } from '@/components/app'
+import { ChevronRight, ChevronDown, Users, ClipboardList, Calendar, X } from 'lucide-react'
+import { listarMisSujetos } from '@/services/subjects'
+import { listarMisRegistros } from '@/services/registro'
 import { APP_LOCALE } from '@/constants/locale'
+
+function formatFecha(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString(APP_LOCALE)
+}
+
+function formatValor(value, metricType) {
+  if (value === null || value === undefined || value === '') return '—'
+  if (metricType === 'boolean') return value === 'true' || value === true ? 'Sí' : 'No'
+  return String(value)
+}
 
 function SujetoRow({ sujeto, seleccionado, onClick }) {
   return (
@@ -37,7 +49,7 @@ function SujetoRow({ sujeto, seleccionado, onClick }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-tertiary)', flexShrink: 0 }}>
         <Calendar size={14} />
         <Typography as="small">
-          {sujeto.created_at ? new Date(sujeto.created_at).toLocaleDateString(APP_LOCALE) : '—'}
+          {sujeto.created_at ? formatFecha(sujeto.created_at) : '—'}
         </Typography>
         <ChevronRight size={16} />
       </div>
@@ -55,35 +67,68 @@ SujetoRow.propTypes = {
   onClick:      PropTypes.func.isRequired,
 }
 
-function AplicacionRow({ app }) {
+function AplicacionRow({ app, expanded, onToggle, onVerMas }) {
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '110px 1fr 80px',
-        gap: 'var(--space-3)',
-        padding: 'var(--space-2) var(--space-4)',
-        borderBottom: '1px solid var(--color-border)',
-        alignItems: 'center',
-      }}
-    >
-      <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
-        {app.application_date ? new Date(app.application_date).toLocaleDateString(APP_LOCALE) : '—'}
-      </Typography>
-      <Typography as="small">{app.instrument_name || '—'}</Typography>
-      <Typography as="small" style={{ color: 'var(--color-text-tertiary)', textAlign: 'right' }}>
-        {app.values_count || 0} métricas
-      </Typography>
+    <div style={{ borderBottom: '1px solid var(--color-border)' }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          width: '100%',
+          display: 'grid',
+          gridTemplateColumns: '110px 1fr 90px 24px',
+          gap: 'var(--space-3)',
+          padding: 'var(--space-2) var(--space-4)',
+          textAlign: 'left',
+          background: expanded ? 'var(--color-bg-subtle)' : 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          alignItems: 'center',
+        }}
+      >
+        <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
+          {formatFecha(app.application_date)}
+        </Typography>
+        <Typography as="small">{app.instrument_name || '—'}</Typography>
+        <Typography as="small" style={{ color: 'var(--color-text-tertiary)', textAlign: 'right' }}>
+          {app.values_count || 0} métricas
+        </Typography>
+        <ChevronDown
+          size={14}
+          style={{
+            color: 'var(--color-text-tertiary)',
+            transition: 'transform 0.15s',
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            flexShrink: 0,
+          }}
+        />
+      </button>
+
+      {expanded && (
+        <div style={{ padding: 'var(--space-2) var(--space-4) var(--space-3)', backgroundColor: 'var(--color-bg-subtle)', borderTop: '1px solid var(--color-border)' }}>
+          <Typography as="small" style={{ color: app.notes ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)', display: 'block', marginBottom: 'var(--space-2)' }}>
+            {app.notes ? `Notas: ${app.notes}` : 'Sin notas registradas.'}
+          </Typography>
+          <Button type="button" variant="ghost" size="sm" onClick={onVerMas}>
+            Ver métricas completas
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
 
 AplicacionRow.propTypes = {
   app: PropTypes.shape({
+    application_id:   PropTypes.string.isRequired,
     application_date: PropTypes.string,
     instrument_name:  PropTypes.string,
     values_count:     PropTypes.number,
+    notes:            PropTypes.string,
   }).isRequired,
+  expanded:  PropTypes.bool,
+  onToggle:  PropTypes.func.isRequired,
+  onVerMas:  PropTypes.func.isRequired,
 }
 
 export default function MisUsuariosPage() {
@@ -94,6 +139,13 @@ export default function MisUsuariosPage() {
   const [sujetoSeleccionado, setSujetoSeleccionado] = useState(null)
   const [aplicaciones, setAplicaciones] = useState([])
   const [cargandoApps, setCargandoApps] = useState(false)
+
+  // Accordion
+  const [expandedAppId, setExpandedAppId] = useState(null)
+
+  // Modal métricas
+  const [modalMetricas, setModalMetricas] = useState(false)
+  const [appSeleccionada, setAppSeleccionada] = useState(null)
 
   // Filtros
   const [filtroProyecto, setFiltroProyecto] = useState('')
@@ -120,15 +172,39 @@ export default function MisUsuariosPage() {
   async function handleSeleccionarSujeto(sujeto) {
     setSujetoSeleccionado(sujeto)
     setFiltroInstrumento('')
+    setExpandedAppId(null)
     setCargandoApps(true)
     try {
-      const res = await listarAplicacionesSujeto(token, sujeto.id)
-      setAplicaciones(res.ok ? (res.data ?? []) : [])
+      const res = await listarMisRegistros(token, {
+        project_id: sujeto.project_id || undefined,
+        anonymous_code: sujeto.anonymous_code || undefined,
+        page_size: 200,
+      })
+      if (res.ok) {
+        const todas = res.data ?? []
+        setAplicaciones(todas.filter((a) => a.anonymous_code === sujeto.anonymous_code))
+      } else {
+        setAplicaciones([])
+      }
     } catch {
       setAplicaciones([])
     } finally {
       setCargandoApps(false)
     }
+  }
+
+  function handleToggleAcordeon(appId) {
+    setExpandedAppId((prev) => (prev === appId ? null : appId))
+  }
+
+  function handleVerMas(app) {
+    setAppSeleccionada(app)
+    setModalMetricas(true)
+  }
+
+  function cerrarModalMetricas() {
+    setModalMetricas(false)
+    setAppSeleccionada(null)
   }
 
   // Proyectos únicos derivados
@@ -341,7 +417,7 @@ export default function MisUsuariosPage() {
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '110px 1fr 80px',
+                        gridTemplateColumns: '110px 1fr 90px 24px',
                         gap: 'var(--space-3)',
                         padding: 'var(--space-2) var(--space-4)',
                         backgroundColor: 'var(--color-bg-subtle)',
@@ -350,9 +426,16 @@ export default function MisUsuariosPage() {
                       <Typography as="small" style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)' }}>Fecha</Typography>
                       <Typography as="small" style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)' }}>Instrumento</Typography>
                       <Typography as="small" style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)', textAlign: 'right' }}>Métricas</Typography>
+                      <span />
                     </div>
                     {aplicacionesFiltradas.map((app) => (
-                      <AplicacionRow key={app.application_id} app={app} />
+                      <AplicacionRow
+                        key={app.application_id}
+                        app={app}
+                        expanded={expandedAppId === app.application_id}
+                        onToggle={() => handleToggleAcordeon(app.application_id)}
+                        onVerMas={() => handleVerMas(app)}
+                      />
                     ))}
                   </>
                 )}
@@ -361,6 +444,44 @@ export default function MisUsuariosPage() {
           </div>
         </div>
       )}
+
+      {/* Modal métricas completas */}
+      <Modal
+        open={modalMetricas}
+        onClose={cerrarModalMetricas}
+        title={appSeleccionada ? `${appSeleccionada.instrument_name} — ${formatFecha(appSeleccionada.application_date)}` : 'Métricas'}
+        size="md"
+      >
+        {(appSeleccionada?.metric_values ?? []).length === 0 ? (
+          <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
+            Sin métricas registradas para esta aplicación.
+          </Typography>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            {(appSeleccionada?.metric_values ?? []).map((mv, i) => (
+              <div
+                key={mv.metric_id ?? i}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto',
+                  gap: 'var(--space-4)',
+                  padding: 'var(--space-2) var(--space-3)',
+                  backgroundColor: i % 2 === 0 ? 'var(--color-bg-subtle)' : 'transparent',
+                  borderRadius: 'var(--radius-sm)',
+                  alignItems: 'baseline',
+                }}
+              >
+                <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
+                  {mv.metric_name}
+                </Typography>
+                <Typography as="small" style={{ fontWeight: 'var(--font-weight-medium)', textAlign: 'right' }}>
+                  {formatValor(mv.value, mv.metric_type)}
+                </Typography>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
