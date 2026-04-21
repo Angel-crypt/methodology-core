@@ -114,7 +114,18 @@ module.exports = {
     </p>
     <p>Queda prohibida la reproducción o uso no autorizado sin consentimiento previo.</p>
     <p>
-      El contenido que generes dentro del proyecto (datos, análisis, reportes) puede ser usado por el equipo de investigación conforme a los fines del proyecto, siguiendo las reglas internas del mismo.
+      Los datos, análisis, reportes y demás contenidos generados a través de la
+      Plataforma en el marco del proyecto son de titularidad del
+      <strong>equipo académico responsable del proyecto</strong>,
+      con independencia de quién los haya capturado. Su uso, publicación
+      o distribución se rige por las reglas internas del proyecto y, en su caso,
+      por la licencia MIT aplicable al software, la cual no se extiende a los
+      datos de investigación.
+    </p>
+    <p>
+      Los datasets anonimizados podrán publicarse o compartirse con la comunidad
+      científica bajo los términos que el equipo investigador determine, sin que
+      ello constituya tratamiento de datos personales conforme al Aviso de Privacidad.
     </p>
 
     <hr />
