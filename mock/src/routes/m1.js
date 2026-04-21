@@ -13,6 +13,8 @@ const { v4: uuidv4 } = require('uuid');
 const { store, addAuditEvent } = require('../store');
 const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
 const { validateStrictInput } = require('../middleware/validateStrictInput');
+const { content: privacyContent, version: privacyVersion, updated_at: privacyUpdatedAt } = require('../data/privacy-notice');
+const { content: termsContent, version: termsVersion, updated_at: termsUpdatedAt } = require('../data/terms-of-service');
 
 const router = express.Router();
 
@@ -348,25 +350,9 @@ router.get('/legal/terms', (_req, res) => {
   return res.status(200).json({
     status: 'success',
     data: {
-      version: '1.0',
-      updated_at: '2026-04-01',
-      content: `**Términos y Condiciones de Uso**
-
-Al utilizar esta plataforma aceptas los presentes términos y condiciones. Este sistema está destinado exclusivamente a investigadores y aplicadores autorizados por la institución administradora.
-
-**1. Uso permitido**
-El acceso a esta plataforma es personal e intransferible. Está prohibido compartir credenciales de acceso.
-
-**2. Tratamiento de datos**
-Los datos recolectados son de carácter anónimo y su uso está restringido a fines de investigación lingüística y metodológica. Consulta el Aviso de Privacidad para más detalle.
-
-**3. Obligaciones del usuario**
-El usuario se compromete a utilizar la plataforma de forma ética, respetando la privacidad de los sujetos evaluados.
-
-**4. Modificaciones**
-La institución administradora se reserva el derecho de actualizar estos términos. Se notificará a los usuarios registrados ante cambios relevantes.
-
-_Versión 1.0 — Abril 2026_`,
+      version: termsVersion,
+      updated_at: termsUpdatedAt,
+      content: termsContent,
     },
   });
 });
@@ -375,28 +361,9 @@ router.get('/legal/privacy', (_req, res) => {
   return res.status(200).json({
     status: 'success',
     data: {
-      version: '1.0',
-      updated_at: '2026-04-01',
-      content: `**Aviso de Privacidad**
-
-En cumplimiento con la normativa vigente de protección de datos personales, se informa lo siguiente:
-
-**Responsable del tratamiento**
-La institución administradora del sistema de registro metodológico es responsable del tratamiento de los datos personales proporcionados.
-
-**Datos recopilados**
-Se recopilan únicamente los datos estrictamente necesarios para el funcionamiento del sistema: nombre, correo electrónico, rol e institución del usuario. Los registros operativos son anónimos y no permiten identificar a los sujetos evaluados.
-
-**Finalidad**
-Los datos se utilizan exclusivamente para la gestión de acceso, trazabilidad de registros y mejora de los instrumentos de evaluación.
-
-**Derechos del titular**
-El usuario puede solicitar en cualquier momento el acceso, rectificación, cancelación u oposición al tratamiento de sus datos personales dirigiéndose al administrador del sistema.
-
-**Transferencia de datos**
-No se realizan transferencias de datos a terceros sin consentimiento expreso.
-
-_Versión 1.0 — Abril 2026_`,
+      version: privacyVersion,
+      updated_at: privacyUpdatedAt,
+      content: privacyContent,
     },
   });
 });
