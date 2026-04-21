@@ -1,14 +1,12 @@
 /**
  * MisUsuariosPage — usuarios registrados por el aplicador.
- * Muestra la lista de sujetos (usuarios registrados) y sus aplicaciones.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/app'
 import { Typography, Button, EmptyState, Spinner, ToastContainer } from '@/components/app'
-import { ChevronRight, Users, ClipboardList, Calendar } from 'lucide-react'
+import { ChevronRight, Users, ClipboardList, Calendar, X } from 'lucide-react'
 
-// GET /subjects/mine — sujetos creados por el aplicador
 async function fetchMisSujetos(token) {
   const res = await fetch('/api/v1/subjects/mine', {
     headers: { Authorization: `Bearer ${token}` },
@@ -17,7 +15,6 @@ async function fetchMisSujetos(token) {
   return json.status === 'success' ? json.data : []
 }
 
-// GET /subjects/:id/applications — aplicaciones de un sujeto
 async function fetchAplicacionesSujeto(token, subjectId) {
   const res = await fetch(`/api/v1/subjects/${subjectId}/applications`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -27,8 +24,6 @@ async function fetchAplicacionesSujeto(token, subjectId) {
 }
 
 function SujetoRow({ sujeto, seleccionado, onClick }) {
-  const tieneContexto = sujeto.context && Object.keys(sujeto.context).length > 0
-
   return (
     <div
       onClick={onClick}
@@ -42,17 +37,17 @@ function SujetoRow({ sujeto, seleccionado, onClick }) {
         transition: 'background-color 0.15s',
       }}
     >
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <Typography as="strong" style={{ color: 'var(--color-text-primary)' }}>
           {sujeto.anonymous_code}
         </Typography>
-        {tieneContexto && (
-          <Typography as="small" style={{ display: 'block', color: 'var(--color-text-secondary)', marginTop: 2 }}>
-            {sujeto.context.full_name || 'Sin nombre'}
+        {sujeto.project_name && (
+          <Typography as="small" style={{ display: 'block', color: 'var(--color-text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {sujeto.project_name}
           </Typography>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-tertiary)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-tertiary)', flexShrink: 0 }}>
         <Calendar size={14} />
         <Typography as="small">
           {sujeto.created_at ? new Date(sujeto.created_at).toLocaleDateString('es-CO') : '—'}
@@ -68,8 +63,8 @@ function AplicacionRow({ app }) {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '120px 1fr 80px',
-        gap: 'var(--space-4)',
+        gridTemplateColumns: '110px 1fr 80px',
+        gap: 'var(--space-3)',
         padding: 'var(--space-2) var(--space-4)',
         borderBottom: '1px solid var(--color-border)',
         alignItems: 'center',
@@ -95,22 +90,77 @@ export default function MisUsuariosPage() {
   const [aplicaciones, setAplicaciones] = useState([])
   const [cargandoApps, setCargandoApps] = useState(false)
 
+  // Filtros
+  const [filtroProyecto, setFiltroProyecto] = useState('')
+  const [filtroDesde, setFiltroDesde] = useState('')
+  const [filtroHasta, setFiltroHasta] = useState('')
+  const [filtroInstrumento, setFiltroInstrumento] = useState('')
+
   useEffect(() => {
     async function cargar() {
       setCargando(true)
-      const data = await fetchMisSujetos(token)
-      setSujetos(data)
-      setCargando(false)
+      try {
+        const data = await fetchMisSujetos(token)
+        setSujetos(data)
+      } catch {
+        toast({ type: 'error', title: 'Error', message: 'No se pudieron cargar los usuarios.' })
+      } finally {
+        setCargando(false)
+      }
     }
     cargar()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   async function handleSeleccionarSujeto(sujeto) {
     setSujetoSeleccionado(sujeto)
+    setFiltroInstrumento('')
     setCargandoApps(true)
-    const apps = await fetchAplicacionesSujeto(token, sujeto.id)
-    setAplicaciones(apps)
-    setCargandoApps(false)
+    try {
+      const apps = await fetchAplicacionesSujeto(token, sujeto.id)
+      setAplicaciones(apps)
+    } catch {
+      setAplicaciones([])
+    } finally {
+      setCargandoApps(false)
+    }
+  }
+
+  // Proyectos únicos derivados
+  const proyectos = useMemo(() => {
+    const seen = new Map()
+    sujetos.forEach((s) => { if (s.project_id && s.project_name) seen.set(s.project_id, s.project_name) })
+    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [sujetos])
+
+  // Instrumentos únicos del sujeto seleccionado
+  const instrumentosSujeto = useMemo(
+    () => [...new Set(aplicaciones.map((a) => a.instrument_name).filter(Boolean))].sort(),
+    [aplicaciones]
+  )
+
+  // Filtros aplicados a sujetos
+  const sujetosFiltrados = useMemo(() => {
+    return sujetos.filter((s) => {
+      if (filtroProyecto && s.project_id !== filtroProyecto) return false
+      if (filtroDesde && s.created_at && s.created_at.slice(0, 10) < filtroDesde) return false
+      if (filtroHasta && s.created_at && s.created_at.slice(0, 10) > filtroHasta) return false
+      return true
+    })
+  }, [sujetos, filtroProyecto, filtroDesde, filtroHasta])
+
+  // Filtro de instrumento sobre aplicaciones del sujeto seleccionado
+  const aplicacionesFiltradas = useMemo(() => {
+    if (!filtroInstrumento) return aplicaciones
+    return aplicaciones.filter((a) => a.instrument_name === filtroInstrumento)
+  }, [aplicaciones, filtroInstrumento])
+
+  const hayFiltrosSujeto = filtroProyecto || filtroDesde || filtroHasta
+
+  function limpiarFiltros() {
+    setFiltroProyecto('')
+    setFiltroDesde('')
+    setFiltroHasta('')
   }
 
   return (
@@ -134,87 +184,174 @@ export default function MisUsuariosPage() {
           description="Aún no has registrado ningún usuario. Usa el Registro Operativo para crear uno."
         />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)', height: 'calc(100vh - 220px)' }}>
-          {/* Lista de usuarios */}
-          <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-            <div style={{
-              padding: 'var(--space-3) var(--space-4)',
-              borderBottom: '1px solid var(--color-border)',
-              backgroundColor: 'var(--color-bg-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-            }}>
-              <Users size={16} style={{ color: 'var(--color-text-secondary)' }} />
-              <Typography as="strong" style={{ fontSize: 'var(--font-size-small)' }}>
-                Usuarios ({sujetos.length})
-              </Typography>
-            </div>
-            <div style={{ overflow: 'auto', maxHeight: '100%' }}>
-              {sujetos.map((s) => (
-                <SujetoRow
-                  key={s.id}
-                  sujeto={s}
-                  seleccionado={sujetoSeleccionado?.id === s.id}
-                  onClick={() => handleSeleccionarSujeto(s)}
-                />
-              ))}
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+
+          {/* Filtros sujetos */}
+          <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label className="field-label" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', flex: '1 1 180px', maxWidth: 260 }}>
+              Proyecto
+              <select
+                className="input-base"
+                value={filtroProyecto}
+                onChange={(e) => { setFiltroProyecto(e.target.value); setSujetoSeleccionado(null) }}
+              >
+                <option value="">Todos</option>
+                {proyectos.map(([id, name]) => (
+                  <option key={id} value={id}>{name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field-label" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', flex: '1 1 140px', maxWidth: 180 }}>
+              Registrado desde
+              <input
+                className="input-base"
+                type="date"
+                value={filtroDesde}
+                max={filtroHasta || undefined}
+                onChange={(e) => { setFiltroDesde(e.target.value); setSujetoSeleccionado(null) }}
+              />
+            </label>
+
+            <label className="field-label" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', flex: '1 1 140px', maxWidth: 180 }}>
+              Registrado hasta
+              <input
+                className="input-base"
+                type="date"
+                value={filtroHasta}
+                min={filtroDesde || undefined}
+                onChange={(e) => { setFiltroHasta(e.target.value); setSujetoSeleccionado(null) }}
+              />
+            </label>
+
+            {hayFiltrosSujeto && (
+              <Button variant="ghost" size="sm" onClick={limpiarFiltros} style={{ alignSelf: 'flex-end' }}>
+                <X size={14} style={{ marginRight: 4 }} />
+                Limpiar
+              </Button>
+            )}
           </div>
 
-          {/* Detalle del usuario seleccionado */}
-          <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-            <div style={{
-              padding: 'var(--space-3) var(--space-4)',
-              borderBottom: '1px solid var(--color-border)',
-              backgroundColor: 'var(--color-bg-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-            }}>
-              <ClipboardList size={16} style={{ color: 'var(--color-text-secondary)' }} />
-              <Typography as="strong" style={{ fontSize: 'var(--font-size-small)' }}>
-                {sujetoSeleccionado ? `Aplicaciones de ${sujetoSeleccionado.anonymous_code}` : 'Selecciona un usuario'}
-              </Typography>
-            </div>
-            <div style={{ overflow: 'auto', maxHeight: '100%' }}>
-              {!sujetoSeleccionado ? (
-                <div style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
-                  <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
-                    Haz clic en un usuario para ver sus aplicaciones.
-                  </Typography>
-                </div>
-              ) : cargandoApps ? (
-                <div style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
-                  <Spinner />
-                </div>
-              ) : aplicaciones.length === 0 ? (
-                <div style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
-                  <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
-                    Este usuario no tiene aplicaciones registradas.
-                  </Typography>
-                </div>
-              ) : (
-                <>
-                  {/* Cabecera */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '120px 1fr 80px',
-                      gap: 'var(--space-4)',
-                      padding: 'var(--space-2) var(--space-4)',
-                      backgroundColor: 'var(--color-bg-subtle)',
-                    }}
-                  >
-                    <Typography as="small" style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)' }}>Fecha</Typography>
-                    <Typography as="small" style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)' }}>Instrumento</Typography>
-                    <Typography as="small" style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)', textAlign: 'right' }}>Métricas</Typography>
+          {hayFiltrosSujeto && (
+            <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
+              {sujetosFiltrados.length} {sujetosFiltrados.length === 1 ? 'usuario' : 'usuarios'} encontrados
+            </Typography>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)', height: 'calc(100vh - 340px)', minHeight: 300 }}>
+            {/* Lista de usuarios */}
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{
+                padding: 'var(--space-3) var(--space-4)',
+                borderBottom: '1px solid var(--color-border)',
+                backgroundColor: 'var(--color-bg-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                flexShrink: 0,
+              }}>
+                <Users size={16} style={{ color: 'var(--color-text-secondary)' }} />
+                <Typography as="strong" style={{ fontSize: 'var(--font-size-small)' }}>
+                  Usuarios ({sujetosFiltrados.length})
+                </Typography>
+              </div>
+              <div style={{ overflow: 'auto', flex: 1 }}>
+                {sujetosFiltrados.length === 0 ? (
+                  <div style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+                    <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
+                      Sin usuarios con los filtros aplicados.
+                    </Typography>
                   </div>
-                  {aplicaciones.map((app) => (
-                    <AplicacionRow key={app.application_id} app={app} />
-                  ))}
-                </>
+                ) : sujetosFiltrados.map((s) => (
+                  <SujetoRow
+                    key={s.id}
+                    sujeto={s}
+                    seleccionado={sujetoSeleccionado?.id === s.id}
+                    onClick={() => handleSeleccionarSujeto(s)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Detalle del usuario seleccionado */}
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{
+                padding: 'var(--space-3) var(--space-4)',
+                borderBottom: '1px solid var(--color-border)',
+                backgroundColor: 'var(--color-bg-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                flexShrink: 0,
+              }}>
+                <ClipboardList size={16} style={{ color: 'var(--color-text-secondary)' }} />
+                <Typography as="strong" style={{ fontSize: 'var(--font-size-small)' }}>
+                  {sujetoSeleccionado ? `Aplicaciones de ${sujetoSeleccionado.anonymous_code}` : 'Selecciona un usuario'}
+                </Typography>
+              </div>
+
+              {sujetoSeleccionado && !cargandoApps && aplicaciones.length > 0 && (
+                <div style={{ padding: 'var(--space-2) var(--space-4)', borderBottom: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-subtle)', display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', margin: 0 }}>
+                    <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Instrumento:</span>
+                    <select
+                      className="input-base"
+                      style={{ fontSize: 'var(--font-size-caption)', padding: '2px var(--space-2)' }}
+                      value={filtroInstrumento}
+                      onChange={(e) => setFiltroInstrumento(e.target.value)}
+                    >
+                      <option value="">Todos</option>
+                      {instrumentosSujeto.map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {filtroInstrumento && (
+                    <Button variant="ghost" size="sm" onClick={() => setFiltroInstrumento('')}>
+                      <X size={12} />
+                    </Button>
+                  )}
+                </div>
               )}
+
+              <div style={{ overflow: 'auto', flex: 1 }}>
+                {!sujetoSeleccionado ? (
+                  <div style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+                    <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
+                      Haz clic en un usuario para ver sus aplicaciones.
+                    </Typography>
+                  </div>
+                ) : cargandoApps ? (
+                  <div style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+                    <Spinner />
+                  </div>
+                ) : aplicacionesFiltradas.length === 0 ? (
+                  <div style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+                    <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
+                      {filtroInstrumento ? 'Sin aplicaciones con ese instrumento.' : 'Este usuario no tiene aplicaciones registradas.'}
+                    </Typography>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '110px 1fr 80px',
+                        gap: 'var(--space-3)',
+                        padding: 'var(--space-2) var(--space-4)',
+                        backgroundColor: 'var(--color-bg-subtle)',
+                      }}
+                    >
+                      <Typography as="small" style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)' }}>Fecha</Typography>
+                      <Typography as="small" style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)' }}>Instrumento</Typography>
+                      <Typography as="small" style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)', textAlign: 'right' }}>Métricas</Typography>
+                    </div>
+                    {aplicacionesFiltradas.map((app) => (
+                      <AplicacionRow key={app.application_id} app={app} />
+                    ))}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
