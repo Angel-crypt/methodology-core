@@ -115,7 +115,7 @@ function StatsPanel({ token }) {
         <ToastContainer toasts={toasts} onRemove={removeToast} />
         <Typography variant="h3" style={{ marginBottom: 'var(--space-1)' }}>Reporte PDF</Typography>
         <Typography variant="caption" style={{ color: 'var(--color-text-secondary)', display: 'block', marginBottom: 'var(--space-4)' }}>
-          Generá un reporte operativo con estadísticas agregadas. Podés filtrar por período.
+          Generá un reporte operativo con estadísticas agregadas. Puedes filtrar por período.
         </Typography>
 
         <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'flex-end' }}>
