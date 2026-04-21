@@ -293,7 +293,10 @@ router.post('/auth/oidc/callback', (req, res) => {
   // Vincular sub en primer login OIDC
   if (!user.broker_subject) {
     user.broker_subject = incomingSub;
+    user.oidc_linked = true;
     user.updated_at = new Date();
+  } else {
+    user.oidc_linked = true;
   }
 
   const jti = uuidv4();
@@ -608,6 +611,7 @@ router.post(
         : null,
       terms_accepted_at: null,
       onboarding_completed: false,
+      oidc_linked: false,
     };
     store.users.push(user);
 
@@ -718,6 +722,7 @@ router.patch('/users/:id/email', authMiddleware(['superadmin']), (req, res) => {
 
   user.email          = email;
   user.broker_subject = null;
+  user.oidc_linked    = false;
   user.token_version  = (user.token_version ?? 0) + 1;
   user.updated_at     = new Date();
 
@@ -782,6 +787,10 @@ router.get('/users', authMiddleware(['superadmin']), (req, res) => {
         created_at: u.created_at,
       };
       if (u.role === 'superadmin') base.must_change_password = u.must_change_password === true;
+      else {
+        base.broker_subject = u.broker_subject ?? null;
+        base.oidc_linked = u.oidc_linked === true;
+      }
       return base;
     }),
     meta: { total, page, limit, pages: Math.ceil(total / limit) },
@@ -940,6 +949,7 @@ router.get('/auth/activate/:token', (req, res) => {
 
   user.active = true;
   user.broker_subject = null;
+  user.oidc_linked = false;
   user.updated_at = new Date();
   store.setupTokens.delete(req.params.token); // single-use
 
@@ -1006,6 +1016,9 @@ router.get('/users/:id', authMiddleware(['superadmin']), (req, res) => {
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado.', data: null });
   }
   const { password_hash, ...safeUser } = user;
+  if (safeUser.role !== 'superadmin') {
+    safeUser.oidc_linked = safeUser.oidc_linked === true;
+  }
   return res.json({ status: 'success', data: safeUser });
 });
 

@@ -1,8 +1,10 @@
 /**
  * M4 – Registro Operativo Anonimizado
- * Rutas: POST /projects/:projectId/subjects, POST /subjects (legacy),
+ * Rutas: POST /projects/:projectId/subjects,
  *        POST /subjects/:id/context, GET /subjects/:id,
- *        POST /applications, GET /applications/my, POST /metric-values
+ *        POST /projects/:projectId/applications,
+ *        POST /projects/:projectId/applications/:applicationId/metric-values,
+ *        GET /applications/my
  */
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
@@ -74,7 +76,6 @@ function validateAdditionalAttributes(additional_attributes) {
 }
 
 // POST /projects/:projectId/subjects (ruta canónica)
-// También existe POST /subjects (legacy) mientras el frontend completa la migración
 function createSubjectHandler(projectId) {
   return (req, res) => {
     // Privacy by Design (AD-09): el body debe estar vacío
@@ -115,39 +116,12 @@ router.post('/projects/:projectId/subjects', authMiddleware(APPLICATOR_ROLES), (
   return createSubjectHandler(req.params.projectId)(req, res);
 });
 
-// POST /subjects (legacy — conservar mientras el frontend migra a /projects/:id/subjects)
+// POST /subjects (legacy deshabilitada)
 router.post('/subjects', authMiddleware(APPLICATOR_ROLES), (req, res) => {
-  // Privacy by Design: el cuerpo debe estar vacío (no se aceptan datos identificables aquí)
-  // req.body puede ser undefined con ciertos parsers; el guard || {} lo cubre
-  if (req.body !== undefined && Object.keys(req.body || {}).length > 0) {
-    return res.status(400).json({ status: 'error', message: 'El cuerpo de la solicitud debe estar vacío', data: null });
-  }
-
-  // Verificar subject_limit del aplicador (SRS General §3.4)
-  const perms = store.userPermissions.get(req.user.id);
-  if (perms?.subject_limit != null) {
-    const count = store.subjects.filter((s) => s.created_by === req.user.id).length;
-    if (count >= perms.subject_limit) {
-      return res.status(422).json({
-        status: 'error',
-        message: 'Límite de sujetos registrables alcanzado.',
-        data: null,
-      });
-    }
-  }
-
-  const subject = {
-    id: uuidv4(),
-    created_at: new Date(),
-    created_by: req.user.id,
-    context: null,
-  };
-  store.subjects.push(subject);
-
-  return res.status(201).json({
-    status: 'success',
-    message: 'Sujeto registrado correctamente',
-    data: { id: subject.id },
+  return res.status(410).json({
+    status: 'error',
+    message: 'Ruta deprecada. Usa POST /projects/:projectId/subjects.',
+    data: { code: 'DEPRECATED_ROUTE' },
   });
 });
 
@@ -262,8 +236,50 @@ router.get('/subjects/:id', authMiddleware(), (req, res) => {
   });
 });
 
-// POST /applications
-router.post('/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
+// GET /subjects/mine — sujetos creados por el aplicador autenticado
+router.get('/subjects/mine', authMiddleware(APPLICATOR_ROLES), (req, res) => {
+  const mySubjects = store.subjects.filter((s) => s.created_by === req.user.id);
+
+  return res.status(200).json({
+    status: 'success',
+    message: 'Sujetos recuperados',
+    data: mySubjects,
+  });
+});
+
+// GET /subjects/:id/applications — aplicaciones de un sujeto específico
+router.get('/subjects/:id/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
+  const subject = store.subjects.find((s) => s.id === req.params.id);
+  if (!subject) {
+    return res.status(404).json({ status: 'error', message: 'Sujeto no encontrado', data: null });
+  }
+
+  // Solo permitir ver aplicaciones de sujetos que el usuario creó
+  if (subject.created_by !== req.user.id) {
+    return res.status(403).json({ status: 'error', message: 'No tienes acceso a este sujeto', data: null });
+  }
+
+  const apps = store.applications
+    .filter((a) => a.subject_id === subject.id)
+    .map((app) => {
+      const instrument = store.instruments.find((i) => i.id === app.instrument_id);
+      const values = store.metricValues.filter((v) => v.application_id === app.id);
+      return {
+        application_id: app.id,
+        application_date: app.application_date,
+        instrument_name: instrument ? instrument.name : '—',
+        values_count: values.length,
+      };
+    });
+
+  return res.status(200).json({
+    status: 'success',
+    message: 'Aplicaciones recuperadas',
+    data: apps,
+  });
+});
+
+function createApplicationInProject(req, res, projectId) {
   const { subject_id, instrument_id, application_date, notes } = req.body || {};
 
   if (!subject_id || !instrument_id) {
@@ -273,6 +289,16 @@ router.post('/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
   const subject = store.subjects.find((s) => s.id === subject_id);
   if (!subject) {
     return res.status(404).json({ status: 'error', message: 'Sujeto no encontrado', data: null });
+  }
+  if (subject.project_id !== projectId) {
+    return res.status(422).json({ status: 'error', message: 'El sujeto no pertenece al proyecto indicado', data: null });
+  }
+
+  const assigned = store.projectInstruments.some(
+    (pi) => pi.project_id === projectId && pi.instrument_id === instrument_id
+  );
+  if (!assigned) {
+    return res.status(422).json({ status: 'error', message: 'El instrumento no está asignado a este proyecto', data: null });
   }
 
   const instrument = store.instruments.find((i) => i.id === instrument_id);
@@ -326,17 +352,39 @@ router.post('/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
     message: 'Aplicación registrada correctamente',
     data: application,
   });
+}
+
+router.post('/projects/:projectId/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
+  return createApplicationInProject(req, res, req.params.projectId);
+});
+
+// POST /applications (legacy deshabilitada)
+router.post('/applications', authMiddleware(APPLICATOR_ROLES), (_req, res) => {
+  return res.status(410).json({
+    status: 'error',
+    message: 'Ruta deprecada. Usa POST /projects/:projectId/applications.',
+    data: { code: 'DEPRECATED_ROUTE' },
+  });
 });
 
 // ─── GET /applications/my ─────────────────────────────────────────────────────
 // Devuelve todas las aplicaciones del aplicador autenticado, enriquecidas con
 // nombre del instrumento y valores de métrica capturados.
 router.get('/applications/my', authMiddleware(APPLICATOR_ROLES), (req, res) => {
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const pageSize = Math.min(Math.max(parseInt(req.query.page_size, 10) || 20, 1), 100);
+  const from = req.query.from;
+  const to = req.query.to;
+  const instrumentFilter = (req.query.instrument || '').toString().trim().toLowerCase();
+
   const mySubjectIds = new Set(
     store.subjects.filter((s) => s.created_by === req.user.id).map((s) => s.id)
   );
 
-  const myApplications = store.applications.filter((a) => mySubjectIds.has(a.subject_id));
+  let myApplications = store.applications.filter((a) => mySubjectIds.has(a.subject_id));
+
+  if (from) myApplications = myApplications.filter((a) => a.application_date >= from);
+  if (to) myApplications = myApplications.filter((a) => a.application_date <= to);
 
   const result = myApplications.map((app) => {
     const instrument = store.instruments.find((i) => i.id === app.instrument_id);
@@ -364,20 +412,33 @@ router.get('/applications/my', authMiddleware(APPLICATOR_ROLES), (req, res) => {
     };
   });
 
-  result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const filtered = instrumentFilter
+    ? result.filter((r) => (r.instrument_name || '').toLowerCase().includes(instrumentFilter))
+    : result;
+
+  filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  const total = filtered.length;
+  const start = (page - 1) * pageSize;
+  const paged = filtered.slice(start, start + pageSize);
 
   return res.status(200).json({
     status:  'success',
     message: 'Registros recuperados',
-    data:    result,
+    data:    paged,
+    meta: {
+      total,
+      page,
+      page_size: pageSize,
+      pages: Math.max(1, Math.ceil(total / pageSize)),
+    },
   });
 });
 
-// POST /metric-values
-router.post('/metric-values', authMiddleware(APPLICATOR_ROLES), (req, res) => {
-  const { application_id, values } = req.body || {};
+function saveMetricValues(req, res, applicationId, projectId) {
+  const { values } = req.body || {};
 
-  if (!application_id || !values || !Array.isArray(values) || values.length === 0) {
+  if (!applicationId || !values || !Array.isArray(values) || values.length === 0) {
     return res.status(400).json({
       status: 'error',
       message: 'Campos obligatorios: application_id, values (array no vacío)',
@@ -385,9 +446,14 @@ router.post('/metric-values', authMiddleware(APPLICATOR_ROLES), (req, res) => {
     });
   }
 
-  const application = store.applications.find((a) => a.id === application_id);
+  const application = store.applications.find((a) => a.id === applicationId);
   if (!application) {
     return res.status(404).json({ status: 'error', message: 'Aplicación no encontrada', data: null });
+  }
+
+  const subject = store.subjects.find((s) => s.id === application.subject_id);
+  if (!subject || subject.project_id !== projectId) {
+    return res.status(422).json({ status: 'error', message: 'La aplicación no pertenece al proyecto indicado', data: null });
   }
 
   const instrumentMetrics = store.metrics.filter((m) => m.instrument_id === application.instrument_id);
@@ -464,7 +530,7 @@ router.post('/metric-values', authMiddleware(APPLICATOR_ROLES), (req, res) => {
   // Persistir de forma atómica
   const recorded = values.map((v) => ({
     id: uuidv4(),
-    application_id,
+    application_id: applicationId,
     metric_id: v.metric_id,
     value: v.value,
     created_at: new Date(),
@@ -475,10 +541,23 @@ router.post('/metric-values', authMiddleware(APPLICATOR_ROLES), (req, res) => {
     status: 'success',
     message: 'Valores de métrica registrados correctamente',
     data: {
-      application_id,
+      application_id: applicationId,
       values_count: recorded.length,
       values: recorded.map((v) => ({ id: v.id, metric_id: v.metric_id, value: v.value })),
     },
+  });
+}
+
+router.post('/projects/:projectId/applications/:applicationId/metric-values', authMiddleware(APPLICATOR_ROLES), (req, res) => {
+  return saveMetricValues(req, res, req.params.applicationId, req.params.projectId);
+});
+
+// POST /metric-values (legacy deshabilitada)
+router.post('/metric-values', authMiddleware(APPLICATOR_ROLES), (_req, res) => {
+  return res.status(410).json({
+    status: 'error',
+    message: 'Ruta deprecada. Usa POST /projects/:projectId/applications/:applicationId/metric-values.',
+    data: { code: 'DEPRECATED_ROUTE' },
   });
 });
 

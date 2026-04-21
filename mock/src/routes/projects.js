@@ -59,7 +59,7 @@ function serializeProject(p) {
   };
 }
 
-/** Valida y normaliza la config operativa entrante. */
+/** Valida la config operativa entrante. Formato único: age_cohort_map + cohort_mode. */
 function validateConfig(config) {
   if (!config || typeof config !== 'object') {
     return { ok: false, message: 'config debe ser un objeto' };
@@ -131,8 +131,8 @@ router.post('/projects', authMiddleware(ADMIN_ROLES), (req, res) => {
       education_levels: config.education_levels ?? SYSTEM_DEFAULTS.education_levels,
       age_cohort_map:   config.age_cohort_map   ?? SYSTEM_DEFAULTS.age_cohort_map,
       cohort_mode:      config.cohort_mode      ?? SYSTEM_DEFAULTS.cohort_mode,
-      subject_limit:    config.subject_limit    ?? SYSTEM_DEFAULTS.subject_limit,
-      mode:             config.mode             ?? SYSTEM_DEFAULTS.mode,
+      subject_limit:   config.subject_limit    ?? SYSTEM_DEFAULTS.subject_limit,
+      mode:            config.mode            ?? SYSTEM_DEFAULTS.mode,
     };
   }
 
@@ -472,9 +472,9 @@ router.put('/projects/:id/config/operativo', authMiddleware(ADMIN_ROLES), (req, 
   const updated = {
     education_levels: req.body.education_levels ?? current.education_levels,
     age_cohort_map:   req.body.age_cohort_map   ?? current.age_cohort_map,
-    cohort_mode:      req.body.cohort_mode      ?? current.cohort_mode,
-    subject_limit:    req.body.subject_limit    ?? current.subject_limit,
-    mode:             req.body.mode             ?? current.mode,
+    cohort_mode:     req.body.cohort_mode     ?? current.cohort_mode,
+    subject_limit:   req.body.subject_limit    ?? current.subject_limit,
+    mode:            req.body.mode            ?? current.mode,
   };
   store.projectConfigs.set(project.id, updated);
 
