@@ -217,7 +217,8 @@ function formFromMetrica(m) {
 // ── Componente principal ─────────────────────────────────────────────────────
 
 function InstrumentoDetallePage() {
-  const { token } = useAuth()
+  const { token, role } = useAuth()
+  const canEdit = role === 'superadmin'
   const { id }       = useParams()
   const navigate     = useNavigate()
   const location     = useLocation()
@@ -470,9 +471,11 @@ function InstrumentoDetallePage() {
         <Typography as="h2" style={{ fontSize: 'var(--font-size-h2)' }}>
           Métricas del instrumento
         </Typography>
-        <Button icon={Plus} onClick={abrirAgregar}>
-          Agregar métrica
-        </Button>
+        {canEdit && (
+          <Button icon={Plus} onClick={abrirAgregar}>
+            Agregar métrica
+          </Button>
+        )}
       </div>
 
       {/* Lista de métricas */}
@@ -482,9 +485,11 @@ function InstrumentoDetallePage() {
           title="Sin métricas definidas"
           message="Agrega al menos una métrica para que el instrumento pueda recibir registros."
           action={
-            <Button size="sm" icon={Plus} iconPosition="left" onClick={abrirAgregar}>
-              Agregar métrica
-            </Button>
+            canEdit ? (
+              <Button size="sm" icon={Plus} iconPosition="left" onClick={abrirAgregar}>
+                Agregar métrica
+              </Button>
+            ) : null
           }
         />
       ) : (
@@ -549,17 +554,19 @@ function InstrumentoDetallePage() {
                 )}
               </div>
 
-              <ActionsMenu actions={[
-                { label: 'Editar',   icon: Pencil, onClick: () => abrirEditar(metrica) },
-                { label: 'Eliminar', icon: Trash2, onClick: () => abrirEliminar(metrica), variant: 'danger' },
-              ]} />
+              {canEdit && (
+                <ActionsMenu actions={[
+                  { label: 'Editar',   icon: Pencil, onClick: () => abrirEditar(metrica) },
+                  { label: 'Eliminar', icon: Trash2, onClick: () => abrirEliminar(metrica), variant: 'danger' },
+                ]} />
+              )}
             </div>
           ))}
         </div>
       )}
 
-      {/* Modal: Agregar métrica */}
-      <Modal
+      {/* Modals solo disponibles para superadmin */}
+      {canEdit && <Modal
         open={modalAgregar}
         onClose={() => setModalAgregar(false)}
         title="Agregar métrica"
@@ -583,10 +590,9 @@ function InstrumentoDetallePage() {
             onClearError={clearErrAgregar}
           />
         </div>
-      </Modal>
+      </Modal>}
 
-      {/* Modal: Editar métrica */}
-      <Modal
+      {canEdit && <Modal
         open={modalEditar}
         onClose={() => setModalEditar(false)}
         title={metricaEditar ? `Editar — ${metricaEditar.name}` : 'Editar métrica'}
@@ -610,10 +616,9 @@ function InstrumentoDetallePage() {
             onClearError={clearErrEditar}
           />
         </div>
-      </Modal>
+      </Modal>}
 
-      {/* Modal: Confirmar eliminar */}
-      <Modal
+      {canEdit && <Modal
         open={modalEliminar}
         onClose={() => setModalEliminar(false)}
         size="sm"
@@ -637,7 +642,7 @@ function InstrumentoDetallePage() {
             Esta acción no se puede deshacer.
           </p>
         </div>
-      </Modal>
+      </Modal>}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
