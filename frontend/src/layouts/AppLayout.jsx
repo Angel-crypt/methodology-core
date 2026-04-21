@@ -4,7 +4,7 @@
  */
 import { useState } from 'react'
 import PropTypes from 'prop-types'
-import { BookOpen, ClipboardList, ClipboardCheck, FolderOpen, Users, Building2, Settings } from 'lucide-react'
+import { BookOpen, ClipboardList, ClipboardCheck, Database, FolderOpen, Users, Building2, Settings } from 'lucide-react'
 import { Sidebar, GlobalSearch, ProfileDropdown } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
 import SolicitarCambioCorreoModal from '@/components/SolicitarCambioCorreoModal'
@@ -21,6 +21,16 @@ function getNavSections(role) {
       ],
     },
   ]
+
+  if (role === 'researcher') {
+    sections.push({
+      id:    'consulta',
+      label: 'CONSULTA',
+      items: [
+        { label: 'Dataset', icon: Database, to: '/consulta' },
+      ],
+    })
+  }
 
   if (role === 'applicator') {
     sections.push({
@@ -41,6 +51,13 @@ function getNavSections(role) {
       items: [
         { label: 'Aplicadores',    icon: ClipboardList, to: '/usuarios/aplicadores'   },
         { label: 'Investigadores', icon: Users,         to: '/usuarios/investigadores' },
+      ],
+    })
+    sections.push({
+      id:    'consulta',
+      label: 'CONSULTA',
+      items: [
+        { label: 'Dataset', icon: Database, to: '/consulta' },
       ],
     })
     sections.push({
