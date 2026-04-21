@@ -189,7 +189,7 @@ function GestionInstrumentos() {
     end_date_preset: '3m',
     tags: [],
     tagInput: '',
-    min_days_between_applications: 0,
+    min_days_between_applications: '',
   })
   const [erroresCrear, setErroresCrear] = useState({})
   const [errorApiCrear, setErrorApiCrear] = useState('')
@@ -202,7 +202,7 @@ function GestionInstrumentos() {
     end_date: '',
     tags: [],
     tagInput: '',
-    min_days_between_applications: 0,
+    min_days_between_applications: '',
   })
 
   // ─── Catálogo y filtro de tags ─────────────────────────────────
@@ -297,7 +297,7 @@ function GestionInstrumentos() {
       end_date_preset: '3m',
       tags: [],
       tagInput: '',
-      min_days_between_applications: 0,
+      min_days_between_applications: '',
     })
     setErroresCrear({})
     setErrorApiCrear('')
@@ -448,7 +448,7 @@ function GestionInstrumentos() {
       end_date_preset: '3m',
       tags: [],
       tagInput: '',
-      min_days_between_applications: 0,
+      min_days_between_applications: '',
     })
     setErroresCrear({})
     setErrorApiCrear('')
@@ -467,7 +467,7 @@ function GestionInstrumentos() {
       end_date: instrumento.end_date || '',
       tags: [...(instrumento.tags || [])],
       tagInput: '',
-      min_days_between_applications: instrumento.min_days_between_applications ?? 0,
+      min_days_between_applications: instrumento.min_days_between_applications || '',
     })
     setErroresEditar({})
     setErrorApiEditar('')
@@ -837,6 +837,7 @@ function GestionInstrumentos() {
           data={instrumentosFiltrados}
           loading={cargando}
           emptyMessage="No hay instrumentos que coincidan con la búsqueda."
+          onRowClick={(row) => navigate(`/instruments/${row.id}`, { state: { instrumento: row } })}
         />
       )}
 
@@ -994,11 +995,12 @@ function GestionInstrumentos() {
               type="number"
               min="0"
               step="1"
+              placeholder="0"
               value={formCrear.min_days_between_applications}
               onChange={(e) =>
                 setFormCrear((prev) => ({
                   ...prev,
-                  min_days_between_applications: e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0),
+                  min_days_between_applications: e.target.value === '' ? '' : String(Math.max(0, parseInt(e.target.value, 10) || 0)),
                 }))
               }
               helper="0 = sin restricción. Bloquea aplicaciones repetidas dentro de la ventana."
@@ -1178,7 +1180,7 @@ function GestionInstrumentos() {
 
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <Button type="button" size="sm" icon={Plus} onClick={agregarMetricaCrear}>
-                  Agregar métrica
+                  {metricasCrear.length === 0 ? 'Agregar métrica' : 'Añadir otra métrica'}
                 </Button>
               </div>
             </div>
@@ -1262,11 +1264,12 @@ function GestionInstrumentos() {
             type="number"
             min="0"
             step="1"
+            placeholder="0"
             value={formEditar.min_days_between_applications}
             onChange={(e) =>
               setFormEditar((prev) => ({
                 ...prev,
-                min_days_between_applications: e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0),
+                min_days_between_applications: e.target.value === '' ? '' : String(Math.max(0, parseInt(e.target.value, 10) || 0)),
               }))
             }
             helper="0 = sin restricción."

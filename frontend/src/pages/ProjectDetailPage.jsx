@@ -238,8 +238,15 @@ function TabMiembros({ projectId, token, toast }) {
               </thead>
               <tbody>
                 {members.map((m) => (
-                  <tr key={m.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: 'var(--space-3) var(--space-4)' }}>{m.full_name || '—'}</td>
+                  <tr key={m.id} style={{ borderBottom: '1px solid var(--color-border)', opacity: m.active === false ? 0.6 : 1 }}>
+                    <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                        {m.full_name || '—'}
+                        {m.active === false && (
+                          <StatusBadge status="disabled" label="Desactivado" />
+                        )}
+                      </span>
+                    </td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-small)' }}>{m.email}</td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                       <StatusBadge status={m.role === 'researcher' ? 'active' : 'pending'} label={m.role === 'researcher' ? 'Investigador' : 'Aplicador'} />
