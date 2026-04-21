@@ -53,7 +53,6 @@ const ROLE_CONFIG = {
 function GestionUsuarios({ role }) {
   const cfg = ROLE_CONFIG[role]
   const label = cfg.labelSingular
-  const LabelCap = label.charAt(0).toUpperCase() + label.slice(1)
 
   const {
     esAdmin,
