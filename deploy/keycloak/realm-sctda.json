@@ -1,0 +1,61 @@
+{
+  "realm": "sctda",
+  "displayName": "SCTDA Dev",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+
+  "clients": [
+    {
+      "clientId": "sctda-mock",
+      "name": "SCTDA Mock Server",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "secret": "mock-secret-dev",
+      "redirectUris": [
+        "http://localhost:8080/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8080",
+        "http://localhost:5173"
+      ],
+      "protocol": "openid-connect",
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:8080/*"
+      }
+    }
+  ],
+
+  "users": [
+    {
+      "username": "investigador",
+      "email": "investigador@sctda.dev",
+      "firstName": "Ana",
+      "lastName": "Investigadora",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "Test1234!", "temporary": false }
+      ]
+    },
+    {
+      "username": "aplicador",
+      "email": "aplicador@sctda.dev",
+      "firstName": "Carlos",
+      "lastName": "Aplicador",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "Test1234!", "temporary": false }
+      ]
+    }
+  ]
+}
