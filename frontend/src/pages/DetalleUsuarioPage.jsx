@@ -33,6 +33,7 @@ import {
   resetearPassword,
 } from '@/services/users'
 import { aprobarCambioCorreo } from '@/services/emailChangeRequests'
+import { listarProyectosMiembro, eliminarMiembro } from '@/services/projects'
 import { formatFecha, getUserStatus } from '@/hooks/useGestionUsuarios'
 import CredencialesModal from '@/pages/CredencialesModal'
 
@@ -75,8 +76,8 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
     setCargandoUsuario(true)
     obtenerUsuario(token, id)
       .then((data) => {
-        if (data.status === 'success') setUsuario(data.data)
-        else setErrorUsuario(data.message || 'No se pudo cargar el usuario.')
+        if (data.ok) setUsuario(data.data)
+        else setErrorUsuario(data.error || 'No se pudo cargar el usuario.')
       })
       .catch(() => setErrorUsuario('Error de conexión.'))
       .finally(() => setCargandoUsuario(false))
@@ -87,7 +88,7 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
     setCargandoSesiones(true)
     listarSesionesUsuario(token, id)
       .then((data) => {
-        if (data.status === 'success') setSesiones(data.data)
+        if (data.ok) setSesiones(data.data)
         else setErrorSesiones(true)
       })
       .catch(() => setErrorSesiones(true))
@@ -98,27 +99,20 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
   useEffect(() => {
     if (!usuario || usuario.role === 'superadmin') return
     setCargandoProyectos(true)
-    fetch(`/api/v1/projects?member_id=${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.ok ? r.json() : { data: [] })
-      .then((json) => setProyectos(json.data ?? []))
+    listarProyectosMiembro(token, id)
+      .then((res) => { if (res.ok) setProyectos(res.data ?? []) })
       .catch(() => {})
       .finally(() => setCargandoProyectos(false))
   }, [id, token, usuario])
 
   async function handleQuitarDeProyecto(projectId, projectName) {
     try {
-      const res = await fetch(`/api/v1/projects/${projectId}/members/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (res.ok || res.status === 204) {
+      const res = await eliminarMiembro(token, projectId, id)
+      if (res.ok) {
         setProyectos((prev) => prev.filter((p) => p.id !== projectId))
         toast({ type: 'success', title: 'Removido del proyecto', message: `${usuario.full_name} fue quitado de "${projectName}".` })
       } else {
-        const json = await res.json().catch(() => ({}))
-        toast({ type: 'error', title: 'Error', message: json.message || 'No se pudo quitar del proyecto.' })
+        toast({ type: 'error', title: 'Error', message: res.error || 'No se pudo quitar del proyecto.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -130,7 +124,7 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
     setGuardandoEstado(true)
     try {
       const data = await cambiarEstadoUsuario(token, id, !usuario.active)
-      if (data.status === 'success') {
+      if (data.ok) {
         setUsuario((prev) => ({ ...prev, active: !prev.active }))
         toast({
           type: 'success',
@@ -138,7 +132,7 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
           message: `La cuenta de ${usuario.full_name} fue ${usuario.active ? 'desactivada' : 'activada'}.`,
         })
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo cambiar el estado.' })
+        toast({ type: 'error', title: 'Error', message: data.error || 'No se pudo cambiar el estado.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -152,11 +146,11 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
     setGuardandoReset(true)
     try {
       const data = await resetearPassword(token, id)
-      if (data.status === 'success') {
+      if (data.ok) {
         setCredencialesNuevas({ email: usuario.email, magicLink: data.data?._mock_magic_link, nombreUsuario: usuario.full_name })
         setModalCredenciales(true)
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo generar el enlace.' })
+        toast({ type: 'error', title: 'Error', message: data.error || 'No se pudo generar el enlace.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -173,12 +167,12 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
     setErrorCambioCorreo('')
     try {
       const data = await aprobarCambioCorreo(token, id, email)
-      if (data.status === 'success') {
+      if (data.ok) {
         setModalCambiarCorreo(false)
         setUsuario((prev) => ({ ...prev, email }))
         toast({ type: 'success', title: 'Correo actualizado', message: 'El correo fue actualizado. El usuario fue desconectado.' })
       } else {
-        setErrorCambioCorreo(data.message || 'No se pudo actualizar el correo.')
+        setErrorCambioCorreo(data.error || 'No se pudo actualizar el correo.')
       }
     } catch {
       setErrorCambioCorreo('Error de conexión. Intenta nuevamente.')
