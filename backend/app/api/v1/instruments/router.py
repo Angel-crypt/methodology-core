@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.v1.instruments.dependencies import get_instruments_service
 from app.api.v1.instruments.schemas import (
-    ApiResponse, InstrumentCreateRequest, InstrumentResponse,
+    ApiResponse, InstrumentCreateRequest, InstrumentResponse, InstrumentUpdateRequest,
 )
 from app.api.v1.instruments.service import InstrumentsService
 from app.db.models.user import Role
@@ -52,4 +52,18 @@ async def get_instrument(
 ) -> ApiResponse:
     instrument = await service.get_instrument(instrument_id)
     return ApiResponse(status="success", message="OK",
+                       data=InstrumentResponse.model_validate(instrument).model_dump())
+
+
+@router.patch("/{instrument_id}", response_model=ApiResponse,
+              dependencies=[Depends(require_role(Role.superadmin))])
+async def update_instrument(
+    instrument_id: uuid.UUID,
+    body: InstrumentUpdateRequest,
+    service: InstrumentsService = Depends(get_instruments_service),
+) -> ApiResponse:
+    instrument = await service.update_instrument(instrument_id, body)
+    await service.repo.db.commit()
+    await service.repo.db.refresh(instrument)
+    return ApiResponse(status="success", message="Instrumento actualizado",
                        data=InstrumentResponse.model_validate(instrument).model_dump())
