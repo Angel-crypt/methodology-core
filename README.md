@@ -1,5 +1,10 @@
 # Sistema de Registro de Metricas Linguisticas
 
+[![Tests](https://github.com/Angel-crypt/methodology-core/actions/workflows/test.yml/badge.svg?branch=dev)](https://github.com/Angel-crypt/methodology-core/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+![JavaScript](https://img.shields.io/badge/-JavaScript_ES2020+-F7DF1E?style=flat&logo=javascript&logoColor=white)
+![Python](https://img.shields.io/badge/-Python_3.11+-3776AB?style=flat&logo=python&logoColor=white)
+
 Herramienta academica para registrar metricas linguisticas de forma estructurada, trazable y anonima.
 
 ## Inventario y estado del proyecto
