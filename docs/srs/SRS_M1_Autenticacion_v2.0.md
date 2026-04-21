@@ -706,7 +706,7 @@ Garantizar que solo usuarios autenticados con el rol correcto accedan a cada fun
 |---|---|---|
 | CA-HU5-01 | Investigador intenta acceder a endpoint exclusivo del SUPERADMIN (ej. crear usuario). | HTTP 403 Forbidden. La acción no se ejecuta. |
 | CA-HU5-02 | Profesional Aplicador intenta exportar datos. | HTTP 403 Forbidden. |
-| CA-HU5-03 | SUPERADMIN accede solo a endpoints permitidos por la matriz de permisos. | Acceso permitido segun la matriz de permisos de §5. |
+| CA-HU5-03 | SUPERADMIN accede solo a endpoints permitidos por la matriz de permisos. | Acceso permitido segun la matriz de permisos de 5. |
 | CA-HU5-04 | Token manipulado presenta rol no válido en su payload. | Validación de firma HS256 falla antes de evaluar el rol. HTTP 401 Unauthorized. |
 | CA-HU5-05 | El mismo endpoint es invocado por dos roles distintos con permisos diferentes. | Middleware evalúa rol del token y aplica restricción sin consultar BD en cada request. |
 | CA-HU5-06 | Endpoint no requiere autenticación (ej. `/health`). | La solicitud se procesa sin verificar token. Ruta declarada en whitelist explícita. |
