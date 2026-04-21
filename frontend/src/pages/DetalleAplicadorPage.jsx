@@ -3,6 +3,7 @@ import PropTypes from 'prop-types'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { ChevronLeft, Copy, Monitor } from 'lucide-react'
+import SessionCard from '@/components/SessionCard'
 import {
   Button,
   Alert,
@@ -256,23 +257,7 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
           ) : (
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               {sesiones.map((s) => (
-                <li
-                  key={s.jti}
-                  style={{
-                    padding:      'var(--space-2) var(--space-3)',
-                    background:   'var(--color-bg-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize:     'var(--font-size-caption)',
-                    display:      'flex',
-                    justifyContent: 'space-between',
-                    gap:          'var(--space-2)',
-                  }}
-                >
-                  <span style={{ fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
-                    {s.ip}
-                  </span>
-                  <span style={{ color: 'var(--color-text-tertiary)' }}>{formatFecha(s.created_at)}</span>
-                </li>
+                <SessionCard key={s.jti} session={s} />
               ))}
             </ul>
           )}
