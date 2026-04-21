@@ -42,3 +42,14 @@ async def list_instruments(
 @router.get("/tags", response_model=ApiResponse, dependencies=[Depends(require_active_user)])
 async def get_tags(service: InstrumentsService = Depends(get_instruments_service)) -> ApiResponse:
     return ApiResponse(status="success", message="OK", data=await service.get_tags())
+
+
+@router.get("/{instrument_id}", response_model=ApiResponse,
+            dependencies=[Depends(require_active_user)])
+async def get_instrument(
+    instrument_id: uuid.UUID,
+    service: InstrumentsService = Depends(get_instruments_service),
+) -> ApiResponse:
+    instrument = await service.get_instrument(instrument_id)
+    return ApiResponse(status="success", message="OK",
+                       data=InstrumentResponse.model_validate(instrument).model_dump())
