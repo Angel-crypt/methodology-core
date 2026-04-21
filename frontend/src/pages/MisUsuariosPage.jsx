@@ -2,6 +2,7 @@
  * MisUsuariosPage — usuarios registrados por el aplicador.
  */
 import { useState, useEffect, useMemo } from 'react'
+import PropTypes from 'prop-types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/app'
 import { Typography, Button, EmptyState, Spinner, ToastContainer } from '@/components/app'
@@ -44,6 +45,16 @@ function SujetoRow({ sujeto, seleccionado, onClick }) {
   )
 }
 
+SujetoRow.propTypes = {
+  sujeto: PropTypes.shape({
+    anonymous_code: PropTypes.string.isRequired,
+    project_name:   PropTypes.string,
+    created_at:     PropTypes.string,
+  }).isRequired,
+  seleccionado: PropTypes.bool,
+  onClick:      PropTypes.func.isRequired,
+}
+
 function AplicacionRow({ app }) {
   return (
     <div
@@ -65,6 +76,14 @@ function AplicacionRow({ app }) {
       </Typography>
     </div>
   )
+}
+
+AplicacionRow.propTypes = {
+  app: PropTypes.shape({
+    application_date: PropTypes.string,
+    instrument_name:  PropTypes.string,
+    values_count:     PropTypes.number,
+  }).isRequired,
 }
 
 export default function MisUsuariosPage() {
