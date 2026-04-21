@@ -160,23 +160,34 @@ function MisRegistrosPage() {
   const { toasts, toast, dismiss } = useToast()
   const [registros, setRegistros]         = useState([])
   const [cargando, setCargando]           = useState(true)
+  const [page, setPage] = useState(1)
+  const [pageSize] = useState(20)
+  const [meta, setMeta] = useState({ total: 0, page: 1, page_size: 20, pages: 1 })
   const [filtroInstrumento, setFiltroInstrumento] = useState('')
   const [filtroDesde, setFiltroDesde]     = useState('')
   const [filtroHasta, setFiltroHasta]     = useState('')
 
   useEffect(() => {
     async function cargar() {
-      const res = await listarMisRegistros(token)
+      setCargando(true)
+      const res = await listarMisRegistros(token, {
+        page,
+        page_size: pageSize,
+        instrument: filtroInstrumento || undefined,
+        from: filtroDesde || undefined,
+        to: filtroHasta || undefined,
+      })
       setCargando(false)
       if (res.status === 'success') {
         setRegistros(res.data || [])
+        setMeta(res.meta || { total: (res.data || []).length, page, page_size: pageSize, pages: 1 })
       } else {
         toast({ type: 'error', title: 'Error', message: res.message || 'No se pudieron cargar los registros.' })
       }
     }
     cargar()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
+  }, [token, page, pageSize, filtroInstrumento, filtroDesde, filtroHasta])
 
   // Opciones únicas de instrumento para el filtro
   const instrumentos = useMemo(
@@ -184,22 +195,13 @@ function MisRegistrosPage() {
     [registros]
   )
 
-  // Filtrado client-side
-  const filtered = useMemo(() => {
-    return registros.filter((r) => {
-      if (filtroInstrumento && r.instrument_name !== filtroInstrumento) return false
-      if (filtroDesde && r.application_date < filtroDesde) return false
-      if (filtroHasta && r.application_date > filtroHasta) return false
-      return true
-    })
-  }, [registros, filtroInstrumento, filtroDesde, filtroHasta])
-
   const hayFiltros = filtroInstrumento || filtroDesde || filtroHasta
 
   function limpiarFiltros() {
     setFiltroInstrumento('')
     setFiltroDesde('')
     setFiltroHasta('')
+    setPage(1)
   }
 
   return (
@@ -232,7 +234,10 @@ function MisRegistrosPage() {
               <select
                 className="input-base"
                 value={filtroInstrumento}
-                onChange={(e) => setFiltroInstrumento(e.target.value)}
+                onChange={(e) => {
+                  setFiltroInstrumento(e.target.value)
+                  setPage(1)
+                }}
               >
                 <option value="">Todos</option>
                 {instrumentos.map((name) => (
@@ -248,7 +253,10 @@ function MisRegistrosPage() {
                 type="date"
                 value={filtroDesde}
                 max={filtroHasta || undefined}
-                onChange={(e) => setFiltroDesde(e.target.value)}
+                onChange={(e) => {
+                  setFiltroDesde(e.target.value)
+                  setPage(1)
+                }}
               />
             </label>
 
@@ -259,7 +267,10 @@ function MisRegistrosPage() {
                 type="date"
                 value={filtroHasta}
                 min={filtroDesde || undefined}
-                onChange={(e) => setFiltroHasta(e.target.value)}
+                onChange={(e) => {
+                  setFiltroHasta(e.target.value)
+                  setPage(1)
+                }}
               />
             </label>
 
@@ -290,17 +301,29 @@ function MisRegistrosPage() {
             ))}
           </div>
 
-          {filtered.length === 0 ? (
+          {registros.length === 0 ? (
             <p style={{ fontSize: 'var(--font-size-small)', color: 'var(--color-text-tertiary)', padding: 'var(--space-4) var(--space-4)' }}>
               Ningún registro coincide con los filtros aplicados.
             </p>
           ) : (
-            filtered.map((r) => <RegistroRow key={r.application_id} registro={r} />)
+            registros.map((r) => <RegistroRow key={r.application_id} registro={r} />)
           )}
+
+          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+            <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              Anterior
+            </Button>
+            <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
+              Página {meta.page || page} de {meta.pages || 1}
+            </Typography>
+            <Button variant="ghost" size="sm" disabled={page >= (meta.pages || 1)} onClick={() => setPage((p) => Math.min(meta.pages || 1, p + 1))}>
+              Siguiente
+            </Button>
+          </div>
 
           {hayFiltros && (
             <Typography as="small" style={{ color: 'var(--color-text-tertiary)' }}>
-              {filtered.length} de {registros.length} {registros.length === 1 ? 'registro' : 'registros'}
+              {meta.total || 0} {meta.total === 1 ? 'registro' : 'registros'} encontrados
             </Typography>
           )}
         </div>
