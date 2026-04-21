@@ -191,7 +191,7 @@ Bugs y deuda técnica cerrados antes de iniciar M5/M6.
 | DataTable | `row-inactive` solo chequeaba `row.active`. Ahora también cubre `row.is_active` (instrumentos). | ✅ |
 | [C-05] | Sesión expirada no redirigía. `lib/api.js` despacha `auth:session-expired` en cualquier 401. `AuthContext` escucha y llama `logout('session_expired')` con mensaje visible en `LoginPage`. `projects.js` y `emailChangeRequests.js` actualizados para distinguir SESSION_REVOKED vs expiración genérica. | ✅ |
 | [C-03] | Sin validación de password fuerte para SUPERADMIN. Mock: `validatePasswordStrength()` aplicado en `POST /auth/password-reset` y `PATCH /users/me/password`. Respuesta de contraseña incorrecta cambiada de 401→422 (semántica correcta). Frontend: `CambiarPasswordModal` valida en cliente y muestra requisitos. | ✅ |
-| Docs | INVENTARIO §10: eliminados P-01/P-02 (resueltos Sprint 2). FLUJO_SISTEMA_FINAL §5: título corregido "ADMINISTRATOR"→"SUPERADMIN". FLUJO_SISTEMA_FINAL §6.1: `age_cohort_ranges`→`age_cohort_map`. | ✅ |
+| Docs | INVENTARIO 10: eliminados P-01/P-02 (resueltos Sprint 2). FLUJO_SISTEMA_FINAL 5: título corregido "ADMINISTRATOR"→"SUPERADMIN". FLUJO_SISTEMA_FINAL 6.1: `age_cohort_ranges`→`age_cohort_map`. | ✅ |
 
 ---
 

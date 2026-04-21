@@ -283,8 +283,8 @@ methodology-core/
 │   ├── src/
 │   │   ├── pages/          # Una página por ruta
 │   │   ├── components/
-│   │   │   └── app/        # Design system (ver §7)
-│   │   ├── services/        # Llamadas a la API (ver §6)
+│   │   │   └── app/        # Design system (ver 7)
+│   │   ├── services/        # Llamadas a la API (ver 6)
 │   │   ├── layouts/
 │   │   │   └── AppLayout.jsx  # Shell con Sidebar + outlet
 │   │   ├── test/            # Setup MSW y handlers globales
