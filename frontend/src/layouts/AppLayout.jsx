@@ -4,7 +4,7 @@
  */
 import { useState } from 'react'
 import PropTypes from 'prop-types'
-import { BookOpen, ClipboardList, ClipboardCheck, FolderOpen, Users, Building2, Settings } from 'lucide-react'
+import { BookOpen, ClipboardList, ClipboardCheck, Database, Download, FolderOpen, Users, Building2, Settings, ShieldAlert, RefreshCw } from 'lucide-react'
 import { Sidebar, GlobalSearch, ProfileDropdown } from '@/components/app'
 import CambiarPasswordModal from '@/pages/CambiarPasswordModal'
 import SolicitarCambioCorreoModal from '@/components/SolicitarCambioCorreoModal'
@@ -21,6 +21,17 @@ function getNavSections(role) {
       ],
     },
   ]
+
+  if (role === 'researcher') {
+    sections.push({
+      id:    'consulta',
+      label: 'DATOS',
+      items: [
+        { label: 'Consulta',    icon: Database, to: '/consulta' },
+        { label: 'Exportación', icon: Download,  to: '/exportar' },
+      ],
+    })
+  }
 
   if (role === 'applicator') {
     sections.push({
@@ -44,6 +55,13 @@ function getNavSections(role) {
       ],
     })
     sections.push({
+      id:    'consulta',
+      label: 'CONSULTA',
+      items: [
+        { label: 'Dataset', icon: Database, to: '/consulta' },
+      ],
+    })
+    sections.push({
       id:    'proyectos',
       label: 'PROYECTOS',
       items: [
@@ -54,8 +72,9 @@ function getNavSections(role) {
       id:    'sistema',
       label: 'SISTEMA',
       items: [
-        { label: 'Instituciones',       icon: Building2, to: '/instituciones'       },
-        { label: 'Config. de perfil',   icon: Settings,  to: '/configuracion-perfil' },
+        { label: 'Instituciones',       icon: Building2,  to: '/instituciones'       },
+        { label: 'Config. de perfil',   icon: Settings,   to: '/configuracion-perfil' },
+        { label: 'Audit Log',           icon: ShieldAlert, to: '/audit-log'           },
       ],
     })
   }
@@ -100,6 +119,28 @@ function AppLayout({ children }) {
         <header className="topbar">
           {esAdmin && <GlobalSearch />}
           <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            title="Actualizar página"
+            style={{
+              display:     'flex',
+              alignItems:  'center',
+              gap:         'var(--space-1)',
+              padding:     'var(--space-1) var(--space-2)',
+              background:  'transparent',
+              border:      'none',
+              borderRadius:'var(--radius-sm)',
+              cursor:      'pointer',
+              color:       'var(--color-text-secondary)',
+              fontSize:    'var(--font-size-caption)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-bg-subtle)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+          >
+            <RefreshCw size={14} />
+            <span>Actualizar</span>
+          </button>
           <ProfileDropdown
             fullName={fullName}
             role={role}

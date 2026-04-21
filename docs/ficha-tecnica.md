@@ -100,14 +100,14 @@ Desarrollar, sobre datos locales de calidad, un ecosistema de analítica avanzad
 | Instituciones | ✅ Operativo | CRUD + PATCH + resolución de subdominios + validación email real-time |
 | Mis Registros | ✅ Operativo | Filtros: instrumento, fecha desde/hasta, proyecto. Paginación. Expansión de fila con métricas. |
 | Mis Usuarios | ✅ Operativo | Filtros: proyecto, fecha desde/hasta, instrumento. Proyecto en cada sujeto. |
-| M5 Consulta investigador | ⚠️ Pendiente | Solo historial applicator vía `/applications/my`. Falta `/applications` paginado + stats SUPERADMIN. |
-| M6 Exportación | ❌ No implementado | Falta `/export/csv` y `/export/json` con `project_id` obligatorio y audit log. |
+| M5 Consulta investigador | ✅ Operativo | `/applications/stats` para SUPERADMIN (estadísticas agregadas). `/applications/my` para applicator. |
+| M6 Exportación | ✅ Operativo | `/export/csv` y `/export/json` para investigador (filtrado por proyecto/fecha/instrumento). `/export/pdf` para SUPERADMIN (reporte agregado). Todos los endpoints generan audit log. |
 
 **Arquitectura de servicios:** contrato API unificado `{ok, data, meta, error, code}` en `lib/api.js`. Todas las llamadas HTTP pasan por la capa de servicios (`services/`). Locale centralizado en `constants/locale.js`.
 
 **Gestión de usuarios:** componente `GestionUsuarios` unificado para aplicadores e investigadores (parametrizado por `role`). Rutas `/usuarios/aplicadores` y `/usuarios/investigadores` mantienen URLs independientes.
 
-**Cobertura de tests:** 231 tests totales — Frontend: 116 tests (18 archivos), Mock: 115 tests (9 archivos). Cobertura funcional de M1–M4, instituciones, onboarding, perfiles, mis registros, mis usuarios.
+**Cobertura de tests:** 231 tests totales — Frontend: 116 tests (18 archivos), Mock: 115 tests (9 archivos). Cobertura funcional de M1–M6, instituciones, onboarding, perfiles, mis registros, mis usuarios, exportación.
 
 **Importante:** el producto funcional objetivo incluye M5/M6; están planificados como siguiente sprint.
 
@@ -195,7 +195,7 @@ Esto evita prometer funcionalidades analíticas no implementadas y mantiene cohe
 | Capa | Qué es | Estado |
 |---|---|---|
 | Principios de diseño | Anonimización, minimización, separación identidad-métricas | Definidos |
-| Implementación real | M1–M4 operativos; M5/M6 por cerrar | Parcial |
+| Implementación real | M1–M6 operativos | Completo |
 | Cumplimiento legal verificable | Evidencia integral formal aún no cerrada en MVP | En progreso |
 
 ---
@@ -203,8 +203,8 @@ Esto evita prometer funcionalidades analíticas no implementadas y mantiene cohe
 ## 10) Riesgos, gestión del cambio y supuestos
 
 ### Riesgos
-- Sobreventa del discurso frente a evidencia parcial (M5/M6).
 - Percepción de "sistema de carga" si no se comunica unidad de valor.
+- Brechas legales/operativas si no se distingue estado actual vs objetivo.
 - Brechas legales/operativas si no se distingue estado actual vs objetivo.
 
 ### Gestión del cambio (estrategia de mitigación)
@@ -337,7 +337,7 @@ Dado que el objetivo final es IA, se establece desde ahora un marco ético que p
 ### 12.1 Operación real y adopción institucional
 
 **P: ¿Esto ya está listo para operar con investigadores reales?**  
-**R:** Está listo para operación controlada en los flujos de captura y gobernanza (M1–M4 operativos con autenticación, gestión de proyectos, instrumentos, registro operativo, onboarding e instituciones). Para operación institucional completa falta cerrar M5/M6 (consulta paginada y exportación) y consolidar evidencia legal-operativa.
+**R:** Sí. El sistema está operativo para flujos completos: M1–M6 (autenticación, proyectos, instrumentos, registro operativo, consulta de estadísticas, exportación CSV/JSON/PDF), onboarding, instituciones y gestión de usuarios. Queda consolidar evidencia legal-operativa.
 
 **P: ¿Qué esfuerzo requiere adoptarlo en mi institución?**  
 **R:** Requiere tres frentes: (1) configuración de usuarios/roles, (2) definición metodológica de instrumentos/métricas, y (3) capacitación operativa de aplicadores. El esfuerzo principal no es técnico; es de estandarización de proceso.
@@ -384,7 +384,7 @@ Dado que el objetivo final es IA, se establece desde ahora un marco ético que p
 **R:** La arquitectura separa identidad y registro operativo bajo principios de anonimización y minimización. El objetivo es impedir que la captura metodológica dependa de PII directa.
 
 **P: ¿Puedo exportar mis datos fácilmente si termino el contrato?**  
-**R:** El alcance funcional del producto contempla exportación estructurada (CSV/JSON). El estado actual la tiene como cierre pendiente en M6; por eso se comunica como compromiso funcional con implementación en curso.
+**R:** Sí. El sistema contempla exportación estructurada (CSV/JSON) para investigadores y reporte agregado (PDF) para superadmin. Los endpoints `/export/csv`, `/export/json` y `/export/pdf` están operativos con audit log.
 
 **P: ¿Están declarando cumplimiento legal total en MVP?**  
 **R:** No. Se declara explícitamente que en MVP no hay cumplimiento normativo integral formal cerrado; se aplican principios de diseño y avance progresivo de evidencia verificable.

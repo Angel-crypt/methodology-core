@@ -951,10 +951,20 @@ router.get('/audit-log', authMiddleware(['superadmin']), (req, res) => {
   const offset = (page - 1) * limit;
   const total = entries.length;
 
+  // Enriquecer cada entrada con datos básicos del usuario (email, nombre)
+  const enriched = entries.slice(offset, offset + limit).map((e) => {
+    const user = e.user_id ? store.users.find((u) => u.id === e.user_id) : null;
+    return {
+      ...e,
+      user_email:     user ? user.email     : null,
+      user_full_name: user ? user.full_name : null,
+    };
+  });
+
   return res.status(200).json({
     status: 'success',
     message: 'Audit log recuperado',
-    data: entries.slice(offset, offset + limit),
+    data: enriched,
     meta: { total, page, limit, pages: Math.ceil(total / limit) },
   });
 });
