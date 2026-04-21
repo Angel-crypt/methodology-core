@@ -46,7 +46,7 @@ describe('MisRegistrosPage — carga de datos', () => {
     // El instrumento aparece en el filtro (option) y en la fila — verificamos con getAllByText
     const matches = await screen.findAllByText('Instrumento A')
     expect(matches.length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('S-001')).toBeInTheDocument()
+    expect(screen.getAllByText('S-001').length).toBeGreaterThan(0)
   })
 
   it('muestra estado vacío cuando no hay registros', async () => {
