@@ -111,7 +111,7 @@ app.listen(PORT, () => {
     console.warn('  ║  Usando valor por defecto inseguro.           ║');
     console.warn('  ║  En producción: configurar JWT_SECRET como    ║');
     console.warn('  ║  variable de entorno o Docker Secret.         ║');
-    console.warn('  ║  Ref: mock/SECURITY_REPORT.md §SEG-02         ║');
+    console.warn('  ║  Ref: mock/SECURITY_REPORT.md SEG-02         ║');
     console.warn('  ╚═══════════════════════════════════════════════╝');
     console.warn('');
   }
