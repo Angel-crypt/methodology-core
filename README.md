@@ -1,6 +1,6 @@
 # Sistema de Registro Metodológico de Métricas Lingüísticas
 
-[![Tests](https://github.com/Angel-crypt/methodology-core/actions/workflows/test.yml/badge.svg?branch=dev)](https://github.com/Angel-crypt/methodology-core/actions/workflows/test.yml)
+[![Tests](https://github.com/Angel-crypt/methodology-core/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/Angel-crypt/methodology-core/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 ![JavaScript](https://img.shields.io/badge/-JavaScript_ES2020+-F7DF1E?style=flat&logo=javascript&logoColor=white)
 ![Python](https://img.shields.io/badge/-Python_3.11+-3776AB?style=flat&logo=python&logoColor=white)
