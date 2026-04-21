@@ -109,6 +109,18 @@ function buildMetricColumns(apps) {
   return cols
 }
 
+// ── Traducción de cabeceras CSV ───────────────────────────────────────────────
+
+const FIXED_HEADERS_EN = [
+  'application_id', 'subject_id', 'instrument_name', 'application_date',
+  'school_type', 'education_level', 'age_cohort', 'gender', 'socioeconomic_level',
+]
+
+const FIXED_HEADERS_ES = [
+  'id_aplicacion', 'id_sujeto', 'instrumento', 'fecha_aplicacion',
+  'tipo_escuela', 'nivel_educativo', 'cohorte_edad', 'genero', 'nivel_socioeconomico',
+]
+
 // ── GET /export/csv ───────────────────────────────────────────────────────────
 // RF-M6-01 — HU21
 router.get('/export/csv', authMiddleware(RESEARCHER_ROLES), (req, res) => {
@@ -120,10 +132,8 @@ router.get('/export/csv', authMiddleware(RESEARCHER_ROLES), (req, res) => {
   const { apps, instrumentId, startDate, endDate } = result
   const metricCols = buildMetricColumns(apps)
 
-  const FIXED_HEADERS = [
-    'application_id', 'subject_id', 'instrument_name', 'application_date',
-    'school_type', 'education_level', 'age_cohort', 'gender', 'socioeconomic_level',
-  ]
+  const lang = (req.query.lang || 'en').toString().toLowerCase()
+  const FIXED_HEADERS = lang === 'es' ? FIXED_HEADERS_ES : FIXED_HEADERS_EN
 
   const allHeaders = [...FIXED_HEADERS, ...metricCols.map((c) => c.label)]
   const rows = [allHeaders.map(escapeCSV).join(',')]
