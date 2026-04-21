@@ -195,6 +195,25 @@ Bugs y deuda técnica cerrados antes de iniciar M5/M6.
 
 ---
 
+## CIERRE PRE-SPRINT 5 FASE 2 — 2026-04-21
+
+Deuda técnica y UX cerrada antes de iniciar M5/M6 (continuación del cierre 2026-04-20).
+
+| ID | Fix | Estado |
+|----|-----|--------|
+| [C-06] Subdominios | `extractBaseDomain` reemplazado por stripping progresivo. `unam.edu.mx` y `globaluniversity.edu.mx` se discriminan correctamente. Mock + OnboardingPage + useGestionUsuarios. | ✅ |
+| emailDomainError | Calculado en hook pero no exportado → GestionAplicadores/GestionInvestigadores mostraban silencio ante dominio desconocido. Exportado y visualizado bajo campo email. | ✅ |
+| InstitutionsPage edición | Agregar PATCH (editar institución) faltaba — solo había POST. Modal con modo crear/editar. | ✅ |
+| Dropdown miembros | `--color-bg-surface` no existe como token → fondo transparente. Corregido a `--color-surface`. | ✅ |
+| Express route order | `GET /subjects/mine` registrada DESPUÉS de `GET /subjects/:id` → "mine" interpretado como `:id`. Intercambiadas. | ✅ |
+| project_name en registros | `/applications/my` y `/subjects/mine` ahora incluyen `project_id` y `project_name`. | ✅ |
+| Filtro proyecto Mis Registros | MisRegistrosPage: filtro Proyecto agregado (server-side via `?project_id=`). Columna Proyecto en tabla. | ✅ |
+| Filtros Mis Usuarios | MisUsuariosPage: filtros Proyecto + Fecha desde/hasta para panel de sujetos; filtro Instrumento para panel de aplicaciones. Manejo de errores con toast. | ✅ |
+| Caracteres chinos | Comentarios en `institutions.js` tenían caracteres chinos (artifact de generación). Eliminados. | ✅ |
+| Tests | 17/17 test files verdes (105 tests). Test MisUsuariosPage actualizado para `findAllByText` al aparecer instrumento también en filtro select. | ✅ |
+
+---
+
 ## ESTADO ACTUAL DE IMPLEMENTACIÓN (post Sprint 2 — 2026-04-08)
 
 Sprint 2 cerrado. Resumen de lo entregado y lo que sigue pendiente.
