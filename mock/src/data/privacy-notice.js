@@ -15,6 +15,13 @@ module.exports = {
     <h2>Marco Normativo</h2>
     <p>El presente Aviso de Privacidad se emite en cumplimiento de la <strong>Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP)</strong> y sus recomendaciones.</p>
 
+    <p>
+      <strong>Nota sobre la licencia del software:</strong> La licencia MIT aplicable
+      al código fuente de esta Plataforma no se extiende a los datos personales ni
+      a los datasets de investigación, los cuales se rigen exclusivamente por este
+      Aviso de Privacidad y los Términos y Condiciones del proyecto.
+    </p>
+
     <hr />
 
     <h2>1. Identidad y Domicilio del Responsable</h2>
