@@ -6,6 +6,7 @@ import { Button, DatePicker, EmptyState, Spinner, Typography, ToastContainer, us
 import { listarAplicaciones, obtenerEstadisticas } from '@/services/consulta'
 import { exportarPDF } from '@/services/exportacion'
 import { listarInstrumentos } from '@/services/instruments'
+import { listarProyectos } from '@/services/projects'
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
@@ -275,13 +276,15 @@ function AplicacionesTable({ token }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [instruments, setInstruments] = useState([])
+  const [projects, setProjects] = useState([])
 
   const [filters, setFilters] = useState({
+    project_id:    '',
     instrument_id: '',
-    start_date: '',
-    end_date: '',
-    page: 1,
-    page_size: 20,
+    start_date:    '',
+    end_date:      '',
+    page:          1,
+    page_size:     20,
   })
 
   const { toasts, addToast, removeToast } = useToast()
@@ -292,6 +295,7 @@ function AplicacionesTable({ token }) {
     const params = {}
     if (f.page)          params.page          = f.page
     if (f.page_size)     params.page_size     = f.page_size
+    if (f.project_id)    params.project_id    = f.project_id
     if (f.instrument_id) params.instrument_id = f.instrument_id
     if (f.start_date)    params.start_date    = f.start_date
     if (f.end_date)      params.end_date      = f.end_date
@@ -311,6 +315,9 @@ function AplicacionesTable({ token }) {
     listarInstrumentos(token).then((r) => {
       if (r.ok) setInstruments(r.data || [])
     })
+    listarProyectos(token).then((r) => {
+      if (r.ok) setProjects(r.data || [])
+    })
   }, [token])
 
   useEffect(() => {
@@ -322,10 +329,10 @@ function AplicacionesTable({ token }) {
   }
 
   function handleClearFilters() {
-    setFilters({ instrument_id: '', start_date: '', end_date: '', page: 1, page_size: 20 })
+    setFilters({ project_id: '', instrument_id: '', start_date: '', end_date: '', page: 1, page_size: 20 })
   }
 
-  const hasFilters = filters.instrument_id || filters.start_date || filters.end_date
+  const hasFilters = filters.project_id || filters.instrument_id || filters.start_date || filters.end_date
 
   return (
     <div>
@@ -333,6 +340,30 @@ function AplicacionesTable({ token }) {
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 'var(--space-5)' }}>
+        <div style={{ flex: '1 1 180px' }}>
+          <label style={{ display: 'block', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-1)' }}>
+            Proyecto
+          </label>
+          <select
+            value={filters.project_id}
+            onChange={(e) => handleFilterChange('project_id', e.target.value)}
+            style={{
+              width: '100%',
+              padding: 'var(--space-2) var(--space-3)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text-primary)',
+              fontSize: 'var(--font-size-small)',
+            }}
+          >
+            <option value="">Todos los proyectos</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+
         <div style={{ flex: '1 1 180px' }}>
           <label style={{ display: 'block', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-1)' }}>
             Instrumento

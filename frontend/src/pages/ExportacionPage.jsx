@@ -6,6 +6,7 @@ import { Button, DatePicker, EmptyState, Spinner, Typography, ToastContainer, us
 import { exportarCSV, exportarJSON } from '@/services/exportacion'
 import { listarInstrumentos } from '@/services/instruments'
 import { listarAplicaciones } from '@/services/consulta'
+import { listarProyectos } from '@/services/projects'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -122,7 +123,8 @@ export default function ExportacionPage() {
   const { toasts, addToast, removeToast } = useToast()
 
   const [instruments, setInstruments] = useState([])
-  const [filters, setFilters] = useState({ instrument_id: '', start_date: '', end_date: '' })
+  const [projects, setProjects] = useState([])
+  const [filters, setFilters] = useState({ project_id: '', instrument_id: '', start_date: '', end_date: '' })
   const [lang, setLang] = useState('es')
 
   const [loadingCSV,  setLoadingCSV]  = useState(false)
@@ -135,6 +137,9 @@ export default function ExportacionPage() {
   useEffect(() => {
     listarInstrumentos(token).then((r) => {
       if (r.ok) setInstruments(r.data || [])
+    })
+    listarProyectos(token).then((r) => {
+      if (r.ok) setProjects(r.data || [])
     })
   }, [token])
 
@@ -159,11 +164,12 @@ export default function ExportacionPage() {
   }
 
   function clearFilters() {
-    setFilters({ instrument_id: '', start_date: '', end_date: '' })
+    setFilters({ project_id: '', instrument_id: '', start_date: '', end_date: '' })
   }
 
   function activeParams() {
     const p = { lang }
+    if (filters.project_id)    p.project_id    = filters.project_id
     if (filters.instrument_id) p.instrument_id = filters.instrument_id
     if (filters.start_date)    p.start_date    = filters.start_date
     if (filters.end_date)      p.end_date      = filters.end_date
@@ -192,7 +198,7 @@ export default function ExportacionPage() {
     }
   }
 
-  const hasFilters = filters.instrument_id || filters.start_date || filters.end_date
+  const hasFilters = filters.project_id || filters.instrument_id || filters.start_date || filters.end_date
 
   const langBtnBase = {
     padding:      'var(--space-1) var(--space-3)',
@@ -220,6 +226,30 @@ export default function ExportacionPage() {
         <Typography variant="h3" style={{ marginBottom: 'var(--space-4)' }}>Filtros (opcionales)</Typography>
 
         <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: '1 1 200px' }}>
+            <label style={{ display: 'block', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-1)' }}>
+              Proyecto
+            </label>
+            <select
+              value={filters.project_id}
+              onChange={(e) => handleFilter('project_id', e.target.value)}
+              style={{
+                width: '100%',
+                padding: 'var(--space-2) var(--space-3)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--color-surface)',
+                color: 'var(--color-text-primary)',
+                fontSize: 'var(--font-size-small)',
+              }}
+            >
+              <option value="">Todos los proyectos</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
           <div style={{ flex: '1 1 200px' }}>
             <label style={{ display: 'block', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-1)' }}>
               Instrumento
