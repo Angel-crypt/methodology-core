@@ -4,7 +4,7 @@
  * Los tokens siguen apareciendo en consola y en la respuesta API (modo mock puro).
  * Con la key definida: envía email real y oculta los campos _mock_* de la respuesta.
  */
-const SibApiV3Sdk = require('sib-api-v3-sdk');
+const Brevo = require('@getbrevo/brevo');
 
 const BREVO_API_KEY   = process.env.BREVO_API_KEY   || '';
 const BREVO_FROM      = process.env.BREVO_FROM_EMAIL || 'noreply@methodology.local';
@@ -13,21 +13,21 @@ const APP_URL         = process.env.APP_URL          || 'http://localhost:8080';
 
 const enabled = !!BREVO_API_KEY;
 
-if (enabled) {
-  const client = SibApiV3Sdk.ApiClient.instance;
-  client.authentications['api-key'].apiKey = BREVO_API_KEY;
+function getApi() {
+  const api = new Brevo.TransactionalEmailsApi();
+  api.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, BREVO_API_KEY);
+  return api;
 }
 
 async function send({ to, toName, subject, html }) {
   if (!enabled) return false;
   try {
-    const api   = new SibApiV3Sdk.TransactionalEmailsApi();
-    const email = new SibApiV3Sdk.SendSmtpEmail();
+    const email = new Brevo.SendSmtpEmail();
     email.sender      = { name: BREVO_FROM_NAME, email: BREVO_FROM };
     email.to          = [{ email: to, name: toName || to }];
     email.subject     = subject;
     email.htmlContent = html;
-    await api.sendTransacEmail(email);
+    await getApi().sendTransacEmail(email);
     return true;
   } catch (err) {
     console.error('[mailer] Error al enviar email:', err?.message || err);
