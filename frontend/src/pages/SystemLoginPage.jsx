@@ -105,6 +105,7 @@ function SystemLoginPage({ onLogin }) {
             type="password"
             placeholder="••••••••"
             required
+            reveal
             value={form.password}
             onChange={handleChange('password')}
             onKeyDown={handleKeyDown}
