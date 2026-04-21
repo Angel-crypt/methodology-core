@@ -21,8 +21,8 @@ This repository follows the [Conventional Commits](https://www.conventionalcommi
 type(scope): description
 ```
 
-- **`type`** — the category of change (see §3).
-- **`scope`** — the module or area affected (see §4). Required whenever applicable.
+- **`type`** — the category of change (see 3).
+- **`scope`** — the module or area affected (see 4). Required whenever applicable.
 - **`description`** — imperative, present tense, lowercase, no trailing period. Maximum 72 characters.
 
 ### Examples
@@ -203,7 +203,7 @@ Changes to mock contracts that resolve a documented inconsistency must reference
 test(mock): fix M4 mock — remove inactive instrument from HTTP 400 causes
 
 Resolves IC-05. Instrument inactive is exclusively HTTP 422 per AD-05
-and RFC 9110 §15.5.21. Removed duplicate entry from 400 block.
+and RFC 9110 15.5.21. Removed duplicate entry from 400 block.
 ```
 
 ---
@@ -257,7 +257,7 @@ feat(auth): add password_changed_at check to middleware
 
 Implements AD-02. All tokens issued before password_changed_at
 are rejected with HTTP 401. Eliminates the need to individually
-revoke JTIs on password change. Ref: NIST SP 800-63B §5.1.1.2,
+revoke JTIs on password change. Ref: NIST SP 800-63B 5.1.1.2,
 OWASP Session Management Cheat Sheet.
 ```
 
