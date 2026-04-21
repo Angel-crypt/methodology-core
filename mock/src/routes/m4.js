@@ -207,6 +207,21 @@ router.post(
   }
 );
 
+// GET /subjects/mine — sujetos creados por el aplicador autenticado
+// MUST be registered before /subjects/:id to avoid Express matching "mine" as :id
+router.get('/subjects/mine', authMiddleware(APPLICATOR_ROLES), (req, res) => {
+  const mySubjects = store.subjects.filter((s) => s.created_by === req.user.id);
+
+  return res.status(200).json({
+    status: 'success',
+    message: 'Sujetos recuperados',
+    data: mySubjects.map((s) => {
+      const project = store.projects.find((p) => p.id === s.project_id);
+      return { ...s, project_name: project?.name ?? null };
+    }),
+  });
+});
+
 // GET /subjects/:id
 router.get('/subjects/:id', authMiddleware(), (req, res) => {
   const subject = store.subjects.find((s) => s.id === req.params.id);
@@ -214,7 +229,6 @@ router.get('/subjects/:id', authMiddleware(), (req, res) => {
     return res.status(404).json({ status: 'error', message: 'Sujeto no encontrado', data: null });
   }
 
-  // Exponer solo los 6 campos de contexto (sin id, subject_id ni created_at internos)
   const contextData = subject.context
     ? {
         school_type: subject.context.school_type,
@@ -236,17 +250,6 @@ router.get('/subjects/:id', authMiddleware(), (req, res) => {
   });
 });
 
-// GET /subjects/mine — sujetos creados por el aplicador autenticado
-router.get('/subjects/mine', authMiddleware(APPLICATOR_ROLES), (req, res) => {
-  const mySubjects = store.subjects.filter((s) => s.created_by === req.user.id);
-
-  return res.status(200).json({
-    status: 'success',
-    message: 'Sujetos recuperados',
-    data: mySubjects,
-  });
-});
-
 // GET /subjects/:id/applications — aplicaciones de un sujeto específico
 router.get('/subjects/:id/applications', authMiddleware(APPLICATOR_ROLES), (req, res) => {
   const subject = store.subjects.find((s) => s.id === req.params.id);
@@ -254,7 +257,6 @@ router.get('/subjects/:id/applications', authMiddleware(APPLICATOR_ROLES), (req,
     return res.status(404).json({ status: 'error', message: 'Sujeto no encontrado', data: null });
   }
 
-  // Solo permitir ver aplicaciones de sujetos que el usuario creó
   if (subject.created_by !== req.user.id) {
     return res.status(403).json({ status: 'error', message: 'No tienes acceso a este sujeto', data: null });
   }
@@ -376,21 +378,25 @@ router.get('/applications/my', authMiddleware(APPLICATOR_ROLES), (req, res) => {
   const from = req.query.from;
   const to = req.query.to;
   const instrumentFilter = (req.query.instrument || '').toString().trim().toLowerCase();
+  const projectFilter = (req.query.project_id || '').toString().trim();
 
-  const mySubjectIds = new Set(
-    store.subjects.filter((s) => s.created_by === req.user.id).map((s) => s.id)
-  );
+  const mySubjects = store.subjects.filter((s) => s.created_by === req.user.id);
+  const mySubjectIds = new Set(mySubjects.map((s) => s.id));
 
   let myApplications = store.applications.filter((a) => mySubjectIds.has(a.subject_id));
 
   if (from) myApplications = myApplications.filter((a) => a.application_date >= from);
   if (to) myApplications = myApplications.filter((a) => a.application_date <= to);
+  if (projectFilter) {
+    const subjectsInProject = new Set(mySubjects.filter((s) => s.project_id === projectFilter).map((s) => s.id));
+    myApplications = myApplications.filter((a) => subjectsInProject.has(a.subject_id));
+  }
 
   const result = myApplications.map((app) => {
     const instrument = store.instruments.find((i) => i.id === app.instrument_id);
     const values = store.metricValues.filter((v) => v.application_id === app.id);
-
     const subject = store.subjects.find((s) => s.id === app.subject_id);
+    const project = store.projects.find((p) => p.id === subject?.project_id);
     return {
       application_id: app.id,
       anonymous_code: subject?.anonymous_code || app.subject_id.replace(/-/g, '').slice(0, 8).toUpperCase(),
@@ -399,6 +405,8 @@ router.get('/applications/my', authMiddleware(APPLICATOR_ROLES), (req, res) => {
       application_date: app.application_date,
       notes:          app.notes,
       created_at:     app.created_at,
+      project_id:     subject?.project_id ?? null,
+      project_name:   project?.name ?? null,
       values_count:   values.length,
       metric_values:  values.map((v) => {
         const metric = store.metrics.find((m) => m.id === v.metric_id);
