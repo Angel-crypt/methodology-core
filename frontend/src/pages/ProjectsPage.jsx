@@ -11,6 +11,7 @@ import {
   Typography, ToastContainer, useToast, EmptyState,
 } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
+import { APP_LOCALE } from '@/constants/locale'
 import {
   listarProyectos, crearProyecto, obtenerSystemDefaults,
 } from '@/services/projects'
@@ -252,7 +253,7 @@ export default function ProjectsPage() {
       label: 'Creado',
       render: (v) => (
         <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>
-          {v ? new Date(v).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+          {v ? new Date(v).toLocaleDateString(APP_LOCALE, { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
         </span>
       ),
     },

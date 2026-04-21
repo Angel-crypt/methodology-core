@@ -12,6 +12,7 @@ import {
   StatusBadge,
 } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
+import { APP_LOCALE } from '@/constants/locale'
 import {
   obtenerProyecto, listarMiembros, agregarMiembro, eliminarMiembro,
   listarInstrumentosProyecto, asignarInstrumento, quitarInstrumento,
@@ -46,7 +47,7 @@ function TabGeneral({ project }) {
         </div>
         <div>
           <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>Creado</Typography>
-          <Typography as="p">{new Date(project.created_at).toLocaleDateString('es-MX')}</Typography>
+          <Typography as="p">{new Date(project.created_at).toLocaleDateString(APP_LOCALE)}</Typography>
         </div>
       </div>
     </div>
@@ -83,7 +84,7 @@ function TabMiembros({ projectId, token, toast }) {
       listarTodosUsuarios(token),
     ])
     if (mRes.ok) setMembers(mRes.data)
-    if (uRes.status === 'success') setUsers(
+    if (uRes.ok) setUsers(
       uRes.data.filter((u) => u.role !== 'superadmin' && u.active)
     )
     setLoading(false)
@@ -280,7 +281,7 @@ function TabInstrumentos({ projectId, token, toast }) {
       listarInstrumentos(token),
     ])
     if (piRes.ok)                     setProjInstruments(piRes.data)
-    if (allRes.status === 'success')  setAllInstruments(allRes.data)
+    if (allRes.ok)  setAllInstruments(allRes.data)
     setLoading(false)
   }, [token, projectId])
 
