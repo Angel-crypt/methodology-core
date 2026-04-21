@@ -28,6 +28,7 @@ export async function listarMisRegistros(token, params = {}) {
   if (params.instrument) query.set('instrument', params.instrument)
   if (params.from) query.set('from', params.from)
   if (params.to) query.set('to', params.to)
+  if (params.project_id) query.set('project_id', params.project_id)
   const qs = query.toString()
   const res = await fetch(`/api/v1/applications/my${qs ? `?${qs}` : ''}`, { headers: headers(token) })
   return parseResponse(res)
