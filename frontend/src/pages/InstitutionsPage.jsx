@@ -9,6 +9,8 @@ import {
   ToastContainer, useToast, EmptyState,
 } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
+import { listarInstituciones, crearInstitucion, editarInstitucion } from '@/services/institutions'
+import { APP_LOCALE } from '@/constants/locale'
 
 export default function InstitutionsPage() {
   const { token } = useAuth()
@@ -27,11 +29,8 @@ export default function InstitutionsPage() {
 
   const load = useCallback(() => {
     setLoading(true)
-    fetch('/api/v1/institutions', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((json) => setInstitutions(json.data ?? []))
+    listarInstituciones(token)
+      .then((res) => { if (res.ok) setInstitutions(res.data ?? []) })
       .catch(() => toast({ type: 'error', title: 'Error', message: 'No se pudieron cargar las instituciones' }))
       .finally(() => setLoading(false))
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -65,20 +64,16 @@ export default function InstitutionsPage() {
     setCreateError(null)
     try {
       const isEdit = !!editTarget
-      const url = isEdit ? `/api/v1/institutions/${editTarget.id}` : '/api/v1/institutions'
-      const method = isEdit ? 'PATCH' : 'POST'
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: name.trim(), domain: domain.trim() || null }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.message || (isEdit ? 'Error al editar la institución' : 'Error al crear la institución'))
+      const payload = { name: name.trim(), domain: domain.trim() || null }
+      const res = isEdit
+        ? await editarInstitucion(token, editTarget.id, payload)
+        : await crearInstitucion(token, payload)
+      if (!res.ok) throw new Error(res.error || (isEdit ? 'Error al editar la institución' : 'Error al crear la institución'))
       setModalOpen(false)
       toast({
         type: 'success',
         title: isEdit ? 'Institución actualizada' : 'Institución creada',
-        message: `"${json.data.name}" fue ${isEdit ? 'actualizada' : 'agregada'} correctamente.`,
+        message: `"${res.data.name}" fue ${isEdit ? 'actualizada' : 'agregada'} correctamente.`,
       })
       load()
     } catch (err) {
@@ -96,7 +91,7 @@ export default function InstitutionsPage() {
       label: 'Creada',
       render: (v) => (
         <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>
-          {new Date(v).toLocaleDateString('es-MX')}
+          {new Date(v).toLocaleDateString(APP_LOCALE)}
         </span>
       ),
     },
