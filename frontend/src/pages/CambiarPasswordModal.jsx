@@ -4,26 +4,25 @@ import { Check, X } from 'lucide-react'
 import { Modal, FormField, Button, Alert } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
 import { parseResponse } from '@/lib/api'
+import { zxcvbn, zxcvbnOptions } from '@zxcvbn-ts/core'
+import * as zxcvbnCommonPackage from '@zxcvbn-ts/language-common'
 
-const INSECURE_PASSWORDS = new Set([
-  'password', 'password1', 'password123', 'contraseña', 'contrasena',
-  '12345678', '123456789', '1234567890', 'qwerty123', 'qwerty1234',
-  'abc12345', 'iloveyou', 'admin123', 'letmein1', 'welcome1',
-  'monkey12', 'dragon12', 'master12', 'changeme', 'changeme1',
-  'pass1234', 'test1234', 'user1234', 'login123',
-])
+zxcvbnOptions.setOptions({
+  graphs:     zxcvbnCommonPackage.adjacencyGraphs,
+  dictionary: zxcvbnCommonPackage.dictionary,
+})
 
-function isInsecure(pw) {
-  return INSECURE_PASSWORDS.has(pw.toLowerCase())
-}
+// Minimum zxcvbn score to allow submission (0-4 scale; 3 = safely unguessable)
+const MIN_STRENGTH_SCORE = 3
 
 function getStrengthRules(pw) {
+  const score = pw.length > 0 ? zxcvbn(pw).score : 0
   return [
-    { label: 'Mínimo 8 caracteres',       ok: pw.length >= 8 },
-    { label: 'Al menos una mayúscula',     ok: /[A-Z]/.test(pw) },
-    { label: 'Al menos un número',         ok: /\d/.test(pw) },
-    { label: 'Al menos un carácter especial', ok: /[!@#$%^&*()_+\-=[\]{}|;':",.<>?/`~\\]/.test(pw) },
-    { label: 'No es una contraseña común', ok: pw.length > 0 && !isInsecure(pw) },
+    { label: 'Mínimo 8 caracteres',              ok: pw.length >= 8 },
+    { label: 'Al menos una mayúscula',            ok: /[A-Z]/.test(pw) },
+    { label: 'Al menos un número',                ok: /\d/.test(pw) },
+    { label: 'Al menos un carácter especial',     ok: /[!@#$%^&*()_+\-=[\]{}|;':",.<>?/`~\\]/.test(pw) },
+    { label: 'Contraseña segura', ok: pw.length > 0 && score >= MIN_STRENGTH_SCORE },
   ]
 }
 
