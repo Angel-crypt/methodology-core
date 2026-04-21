@@ -190,6 +190,8 @@ function Step1Subject({
                   {mySubjects.map((s) => {
                     const lastApp = s.applications?.[s.applications.length - 1]
                     const blocked = lastApp?.next_available_date && lastApp.next_available_date > todayISO
+                    const daysSince = blocked ? Math.floor((new Date(todayISO) - new Date(lastApp.application_date)) / 86400000) : 0
+                    const daysLeft  = blocked ? Math.ceil((new Date(lastApp.next_available_date) - new Date(todayISO)) / 86400000) : 0
                     return (
                       <button
                         key={s.id}
@@ -204,7 +206,9 @@ function Step1Subject({
                         {lastApp && (
                           <Typography as="small" style={{ color: 'var(--color-text-secondary)', display: 'block' }}>
                             Última aplicación: {lastApp.application_date} · {lastApp.instrument_name}
-                            {blocked && <> · Disponible desde: <strong>{lastApp.next_available_date}</strong></>}
+                            {blocked && (
+                              <> · Hace {daysSince} día{daysSince !== 1 ? 's' : ''} · Faltan {daysLeft} día{daysLeft !== 1 ? 's' : ''} (mín. {daysSince + daysLeft})</>
+                            )}
                           </Typography>
                         )}
                       </button>
