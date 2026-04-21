@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Database } from 'lucide-react'
+import PropTypes from 'prop-types'
+import { Database, Download } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button, DatePicker, EmptyState, Spinner, Typography, ToastContainer, useToast } from '@/components/app'
 import { listarAplicaciones, obtenerEstadisticas } from '@/services/consulta'
+import { exportarPDF } from '@/services/exportacion'
 import { listarInstrumentos } from '@/services/instruments'
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
@@ -25,6 +27,9 @@ function StatsPanel({ token }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [loadingPDF, setLoadingPDF] = useState(false)
+  const [pdfFilters, setPdfFilters] = useState({ start_date: '', end_date: '' })
+  const { toasts, addToast, removeToast } = useToast()
 
   useEffect(() => {
     setLoading(true)
@@ -37,6 +42,17 @@ function StatsPanel({ token }) {
       setLoading(false)
     })
   }, [token])
+
+  async function handlePDF() {
+    setLoadingPDF(true)
+    const params = {}
+    if (pdfFilters.start_date) params.start_date = pdfFilters.start_date
+    if (pdfFilters.end_date)   params.end_date   = pdfFilters.end_date
+    const result = await exportarPDF(token, params)
+    if (!result.ok) addToast({ type: 'error', message: result.error || 'Error al generar PDF' })
+    else addToast({ type: 'success', message: 'Descarga del reporte iniciada' })
+    setLoadingPDF(false)
+  }
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-8)' }}><Spinner /></div>
   if (error) return <Typography variant="body" style={{ color: 'var(--color-error)' }}>{error}</Typography>
@@ -93,8 +109,50 @@ function StatsPanel({ token }) {
           description="No hay datos en el dataset todavía."
         />
       )}
+
+      {/* Reporte PDF */}
+      <div style={{ marginTop: 'var(--space-6)', padding: 'var(--space-5)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-surface)' }}>
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+        <Typography variant="h3" style={{ marginBottom: 'var(--space-1)' }}>Reporte PDF</Typography>
+        <Typography variant="caption" style={{ color: 'var(--color-text-secondary)', display: 'block', marginBottom: 'var(--space-4)' }}>
+          Generá un reporte operativo con estadísticas agregadas. Podés filtrar por período.
+        </Typography>
+
+        <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: '1 1 140px' }}>
+            <label style={{ display: 'block', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-1)' }}>
+              Desde (opcional)
+            </label>
+            <DatePicker
+              value={pdfFilters.start_date}
+              onChange={(iso) => setPdfFilters((p) => ({ ...p, start_date: iso || '' }))}
+              placeholder="Fecha inicio"
+              max={pdfFilters.end_date || undefined}
+            />
+          </div>
+          <div style={{ flex: '1 1 140px' }}>
+            <label style={{ display: 'block', fontSize: 'var(--font-size-caption)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-1)' }}>
+              Hasta (opcional)
+            </label>
+            <DatePicker
+              value={pdfFilters.end_date}
+              onChange={(iso) => setPdfFilters((p) => ({ ...p, end_date: iso || '' }))}
+              placeholder="Fecha fin"
+              min={pdfFilters.start_date || undefined}
+            />
+          </div>
+          <Button variant="primary" onClick={handlePDF} disabled={loadingPDF}>
+            {loadingPDF ? <Spinner size="sm" /> : <Download size={16} />}
+            {loadingPDF ? 'Generando…' : 'Descargar PDF'}
+          </Button>
+        </div>
+      </div>
     </div>
   )
+}
+
+StatsPanel.propTypes = {
+  token: PropTypes.string.isRequired,
 }
 
 function StatCard({ label, value }) {
@@ -111,6 +169,11 @@ function StatCard({ label, value }) {
       <Typography variant="h2">{value}</Typography>
     </div>
   )
+}
+
+StatCard.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
 }
 
 // ── Tabla de aplicaciones para RESEARCHER ─────────────────────────────────────
@@ -170,6 +233,20 @@ function AplicacionRow({ app }) {
       )}
     </div>
   )
+}
+
+AplicacionRow.propTypes = {
+  app: PropTypes.shape({
+    id:               PropTypes.string.isRequired,
+    application_date: PropTypes.string,
+    instrument_name:  PropTypes.string,
+    subject_id:       PropTypes.string,
+    metric_values:    PropTypes.arrayOf(PropTypes.shape({
+      metric_name: PropTypes.string,
+      metric_type: PropTypes.string,
+      value:       PropTypes.any,
+    })),
+  }).isRequired,
 }
 
 function TableHeader() {
@@ -365,6 +442,10 @@ function AplicacionesTable({ token }) {
       )}
     </div>
   )
+}
+
+AplicacionesTable.propTypes = {
+  token: PropTypes.string.isRequired,
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────
