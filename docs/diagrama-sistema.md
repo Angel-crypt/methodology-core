@@ -307,8 +307,9 @@ graph LR
     end
 
     subgraph "M6 - Exportación"
-        M6A[GET /export/csv]
-        M6B[GET /export/json]
+        M6A[GET /export/csv<br/>researcher]
+        M6B[GET /export/json<br/>researcher]
+        M6C[GET /export/pdf<br/>superadmin]
     end
 
     subgraph "Administración"

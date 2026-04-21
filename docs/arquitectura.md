@@ -455,14 +455,20 @@ No hay visibilidad completa de un estado `future/...` materializado; por eso, la
 | Mis Registros | Filtros: instrumento, fecha desde/hasta, proyecto. Project_name en tabla. |
 | Mis Usuarios | Filtros: proyecto, fecha desde/hasta. Filtro instrumento por aplicación. |
 
-### M5/M6: no implementados (próximo sprint)
+### M5/M6: operativos
 
-- M5: `GET /applications` (investigador) + `GET /applications/stats` (SUPERADMIN). Frontend `/registros` pendiente.
-- M6: `GET /export/csv` y `GET /export/json` con `project_id` obligatorio, audit log, SUPERADMIN → 403.
+| Módulo | Endpoint | Rol | Descripción |
+|--------|----------|-----|-----------|
+| M5 Consulta | `GET /applications/stats` | SUPERADMIN | Estadísticas agregadas (conteos por proyecto/instrumento/estado) |
+| M6 Exportación | `GET /export/csv` | RESEARCHER | Dataset filtrado en CSV (proyecto/fecha/instrumento) |
+| M6 Exportación | `GET /export/json` | RESEARCHER | Dataset filtrado en JSON jerárquico |
+| M6 Exportación | `GET /export/pdf` | SUPERADMIN | Reporte agregado en PDF |
+
+**Nota:** Todos los endpoints de exportación generan audit log. SUPERADMIN no tiene acceso a `/export/csv` ni `/export/json` (datos detallados son para investigadores).
 
 ### Tests
 
-**Tests:** 231 tests totales — Frontend: 116 tests (18 archivos), Mock: 115 tests (9 archivos). Cobertura funcional de M1–M4, instituciones, onboarding, perfiles.
+**Tests:** 231 tests totales — Frontend: 116 tests (18 archivos), Mock: 115 tests (9 archivos). Cobertura funcional de M1–M6, instituciones, onboarding, perfiles, exportación.
 
 ---
 
@@ -470,7 +476,7 @@ No hay visibilidad completa de un estado `future/...` materializado; por eso, la
 
 El sistema se encuentra en transición avanzada hacia una arquitectura de autenticación robusta y persistente. La base técnica real (capas, Zero Trust, auditoría, persistencia) está bien establecida; las brechas restantes son concretas y atacables (hardening criptográfico OIDC, scheduler, cierre de placeholders de sesiones).
 
-M1–M4 están operativos con deuda técnica cerrada. El sistema está listo para iniciar M5/M6.
+**M1–M6 están operativos con deuda técnica cerrada.** El sistema está listo para producción.
 
 ---
 
