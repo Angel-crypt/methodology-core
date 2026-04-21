@@ -21,7 +21,14 @@ function headers(token) {
  * enriquecidas con nombre del instrumento y valores de métrica.
  * @param {string} token
  */
-export async function listarMisRegistros(token) {
-  const res = await fetch('/api/v1/applications/my', { headers: headers(token) })
+export async function listarMisRegistros(token, params = {}) {
+  const query = new URLSearchParams()
+  if (params.page) query.set('page', String(params.page))
+  if (params.page_size) query.set('page_size', String(params.page_size))
+  if (params.instrument) query.set('instrument', params.instrument)
+  if (params.from) query.set('from', params.from)
+  if (params.to) query.set('to', params.to)
+  const qs = query.toString()
+  const res = await fetch(`/api/v1/applications/my${qs ? `?${qs}` : ''}`, { headers: headers(token) })
   return parseResponse(res)
 }
