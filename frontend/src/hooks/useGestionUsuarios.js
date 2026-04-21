@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useToast } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
 import { listarUsuarios, crearUsuario, cambiarEstadoUsuario, resetearPassword, listarTodasLasSesiones } from '@/services/users'
+import { aprobarCambioCorreo } from '@/services/emailChangeRequests'
 
 export const FILTROS_ESTADO = [
   { value: '', label: 'Todos' },
@@ -22,12 +23,16 @@ export function formatFecha(iso) {
 
 /**
  * Deriva el estado de un usuario a partir de sus campos.
- * Investigadores y aplicadores usan OIDC y solo tienen active/disabled.
- * Superadmin usa auth local y puede tener must_change_password.
+ * - disabled: cuenta desactivada por admin
+ * - pending: debe cambiar contraseña (superadmin con must_change_password)
+ * - active: cuenta activa (ya sea por magic link o por OIDC)
+ *
+ * El campo oidc_linked indica si el usuario bindeó OIDC,
+ * no si la cuenta está activa.
  */
 export function getUserStatus(user) {
   if (!user.active) return 'disabled'
-  if (user.must_change_password) return 'pending'   // solo superadmin con contraseña local
+  if (user.must_change_password) return 'pending'
   return 'active'
 }
 
@@ -71,6 +76,12 @@ export function useGestionUsuarios({ role, labelSingular }) {
 
   // ─── Estado reset contraseña ───────────────────────────────────
   const [guardandoReset, setGuardandoReset] = useState(false)
+
+  // ─── Estado cambiar correo ────────────────────────────────────
+  const [modalCambiarCorreo, setModalCambiarCorreo] = useState(false)
+  const [nuevoCorreo, setNuevoCorreo] = useState('')
+  const [errorCambioCorreo, setErrorCambioCorreo] = useState('')
+  const [guardandoCambioCorreo, setGuardandoCambioCorreo] = useState(false)
 
   // ─── Búsqueda por página ───────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('')
@@ -169,6 +180,9 @@ export function useGestionUsuarios({ role, labelSingular }) {
     const errs = {}
     if (!formCrear.full_name.trim()) errs.full_name = 'El nombre es obligatorio.'
     if (!formCrear.email.trim()) errs.email = 'El correo es obligatorio.'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formCrear.email.trim())) {
+      errs.email = 'El correo debe tener una estructura válida (ej. usuario@dominio.com).'
+    }
     setErroresCrear(errs)
     return Object.keys(errs).length === 0
   }
@@ -275,6 +289,36 @@ export function useGestionUsuarios({ role, labelSingular }) {
     }
   }
 
+  // ─── Handlers — Cambiar correo ────────────────────────────────
+  function abrirModalCambiarCorreo(usuario) {
+    setUsuarioSeleccionado(usuario)
+    setNuevoCorreo('')
+    setErrorCambioCorreo('')
+    setModalCambiarCorreo(true)
+  }
+
+  async function handleGuardarCambiarCorreo() {
+    const email = nuevoCorreo.trim()
+    if (!email) { setErrorCambioCorreo('El correo es obligatorio.'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setErrorCambioCorreo('Formato de correo inválido.'); return }
+    setGuardandoCambioCorreo(true)
+    setErrorCambioCorreo('')
+    try {
+      const data = await aprobarCambioCorreo(token, usuarioSeleccionado.id, email)
+      if (data.status === 'success') {
+        setModalCambiarCorreo(false)
+        toast({ type: 'success', title: 'Correo actualizado', message: 'El correo fue actualizado. El usuario fue desconectado.' })
+        cargarUsuarios()
+      } else {
+        setErrorCambioCorreo(data.message || 'No se pudo actualizar el correo.')
+      }
+    } catch {
+      setErrorCambioCorreo('Error de conexión. Intenta nuevamente.')
+    } finally {
+      setGuardandoCambioCorreo(false)
+    }
+  }
+
   return {
     esAdmin,
     usuarios,
@@ -307,6 +351,14 @@ export function useGestionUsuarios({ role, labelSingular }) {
     abrirModalEstado,
     handleConfirmarEstado,
     handleResetearPassword,
+    modalCambiarCorreo,
+    setModalCambiarCorreo,
+    nuevoCorreo,
+    setNuevoCorreo,
+    errorCambioCorreo,
+    guardandoCambioCorreo,
+    abrirModalCambiarCorreo,
+    handleGuardarCambiarCorreo,
     drawerUsuario,
     abrirDetalle,
     cerrarDetalle,
