@@ -8,8 +8,7 @@ import { UserProvider, useUser } from './contexts/UserContext'
 import LoginPage from './pages/LoginPage'
 import SystemLoginPage from './pages/SystemLoginPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
-import GestionAplicadores from './pages/GestionAplicadores'
-import GestionInvestigadores from './pages/GestionInvestigadores'
+import GestionUsuarios from './pages/GestionUsuarios'
 import GestionInstrumentos from './pages/GestionInstrumentos'
 import CambiarPasswordModal from './pages/CambiarPasswordModal'
 import SetupPage from './pages/SetupPage'
@@ -112,8 +111,8 @@ function AppRoutes() {
         />
 
         {/* Módulo 1 — Gestión de usuarios (solo Administrador) */}
-        <Route path="/usuarios/aplicadores" element={adminLayout(<GestionAplicadores />)} />
-        <Route path="/usuarios/investigadores" element={adminLayout(<GestionInvestigadores />)} />
+        <Route path="/usuarios/aplicadores" element={adminLayout(<GestionUsuarios role="applicator" />)} />
+        <Route path="/usuarios/investigadores" element={adminLayout(<GestionUsuarios role="researcher" />)} />
         <Route path="/usuarios/aplicadores/:id" element={adminLayout(<DetalleUsuarioPage />)} />
         <Route
           path="/usuarios/investigadores/:id"
