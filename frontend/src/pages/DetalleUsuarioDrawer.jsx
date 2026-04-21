@@ -31,7 +31,7 @@ function DetalleUsuarioDrawer({ open, onClose, usuario, formatFecha, esAdmin }) 
     setErrorSesiones(false)
     listarSesionesUsuario(token, usuario.id)
       .then((data) => {
-        if (data.status === 'success') {
+        if (data.ok) {
           setSesiones(data.data)
         } else {
           setErrorSesiones(true)
