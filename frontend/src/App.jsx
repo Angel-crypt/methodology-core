@@ -15,6 +15,7 @@ import CambiarPasswordModal from './pages/CambiarPasswordModal'
 import SetupPage from './pages/SetupPage'
 import RegistroOperativoWizardPage from './pages/RegistroOperativoWizardPage'
 import MisRegistrosPage from './pages/MisRegistrosPage'
+import MisUsuariosPage from './pages/MisUsuariosPage'
 import DetalleUsuarioPage from './pages/DetalleUsuarioPage'
 import InstrumentoDetallePage from './pages/InstrumentoDetallePage'
 import SuperadminProfileConfigPage from './pages/SuperadminProfileConfigPage'
@@ -104,6 +105,10 @@ function AppRoutes() {
         <Route
           path="/mis-registros"
           element={applicatorLayout(<MisRegistrosPage />)}
+        />
+        <Route
+          path="/mis-usuarios"
+          element={applicatorLayout(<MisUsuariosPage />)}
         />
 
         {/* Módulo 1 — Gestión de usuarios (solo Administrador) */}
