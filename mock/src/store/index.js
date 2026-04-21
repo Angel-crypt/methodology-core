@@ -11,7 +11,9 @@
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
-const SUPERADMIN_ID = uuidv4();
+const SUPERADMIN_ID  = uuidv4();
+const RESEARCHER_ID  = uuidv4();
+const APPLICATOR_ID  = uuidv4();
 
 const SUPERADMIN_EMAIL_DEFAULT    = 'super@methodology.local';
 const SUPERADMIN_PASSWORD_DEFAULT = 'cambiar-pronto';
@@ -19,8 +21,16 @@ const SUPERADMIN_PASSWORD_DEFAULT = 'cambiar-pronto';
 const superadminEmail    = process.env.SUPERADMIN_EMAIL    || SUPERADMIN_EMAIL_DEFAULT;
 const superadminPassword = process.env.SUPERADMIN_PASSWORD || SUPERADMIN_PASSWORD_DEFAULT;
 
+// Emails de usuarios OIDC de prueba. Deben coincidir con el realm de Keycloak
+// (deploy/keycloak/realm-sctda.json). Solo aplican si KEYCLOAK_ISSUER está definido,
+// pero se seedean siempre para no depender del orden de arranque.
+const SEED_RESEARCHER_EMAIL  = process.env.SEED_RESEARCHER_EMAIL  || 'investigador@sctda.dev';
+const SEED_APPLICATOR_EMAIL  = process.env.SEED_APPLICATOR_EMAIL  || 'aplicador@sctda.dev';
+
 const usingBootstrapDefaults =
   !process.env.SUPERADMIN_EMAIL || !process.env.SUPERADMIN_PASSWORD;
+
+const NOW = new Date();
 
 const store = {
   // M1 – Autenticación
@@ -35,14 +45,51 @@ const store = {
       must_change_password: usingBootstrapDefaults,
       broker_subject: null,
       token_version: 0,
-      created_at: new Date(),
+      created_at: NOW,
       updated_at: null,
       password_changed_at: null,
-      // Perfil extendido (Sprint 4)
       phone: null,
       institution: null,
       terms_accepted_at: null,
-      onboarding_completed: true, // superadmin exento de onboarding
+      onboarding_completed: true,
+    },
+    {
+      id: RESEARCHER_ID,
+      full_name: 'Ana Investigadora',
+      email: SEED_RESEARCHER_EMAIL,
+      password_hash: null,
+      role: 'researcher',
+      active: true,
+      must_change_password: false,
+      broker_subject: null,
+      oidc_linked: false,
+      token_version: 0,
+      created_at: NOW,
+      updated_at: null,
+      password_changed_at: null,
+      phone: null,
+      institution: null,
+      terms_accepted_at: NOW,
+      onboarding_completed: true,
+    },
+    {
+      id: APPLICATOR_ID,
+      full_name: 'Carlos Aplicador',
+      email: SEED_APPLICATOR_EMAIL,
+      password_hash: null,
+      role: 'applicator',
+      active: true,
+      must_change_password: false,
+      broker_subject: null,
+      oidc_linked: false,
+      token_version: 0,
+      created_at: NOW,
+      updated_at: null,
+      password_changed_at: null,
+      phone: null,
+      institution: null,
+      terms_accepted_at: NOW,
+      onboarding_completed: true,
     },
   ],
 
