@@ -398,7 +398,7 @@ function GestionInstrumentos() {
 
     try {
       const res = await crearInstrumento(token, body)
-      if (res.status !== 'success') {
+      if (!res.ok) {
         setErrorApiCrear(res.error || 'Error al crear el instrumento.')
         setGuardandoCrear(false)
         return
