@@ -26,12 +26,12 @@ const TIPO_LABELS = {
   short_text: 'Texto corto',
 }
 
-// Columnas: Fecha | Instrumento | Sujeto UUID | Métricas | Chevron
+// Columnas: Fecha | Instrumento | Sujeto | Métricas | Chevron
 const COL_TEMPLATE = '130px 2fr 1fr 90px 24px'
 
 function RegistroRow({ registro }) {
   const [expanded, setExpanded] = useState(false)
-  const uuidAbrev = `${registro.subject_id.slice(0, 8)}…`
+  const anonCode = registro.anonymous_code
 
   return (
     <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
@@ -61,9 +61,9 @@ function RegistroRow({ registro }) {
           {registro.instrument_name}
         </span>
 
-        {/* Sujeto UUID */}
+        {/* Sujeto */}
         <span style={{ fontSize: 'var(--font-size-caption)', fontFamily: 'monospace', color: 'var(--color-text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {uuidAbrev}
+          {anonCode}
         </span>
 
         {/* Métricas count */}
@@ -95,8 +95,8 @@ function RegistroRow({ registro }) {
           gap: 'var(--space-3)',
         }}>
           <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>
-            UUID completo del sujeto:{' '}
-            <span style={{ fontFamily: 'monospace' }}>{registro.subject_id}</span>
+            Código anónimo del sujeto:{' '}
+            <span style={{ fontFamily: 'monospace' }}>{registro.anonymous_code}</span>
           </p>
 
           {registro.notes && (
@@ -146,7 +146,7 @@ function RegistroRow({ registro }) {
 RegistroRow.propTypes = {
   registro: PropTypes.shape({
     application_id:   PropTypes.string.isRequired,
-    subject_id:       PropTypes.string.isRequired,
+    anonymous_code:   PropTypes.string.isRequired,
     instrument_name:  PropTypes.string.isRequired,
     application_date: PropTypes.string,
     notes:            PropTypes.string,
@@ -283,7 +283,7 @@ function MisRegistrosPage() {
             gap: 'var(--space-4)',
             padding: '0 var(--space-4)',
           }}>
-            {['Fecha', 'Instrumento', 'Sujeto (UUID)', 'Métricas', ''].map((col) => (
+            {['Fecha', 'Instrumento', 'Sujeto', 'Métricas', ''].map((col) => (
               <Typography key={col} as="small" style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)' }}>
                 {col}
               </Typography>
