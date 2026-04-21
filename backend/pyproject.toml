@@ -55,7 +55,7 @@ target-version = "py312"
 # ASYNC: reglas para async
 # S: seguridad basica
 select = ["E", "W", "F", "I", "B", "UP", "ASYNC", "S"]
-ignore = ["S104", "S105"]
+ignore = ["S104", "S105", "B008"]
 
 [tool.ruff.format]
 quote-style = "double"
