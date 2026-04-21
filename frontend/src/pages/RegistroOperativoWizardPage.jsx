@@ -248,6 +248,7 @@ function Step2Context({
   contextOptions,
   cohortMode,
   ageCohortOptions,
+  recommendedAgeCohort,
   isValid,
   alreadySaved,
   contextDirty,
@@ -322,12 +323,19 @@ function Step2Context({
               style={{ backgroundColor: 'var(--color-bg-subtle)', cursor: 'not-allowed', color: 'var(--color-text-secondary)' }}
             />
           ) : (
-            <select className="input-base" value={contextData.age_cohort} onChange={(e) => onChange('age_cohort', e.target.value)}>
+            <>
+              <select className="input-base" value={contextData.age_cohort} onChange={(e) => onChange('age_cohort', e.target.value)}>
               <option value="">Selecciona...</option>
               {ageCohortOptions.map((value) => (
                 <option key={value} value={value}>{value}</option>
               ))}
-            </select>
+              </select>
+              {recommendedAgeCohort && (
+                <Typography as="small" style={{ color: 'var(--color-text-secondary)', display: 'block', marginTop: 'var(--space-1)' }}>
+                  Recomendación según nivel educativo: <strong>{recommendedAgeCohort}</strong>. Puedes cambiarla.
+                </Typography>
+              )}
+            </>
           )}
         </label>
 
@@ -377,6 +385,7 @@ Step2Context.propTypes = {
   contextOptions: PropTypes.object.isRequired,
   cohortMode: PropTypes.string.isRequired,
   ageCohortOptions: PropTypes.array.isRequired,
+  recommendedAgeCohort: PropTypes.string,
   isValid: PropTypes.bool,
   alreadySaved: PropTypes.bool,
   contextDirty: PropTypes.bool,
@@ -823,6 +832,12 @@ function RegistroOperativoWizardPage() {
     return [...new Set(Object.values(map))].filter(Boolean)
   }, [operativoConfig])
 
+  const recommendedAgeCohort = useMemo(() => {
+    if (cohortMode !== 'libre') return ''
+    const levelName = EDUCATION_LEVEL_KEY_TO_NAME[wizardState.contextData.education_level] || wizardState.contextData.education_level
+    return operativoConfig?.age_cohort_map?.[levelName] || ''
+  }, [cohortMode, wizardState.contextData.education_level, operativoConfig])
+
   // CF-015: Cargar proyectos al montar
   useEffect(() => {
     fetch('/api/v1/projects', { headers: { Authorization: `Bearer ${token}` } })
@@ -967,6 +982,11 @@ function RegistroOperativoWizardPage() {
       const updated = { ...prev.contextData, [field]: value }
       // En modo restringido, auto-asignar cohorte al cambiar nivel educativo
       if (field === 'education_level' && cohortMode === 'restricted') {
+        const levelName = EDUCATION_LEVEL_KEY_TO_NAME[value] || value
+        updated.age_cohort = operativoConfig?.age_cohort_map?.[levelName] || ''
+      }
+      // En modo libre, sugerir cohorte al elegir nivel educativo solo si aún no hay valor
+      if (field === 'education_level' && cohortMode === 'libre' && !updated.age_cohort) {
         const levelName = EDUCATION_LEVEL_KEY_TO_NAME[value] || value
         updated.age_cohort = operativoConfig?.age_cohort_map?.[levelName] || ''
       }
@@ -1366,6 +1386,7 @@ function RegistroOperativoWizardPage() {
           contextOptions={contextOptions}
           cohortMode={cohortMode}
           ageCohortOptions={ageCohortOptions}
+          recommendedAgeCohort={recommendedAgeCohort}
           isValid={step2Valid}
           alreadySaved={maxReachedStep >= 3}
           contextDirty={contextDirty}
