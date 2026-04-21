@@ -90,7 +90,7 @@ Sin este módulo no existen datos en el sistema. Los módulos M2 y M3 definen la
 
 ### 2.3 Cuasi-Identificabilidad y Privacidad de ContextData (GAP-SEG-01, 2026-03-22)
 
-> **Adicionado en revisión 2026-03-22** · Referencia: `mock/SECURITY_REPORT.md §SEG-01`, `SRS_General §12`
+> **Adicionado en revisión 2026-03-22** · Referencia: `mock/SECURITY_REPORT.md SEG-01`, `SRS_General 12`
 
 #### 2.3.1 Naturaleza de los Datos de Contexto
 
@@ -202,7 +202,7 @@ M3 – Definición de Métricas                                         │
 | **Profesional Aplicador** | Profesional habilitado para aplicar instrumentos, con acceso parametrizado por el SUPERADMIN. | Escritura operativa (sujeta a configuración). | Registro de sujetos, contextos, aplicaciones y captura de valores, dentro de los límites configurados. |
 | **Investigador** | Usuario académico. | Solo lectura y exportación. | Consultar sujetos y sus datos contextuales (sin PII). Exportar datos mediante M6. Sin permisos de captura de datos. |
 
-> **Acceso parametrizado del Aplicador (SRS General §3.4–3.5):**
+> **Acceso parametrizado del Aplicador (SRS General 3.4–3.5):**
 > El SUPERADMIN puede configurar tres restricciones individuales por aplicador desde el panel de detalle:
 >
 > | Parámetro | Tipo | Efecto |

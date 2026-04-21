@@ -6,15 +6,9 @@
  * Base path: /api/v1/auth/setup
  */
 
-const BASE = '/api/v1/auth/setup'
+import { parseResponse } from '@/lib/api'
 
-async function parseResponse(res) {
-  try {
-    return await res.json()
-  } catch {
-    return { status: 'error', message: `Error del servidor (HTTP ${res.status})` }
-  }
-}
+const BASE = '/api/v1/auth/setup'
 
 /**
  * Valida el setup token y devuelve los datos públicos del usuario (email, full_name).

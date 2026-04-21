@@ -8,13 +8,13 @@ import { UserProvider, useUser } from './contexts/UserContext'
 import LoginPage from './pages/LoginPage'
 import SystemLoginPage from './pages/SystemLoginPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
-import GestionAplicadores from './pages/GestionAplicadores'
-import GestionInvestigadores from './pages/GestionInvestigadores'
+import GestionUsuarios from './pages/GestionUsuarios'
 import GestionInstrumentos from './pages/GestionInstrumentos'
 import CambiarPasswordModal from './pages/CambiarPasswordModal'
 import SetupPage from './pages/SetupPage'
 import RegistroOperativoWizardPage from './pages/RegistroOperativoWizardPage'
 import MisRegistrosPage from './pages/MisRegistrosPage'
+import MisUsuariosPage from './pages/MisUsuariosPage'
 import DetalleUsuarioPage from './pages/DetalleUsuarioPage'
 import InstrumentoDetallePage from './pages/InstrumentoDetallePage'
 import SuperadminProfileConfigPage from './pages/SuperadminProfileConfigPage'
@@ -23,6 +23,9 @@ import ProjectsPage from './pages/ProjectsPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import TermsPage from './pages/TermsPage'
 import PrivacyPage from './pages/PrivacyPage'
+import ConsultaPage from './pages/ConsultaPage'
+import AuditLogPage from './pages/AuditLogPage'
+import ExportacionPage from './pages/ExportacionPage'
 import OnboardingPage from './pages/OnboardingPage'
 import AppLayout from './layouts/AppLayout'
 
@@ -51,6 +54,24 @@ function AppRoutes() {
     if (!token) return <Navigate to="/login" replace />
     if (role !== 'superadmin') return <Navigate to="/instruments" replace />
     if (mustChangePassword) return <AppLayout>{null}</AppLayout>
+    return <AppLayout>{page}</AppLayout>
+  }
+
+  const consultaLayout = (page) => {
+    if (!token) return <Navigate to="/login" replace />
+    if (role === 'applicator') return <Navigate to="/instruments" replace />
+    if (mustChangePassword) return <AppLayout>{null}</AppLayout>
+    if (needsTerms) return <Navigate to="/terminos" replace />
+    if (needsOnboarding) return <Navigate to="/onboarding" replace />
+    return <AppLayout>{page}</AppLayout>
+  }
+
+  const researcherLayout = (page) => {
+    if (!token) return <Navigate to="/login" replace />
+    if (role !== 'researcher') return <Navigate to="/instruments" replace />
+    if (mustChangePassword) return <AppLayout>{null}</AppLayout>
+    if (needsTerms) return <Navigate to="/terminos" replace />
+    if (needsOnboarding) return <Navigate to="/onboarding" replace />
     return <AppLayout>{page}</AppLayout>
   }
 
@@ -96,6 +117,12 @@ function AppRoutes() {
         <Route path="/instruments" element={authedLayout(<GestionInstrumentos />)} />
         <Route path="/instruments/:id" element={authedLayout(<InstrumentoDetallePage />)} />
 
+        {/* Módulo 5 — Consulta Interna (researcher y superadmin) */}
+        <Route path="/consulta" element={consultaLayout(<ConsultaPage />)} />
+
+        {/* Módulo 6 — Exportación Estructurada (solo researcher) */}
+        <Route path="/exportar" element={researcherLayout(<ExportacionPage />)} />
+
         {/* Módulo 4 — Registro Operativo Anonimizado (solo Aplicador) */}
         <Route
           path="/registro-operativo"
@@ -105,10 +132,14 @@ function AppRoutes() {
           path="/mis-registros"
           element={applicatorLayout(<MisRegistrosPage />)}
         />
+        <Route
+          path="/mis-usuarios"
+          element={applicatorLayout(<MisUsuariosPage />)}
+        />
 
         {/* Módulo 1 — Gestión de usuarios (solo Administrador) */}
-        <Route path="/usuarios/aplicadores" element={adminLayout(<GestionAplicadores />)} />
-        <Route path="/usuarios/investigadores" element={adminLayout(<GestionInvestigadores />)} />
+        <Route path="/usuarios/aplicadores" element={adminLayout(<GestionUsuarios role="applicator" />)} />
+        <Route path="/usuarios/investigadores" element={adminLayout(<GestionUsuarios role="researcher" />)} />
         <Route path="/usuarios/aplicadores/:id" element={adminLayout(<DetalleUsuarioPage />)} />
         <Route
           path="/usuarios/investigadores/:id"
@@ -124,6 +155,9 @@ function AppRoutes() {
         {/* Sprint 4 — Instituciones y config de perfil (solo Administrador) */}
         <Route path="/instituciones" element={adminLayout(<InstitutionsPage />)} />
         <Route path="/configuracion-perfil" element={adminLayout(<SuperadminProfileConfigPage />)} />
+
+        {/* Audit log — solo Administrador */}
+        <Route path="/audit-log" element={adminLayout(<AuditLogPage />)} />
 
         {/* Configuración Operativa global — deprecada (CF-014), redirige a proyectos */}
         <Route path="/configuracion-operativa" element={<Navigate to="/proyectos" replace />} />

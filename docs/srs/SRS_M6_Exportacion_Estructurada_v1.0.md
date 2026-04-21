@@ -287,7 +287,7 @@ Permitir la extracción del dataset de aplicaciones lingüísticas en formatos e
 | RNF-M6-03 | Seguridad | Solo Investigador puede exportar. | Aplicador → 403. SUPERADMIN → 403. Sin token → 401. |
 | RNF-M6-04 | Integridad | El módulo es de solo lectura. No modifica ningún dato. | 0 operaciones de escritura en la base de datos originadas por este módulo. |
 | RNF-M6-05 | Integridad | Los archivos exportados no contienen PII de los sujetos. | Solo UUID en `subject_id`. Sin nombre, CURP ni ningún campo identificable en ningún formato. |
-| RNF-M6-06 | Integridad | La estructura del JSON exportado es consistente y documentada. | El JSON cumple el schema definido en §5 RF-M6-02 en el 100% de las exportaciones. |
+| RNF-M6-06 | Integridad | La estructura del JSON exportado es consistente y documentada. | El JSON cumple el schema definido en 5 RF-M6-02 en el 100% de las exportaciones. |
 | RNF-M6-07 | Integridad | El CSV exportado incluye encabezados en la primera fila. | Ningún CSV sin encabezados. |
 | RNF-M6-08 | Integridad | Los filtros aplicados producen el subconjunto correcto de datos. | Verificable cruzando con los resultados de M5 con los mismos filtros. |
 | RNF-M6-09 | Consistencia API | Los errores retornan `{ "status", "message", "data" }`. | Las respuestas de éxito son archivos; los errores siguen estructura estándar. |
@@ -353,7 +353,7 @@ Permitir la extracción del dataset de aplicaciones lingüísticas en formatos e
 | S2 | El middleware de M1 está operativo y accesible. |
 | S3 | PostgreSQL está operativo y accesible desde el servicio backend. |
 | S4 | El volumen de exportación no supera 1,000 aplicaciones para las pruebas de rendimiento definidas. Volúmenes mayores requieren revisión del mecanismo de generación. |
-| S5 | Los equipos de IA que consumirán el JSON conocen el schema definido en §5 RF-M6-02 y pueden depender de él como contrato estable. |
+| S5 | Los equipos de IA que consumirán el JSON conocen el schema definido en 5 RF-M6-02 y pueden depender de él como contrato estable. |
 
 ---
 
@@ -385,7 +385,7 @@ Permitir la extracción del dataset de aplicaciones lingüísticas en formatos e
 | CA-HU22-05 | El sujeto no tiene `ContextData`. | El campo `context` es `null`. No genera error. |
 | CA-HU22-06 | Se aplican filtros. | El campo `filters_applied` refleja los filtros utilizados. Solo aparecen datos que cumplen los criterios. |
 | CA-HU22-07 | No hay aplicaciones que cumplan los filtros. | JSON con `total_applications: 0` y `instruments: []`. HTTP 200. |
-| CA-HU22-08 | El JSON cumple el schema definido en §5. | Verificable con validación de schema automática en pruebas. |
+| CA-HU22-08 | El JSON cumple el schema definido en 5. | Verificable con validación de schema automática en pruebas. |
 | CA-HU22-09 | El nombre del archivo incluye la fecha de generación. | `Content-Disposition: attachment; filename="dataset_20260312.json"`. |
 | CA-HU22-10 | Aplicador intenta exportar. | HTTP 403 Forbidden. |
 

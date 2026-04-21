@@ -24,10 +24,10 @@ function SolicitudesCambioCorreoPanel() {
     setCargando(true)
     setErrorApi('')
     const data = await listarSolicitudesCambioCorreo(token)
-    if (data.status === 'success') {
+    if (data.ok) {
       setSolicitudes(data.data)
     } else {
-      setErrorApi(data.message || 'No se pudieron cargar las solicitudes.')
+      setErrorApi(data.error || 'No se pudieron cargar las solicitudes.')
     }
     setCargando(false)
   }, [token])
@@ -37,10 +37,10 @@ function SolicitudesCambioCorreoPanel() {
   async function handleAprobar(solicitud) {
     setAccionando(solicitud.id)
     const data = await aprobarCambioCorreo(token, solicitud.user_id, solicitud.new_email)
-    if (data.status === 'success') {
+    if (data.ok) {
       setSolicitudes((prev) => prev.filter((s) => s.id !== solicitud.id))
     } else {
-      setErrorApi(data.message || 'No se pudo aprobar la solicitud.')
+      setErrorApi(data.error || 'No se pudo aprobar la solicitud.')
     }
     setAccionando(null)
   }
@@ -48,10 +48,10 @@ function SolicitudesCambioCorreoPanel() {
   async function handleRechazar(solicitud) {
     setAccionando(solicitud.id)
     const data = await rechazarSolicitudCambioCorreo(token, solicitud.id)
-    if (data.status === 'success') {
+    if (data.ok) {
       setSolicitudes((prev) => prev.filter((s) => s.id !== solicitud.id))
     } else {
-      setErrorApi(data.message || 'No se pudo rechazar la solicitud.')
+      setErrorApi(data.error || 'No se pudo rechazar la solicitud.')
     }
     setAccionando(null)
   }

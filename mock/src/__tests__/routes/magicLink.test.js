@@ -28,7 +28,7 @@ function getSuperadminToken(app) {
     .post('/api/v1/auth/login')
     .send({
       email: sa.email,
-      password: process.env.SUPERADMIN_PASSWORD || 'metodologia-bootstrap-cambiar-pronto',
+      password: process.env.SUPERADMIN_PASSWORD || 'cambiar-pronto',
     })
     .then((r) => r.body.data.access_token)
 }

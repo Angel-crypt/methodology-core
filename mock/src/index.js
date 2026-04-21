@@ -18,6 +18,8 @@ app.use(API, require('./routes/m1'));
 app.use(API, require('./routes/m2'));
 app.use(API, require('./routes/m3'));
 app.use(API, require('./routes/m4'));
+app.use(API, require('./routes/m5'));
+app.use(API, require('./routes/m6'));
 app.use(API, require('./routes/projects'));
 app.use(API, require('./routes/config'));
 app.use(`${API}/institutions`, require('./routes/institutions'));
@@ -111,7 +113,7 @@ app.listen(PORT, () => {
     console.warn('  ║  Usando valor por defecto inseguro.           ║');
     console.warn('  ║  En producción: configurar JWT_SECRET como    ║');
     console.warn('  ║  variable de entorno o Docker Secret.         ║');
-    console.warn('  ║  Ref: mock/SECURITY_REPORT.md §SEG-02         ║');
+    console.warn('  ║  Ref: mock/SECURITY_REPORT.md SEG-02         ║');
     console.warn('  ╚═══════════════════════════════════════════════╝');
     console.warn('');
   }

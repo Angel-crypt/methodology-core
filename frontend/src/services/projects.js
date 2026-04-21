@@ -1,30 +1,11 @@
 /**
  * Servicio de gestión de proyectos (CF-013)
- * Todas las funciones devuelven { ok: boolean, data?, error? }
+ * Todas las funciones devuelven { ok, data, meta, error, code }
  */
 
+import { parseResponse } from '@/lib/api'
+
 const API = '/api/v1'
-
-function sessionRevoked() {
-  window.dispatchEvent(new CustomEvent('auth:session-revoked'))
-}
-
-function sessionExpired() {
-  window.dispatchEvent(new CustomEvent('auth:session-expired'))
-}
-
-async function parseResponse(res) {
-  let body
-  try { body = await res.json() } catch { body = null }
-
-  if (res.status === 401) {
-    if (body?.data?.code === 'SESSION_REVOKED') sessionRevoked()
-    else sessionExpired()
-    return { ok: false, error: body?.message || 'No autorizado' }
-  }
-  if (!res.ok) return { ok: false, error: body?.message || `Error ${res.status}`, code: body?.data?.code }
-  return { ok: true, data: body?.data }
-}
 
 function headers(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
@@ -34,6 +15,12 @@ function headers(token) {
 
 export async function listarProyectos(token) {
   const res = await fetch(`${API}/projects`, { headers: headers(token) })
+  return parseResponse(res)
+}
+
+export async function listarProyectosMiembro(token, userId) {
+  const params = new URLSearchParams({ member_id: userId })
+  const res = await fetch(`${API}/projects?${params}`, { headers: headers(token) })
   return parseResponse(res)
 }
 

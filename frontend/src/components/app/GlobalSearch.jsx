@@ -73,8 +73,8 @@ function GlobalSearch() {
     setCargando(true)
     Promise.all([listarTodosUsuarios(token), listarInstrumentos(token)])
       .then(([usersData, instrData]) => {
-        if (usersData.status === 'success') setAllUsers(usersData.data)
-        if (instrData.status === 'success') setAllInstruments(instrData.data)
+        if (usersData.ok) setAllUsers(usersData.data)
+        if (instrData.ok) setAllInstruments(instrData.data)
       })
       .finally(() => {
         setCargando(false)

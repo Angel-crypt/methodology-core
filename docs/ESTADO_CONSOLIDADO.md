@@ -27,7 +27,7 @@ Fuente de verdad: estado actual del codigo + `docs/INVENTARIO.md` actualizado + 
 ### P2 (UX e inconsistencias)
 - [C-02] Falta bloquear correos demo/prueba.
 - [C-04] Reset password solo SUPERADMIN: falta enforcement backend/guardas en detalle.
-- [C-06] Resolucion de institucion por subdominio.
+- ~~[C-06]~~ ✅ Resolucion de institucion por subdominio: resuelto 2026-04-21.
 - [F-06] Mostrar estado desactivado en miembros de proyecto.
 - [E-05] Click en fila tabla instrumentos -> detalle.
 - [E-02] Texto dinamico “Agregar metrica”.
@@ -52,8 +52,8 @@ Fuente de verdad: estado actual del codigo + `docs/INVENTARIO.md` actualizado + 
 - Licencia de codigo y datos: no documentadas.
 
 ## Instituciones
-- Placeholder aun usa “unam.mx”. Falta “Global University” + `globaluniversity.edu.mx`.
-- Resolucion de institucion solo por dominio exacto; falta subdominios.
+- Resolucion de institucion: stripping progresivo — `psicologia.unam.edu.mx` → prueba `unam.edu.mx` → match. `unam.edu.mx` y `globaluniversity.edu.mx` se discriminan correctamente. ✅
+- InstitutionsPage: CREATE + EDIT (PATCH) operativos. Solo superadmin.
 
 ## Contratos y decisiones vigentes (SRS resueltas)
 - Auth: OIDC con magic link para researcher/applicator; password solo SUPERADMIN.
@@ -62,10 +62,15 @@ Fuente de verdad: estado actual del codigo + `docs/INVENTARIO.md` actualizado + 
 - M6 exportacion solo para Investigador.
 
 ## Hallazgos no documentados (vigentes)
-- `GlobalSearch` usa `instr.status` en lugar de `is_active`.
-- `DataTable` usa `row.active` en estilos; el modelo expone `is_active`.
-- Creacion de proyecto: contrato `age_cohort_ranges/mode` en frontend vs `age_cohort_map/cohort_mode` en mock.
-- `/mis-registros` sin paginacion server-side y muestra `subject_id` en lugar de `anonymous_code`.
+- Dropdown selector miembros usaba `--color-bg-surface` (token inexistente) → fondo transparente. Corregido a `--color-surface`. ✅
+- `/subjects/mine` era interceptada por `/subjects/:id` (orden Express). Movida antes de `/:id`. ✅
+- `emailDomainError` calculado en hook pero no exportado → error de dominio silencioso. Exportado y mostrado. ✅
+
+## Hallazgos resueltos (pre-Sprint 5)
+- `GlobalSearch` usa `instr.status` → corregido a `is_active`. ✅
+- `DataTable` solo cubría `row.active` → ahora también `row.is_active`. ✅
+- Contrato `age_cohort_ranges/mode` vs `age_cohort_map/cohort_mode` → unificado. ✅
+- `/mis-registros` mostraba `subject_id` → ahora `anonymous_code`. ✅
 
 ## Plan de accion condensado (orden sugerido)
 1. C-05, C-03

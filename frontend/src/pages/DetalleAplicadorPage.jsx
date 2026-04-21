@@ -3,6 +3,7 @@ import PropTypes from 'prop-types'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { ChevronLeft, Copy, Monitor } from 'lucide-react'
+import SessionCard from '@/components/SessionCard'
 import {
   Button,
   Alert,
@@ -71,8 +72,8 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
     setCargandoUsuario(true)
     obtenerUsuario(token, id)
       .then((data) => {
-        if (data.status === 'success') setUsuario(data.data)
-        else setErrorUsuario(data.message || 'No se pudo cargar el usuario.')
+        if (data.ok) setUsuario(data.data)
+        else setErrorUsuario(data.error || 'No se pudo cargar el usuario.')
       })
       .catch(() => setErrorUsuario('Error de conexión.'))
       .finally(() => setCargandoUsuario(false))
@@ -84,7 +85,7 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
     setCargandoSesiones(true)
     listarSesionesUsuario(token, id)
       .then((data) => {
-        if (data.status === 'success') setSesiones(data.data)
+        if (data.ok) setSesiones(data.data)
         else setErrorSesiones(true)
       })
       .catch(() => setErrorSesiones(true))
@@ -98,7 +99,7 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
     setGuardandoEstado(true)
     try {
       const data = await cambiarEstadoUsuario(token, id, !usuario.active)
-      if (data.status === 'success') {
+      if (data.ok) {
         setUsuario((prev) => ({ ...prev, active: !prev.active }))
         toast({
           type: 'success',
@@ -106,7 +107,7 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
           message: `La cuenta de ${usuario.full_name} fue ${usuario.active ? 'desactivada' : 'activada'}.`,
         })
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo cambiar el estado.' })
+        toast({ type: 'error', title: 'Error', message: data.error || 'No se pudo cambiar el estado.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -120,12 +121,12 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
     setGuardandoReset(true)
     try {
       const data = await resetearPassword(token, id)
-      if (data.status === 'success') {
+      if (data.ok) {
         const setupToken = data.data?._mock_setup_token
         setCredencialesNuevas({ email: usuario.email, setupToken, nombreUsuario: usuario.full_name })
         setModalCredenciales(true)
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo restablecer la contraseña.' })
+        toast({ type: 'error', title: 'Error', message: data.error || 'No se pudo restablecer la contraseña.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -256,23 +257,7 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
           ) : (
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               {sesiones.map((s) => (
-                <li
-                  key={s.jti}
-                  style={{
-                    padding:      'var(--space-2) var(--space-3)',
-                    background:   'var(--color-bg-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize:     'var(--font-size-caption)',
-                    display:      'flex',
-                    justifyContent: 'space-between',
-                    gap:          'var(--space-2)',
-                  }}
-                >
-                  <span style={{ fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
-                    {s.ip}
-                  </span>
-                  <span style={{ color: 'var(--color-text-tertiary)' }}>{formatFecha(s.created_at)}</span>
-                </li>
+                <SessionCard key={s.jti} session={s} />
               ))}
             </ul>
           )}

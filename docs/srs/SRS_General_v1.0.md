@@ -808,13 +808,13 @@ Estrategia **Blue/Green**: el entorno activo continúa operando mientras el ento
 
 ## 12. Privacidad, Protección de Datos y Cumplimiento (GAP-SEG-01)
 
-> **Adicionado en revisión 2026-03-22** · Referencia: `mock/SECURITY_REPORT.md §SEG-01`, GAP-SEG-01
+> **Adicionado en revisión 2026-03-22** · Referencia: `mock/SECURITY_REPORT.md SEG-01`, GAP-SEG-01
 
 ### 12.1 Contexto de Riesgo
 
 El sistema captura datos de **sujetos menores de edad** (potencialmente) en contextos educativos. Aunque los sujetos se registran sin PII directa (sin nombre, CURP, dirección), la combinación de atributos contextuales (`age_cohort`, `gender`, `education_level`, `school_type`, `socioeconomic_level`) puede constituir **datos cuasi-identificables** según el considerando 26 del RGPD y el artículo 3° de la LFPDPPP (México).
 
-**Estado actual del Mock:** El sistema de desarrollo (Mock) no implementa cumplimiento GDPR/LOPD completo. Implementa las bases indispensables (ver §12.3). El cumplimiento pleno es requisito antes de la puesta en producción con datos reales.
+**Estado actual del Mock:** El sistema de desarrollo (Mock) no implementa cumplimiento GDPR/LOPD completo. Implementa las bases indispensables (ver 12.3). El cumplimiento pleno es requisito antes de la puesta en producción con datos reales.
 
 ### 12.2 Clasificación de Datos
 

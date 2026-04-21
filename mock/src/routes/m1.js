@@ -13,6 +13,8 @@ const { v4: uuidv4 } = require('uuid');
 const { store, addAuditEvent } = require('../store');
 const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
 const { validateStrictInput } = require('../middleware/validateStrictInput');
+const { content: privacyContent, version: privacyVersion, updated_at: privacyUpdatedAt } = require('../data/privacy-notice');
+const { content: termsContent, version: termsVersion, updated_at: termsUpdatedAt } = require('../data/terms-of-service');
 
 const router = express.Router();
 
@@ -293,7 +295,10 @@ router.post('/auth/oidc/callback', (req, res) => {
   // Vincular sub en primer login OIDC
   if (!user.broker_subject) {
     user.broker_subject = incomingSub;
+    user.oidc_linked = true;
     user.updated_at = new Date();
+  } else {
+    user.oidc_linked = true;
   }
 
   const jti = uuidv4();
@@ -345,25 +350,9 @@ router.get('/legal/terms', (_req, res) => {
   return res.status(200).json({
     status: 'success',
     data: {
-      version: '1.0',
-      updated_at: '2026-04-01',
-      content: `**Términos y Condiciones de Uso**
-
-Al utilizar esta plataforma aceptas los presentes términos y condiciones. Este sistema está destinado exclusivamente a investigadores y aplicadores autorizados por la institución administradora.
-
-**1. Uso permitido**
-El acceso a esta plataforma es personal e intransferible. Está prohibido compartir credenciales de acceso.
-
-**2. Tratamiento de datos**
-Los datos recolectados son de carácter anónimo y su uso está restringido a fines de investigación lingüística y metodológica. Consulta el Aviso de Privacidad para más detalle.
-
-**3. Obligaciones del usuario**
-El usuario se compromete a utilizar la plataforma de forma ética, respetando la privacidad de los sujetos evaluados.
-
-**4. Modificaciones**
-La institución administradora se reserva el derecho de actualizar estos términos. Se notificará a los usuarios registrados ante cambios relevantes.
-
-_Versión 1.0 — Abril 2026_`,
+      version: termsVersion,
+      updated_at: termsUpdatedAt,
+      content: termsContent,
     },
   });
 });
@@ -372,28 +361,9 @@ router.get('/legal/privacy', (_req, res) => {
   return res.status(200).json({
     status: 'success',
     data: {
-      version: '1.0',
-      updated_at: '2026-04-01',
-      content: `**Aviso de Privacidad**
-
-En cumplimiento con la normativa vigente de protección de datos personales, se informa lo siguiente:
-
-**Responsable del tratamiento**
-La institución administradora del sistema de registro metodológico es responsable del tratamiento de los datos personales proporcionados.
-
-**Datos recopilados**
-Se recopilan únicamente los datos estrictamente necesarios para el funcionamiento del sistema: nombre, correo electrónico, rol e institución del usuario. Los registros operativos son anónimos y no permiten identificar a los sujetos evaluados.
-
-**Finalidad**
-Los datos se utilizan exclusivamente para la gestión de acceso, trazabilidad de registros y mejora de los instrumentos de evaluación.
-
-**Derechos del titular**
-El usuario puede solicitar en cualquier momento el acceso, rectificación, cancelación u oposición al tratamiento de sus datos personales dirigiéndose al administrador del sistema.
-
-**Transferencia de datos**
-No se realizan transferencias de datos a terceros sin consentimiento expreso.
-
-_Versión 1.0 — Abril 2026_`,
+      version: privacyVersion,
+      updated_at: privacyUpdatedAt,
+      content: privacyContent,
     },
   });
 });
@@ -608,6 +578,7 @@ router.post(
         : null,
       terms_accepted_at: null,
       onboarding_completed: false,
+      oidc_linked: false,
     };
     store.users.push(user);
 
@@ -718,6 +689,7 @@ router.patch('/users/:id/email', authMiddleware(['superadmin']), (req, res) => {
 
   user.email          = email;
   user.broker_subject = null;
+  user.oidc_linked    = false;
   user.token_version  = (user.token_version ?? 0) + 1;
   user.updated_at     = new Date();
 
@@ -782,6 +754,10 @@ router.get('/users', authMiddleware(['superadmin']), (req, res) => {
         created_at: u.created_at,
       };
       if (u.role === 'superadmin') base.must_change_password = u.must_change_password === true;
+      else {
+        base.broker_subject = u.broker_subject ?? null;
+        base.oidc_linked = u.oidc_linked === true;
+      }
       return base;
     }),
     meta: { total, page, limit, pages: Math.ceil(total / limit) },
@@ -940,6 +916,7 @@ router.get('/auth/activate/:token', (req, res) => {
 
   user.active = true;
   user.broker_subject = null;
+  user.oidc_linked = false;
   user.updated_at = new Date();
   store.setupTokens.delete(req.params.token); // single-use
 
@@ -974,10 +951,20 @@ router.get('/audit-log', authMiddleware(['superadmin']), (req, res) => {
   const offset = (page - 1) * limit;
   const total = entries.length;
 
+  // Enriquecer cada entrada con datos básicos del usuario (email, nombre)
+  const enriched = entries.slice(offset, offset + limit).map((e) => {
+    const user = e.user_id ? store.users.find((u) => u.id === e.user_id) : null;
+    return {
+      ...e,
+      user_email:     user ? user.email     : null,
+      user_full_name: user ? user.full_name : null,
+    };
+  });
+
   return res.status(200).json({
     status: 'success',
     message: 'Audit log recuperado',
-    data: entries.slice(offset, offset + limit),
+    data: enriched,
     meta: { total, page, limit, pages: Math.ceil(total / limit) },
   });
 });
@@ -1006,6 +993,9 @@ router.get('/users/:id', authMiddleware(['superadmin']), (req, res) => {
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado.', data: null });
   }
   const { password_hash, ...safeUser } = user;
+  if (safeUser.role !== 'superadmin') {
+    safeUser.oidc_linked = safeUser.oidc_linked === true;
+  }
   return res.json({ status: 'success', data: safeUser });
 });
 

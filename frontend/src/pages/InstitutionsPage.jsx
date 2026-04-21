@@ -3,12 +3,14 @@
  * Las instituciones son informativas — no afectan control de acceso.
  */
 import { useState, useEffect, useCallback } from 'react'
-import { Building2, Plus } from 'lucide-react'
+import { Building2, Plus, Pencil } from 'lucide-react'
 import {
   Button, Modal, FormField, Alert, DataTable, Typography,
   ToastContainer, useToast, EmptyState,
 } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
+import { listarInstituciones, crearInstitucion, editarInstitucion } from '@/services/institutions'
+import { APP_LOCALE } from '@/constants/locale'
 
 export default function InstitutionsPage() {
   const { token } = useAuth()
@@ -17,6 +19,7 @@ export default function InstitutionsPage() {
   const [institutions, setInstitutions] = useState([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState(null) // { id, name, domain } | null
 
   const [name, setName] = useState('')
   const [domain, setDomain] = useState('')
@@ -26,11 +29,8 @@ export default function InstitutionsPage() {
 
   const load = useCallback(() => {
     setLoading(true)
-    fetch('/api/v1/institutions', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((json) => setInstitutions(json.data ?? []))
+    listarInstituciones(token)
+      .then((res) => { if (res.ok) setInstitutions(res.data ?? []) })
       .catch(() => toast({ type: 'error', title: 'Error', message: 'No se pudieron cargar las instituciones' }))
       .finally(() => setLoading(false))
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -38,8 +38,18 @@ export default function InstitutionsPage() {
   useEffect(() => { load() }, [load])
 
   function openModal() {
+    setEditTarget(null)
     setName('')
     setDomain('')
+    setNameError('')
+    setCreateError(null)
+    setModalOpen(true)
+  }
+
+  function openEditModal(inst) {
+    setEditTarget(inst)
+    setName(inst.name)
+    setDomain(inst.domain ?? '')
     setNameError('')
     setCreateError(null)
     setModalOpen(true)
@@ -53,15 +63,18 @@ export default function InstitutionsPage() {
     setCreating(true)
     setCreateError(null)
     try {
-      const res = await fetch('/api/v1/institutions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: name.trim(), domain: domain.trim() || null }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.message || 'Error al crear la institución')
+      const isEdit = !!editTarget
+      const payload = { name: name.trim(), domain: domain.trim() || null }
+      const res = isEdit
+        ? await editarInstitucion(token, editTarget.id, payload)
+        : await crearInstitucion(token, payload)
+      if (!res.ok) throw new Error(res.error || (isEdit ? 'Error al editar la institución' : 'Error al crear la institución'))
       setModalOpen(false)
-      toast({ type: 'success', title: 'Institución creada', message: `"${json.data.name}" fue agregada correctamente.` })
+      toast({
+        type: 'success',
+        title: isEdit ? 'Institución actualizada' : 'Institución creada',
+        message: `"${res.data.name}" fue ${isEdit ? 'actualizada' : 'agregada'} correctamente.`,
+      })
       load()
     } catch (err) {
       setCreateError(err.message)
@@ -78,8 +91,17 @@ export default function InstitutionsPage() {
       label: 'Creada',
       render: (v) => (
         <span style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)' }}>
-          {new Date(v).toLocaleDateString('es-MX')}
+          {new Date(v).toLocaleDateString(APP_LOCALE)}
         </span>
+      ),
+    },
+    {
+      key: 'id',
+      label: '',
+      render: (_, row) => (
+        <Button size="sm" variant="ghost" icon={Pencil} onClick={() => openEditModal(row)}>
+          Editar
+        </Button>
       ),
     },
   ]
@@ -119,14 +141,14 @@ export default function InstitutionsPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="Nueva institución"
+        title={editTarget ? 'Editar institución' : 'Nueva institución'}
         footer={
           <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
             <Button variant="ghost" onClick={() => setModalOpen(false)} disabled={creating}>
               Cancelar
             </Button>
             <Button onClick={handleCreate} loading={creating}>
-              Crear institución
+              {editTarget ? 'Guardar cambios' : 'Crear institución'}
             </Button>
           </div>
         }

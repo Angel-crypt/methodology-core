@@ -7,24 +7,9 @@
  * DELETE /users/email-change-requests/:id.
  */
 
-const BASE = '/api/v1/users'
+import { parseResponse } from '@/lib/api'
 
-async function parseResponse(res) {
-  let body
-  try {
-    body = await res.json()
-  } catch {
-    return { status: 'error', message: `Error del servidor (HTTP ${res.status})` }
-  }
-  if (res.status === 401) {
-    if (body?.data?.code === 'SESSION_REVOKED') {
-      window.dispatchEvent(new Event('auth:session-revoked'))
-    } else {
-      window.dispatchEvent(new CustomEvent('auth:session-expired'))
-    }
-  }
-  return body
-}
+const BASE = '/api/v1/users'
 
 function authHeaders(token) {
   return {
