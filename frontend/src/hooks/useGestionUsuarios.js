@@ -152,6 +152,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
     const email = formCrear.email.trim()
     if (!email || !email.includes('@')) return
     setInstitutionDetected(null)
+    setEmailDomainError('')
     try {
       const res = await fetch(`/api/v1/institutions/resolve?email=${encodeURIComponent(email)}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -160,6 +161,11 @@ export function useGestionUsuarios({ role, labelSingular }) {
         const json = await res.json()
         const detected = json.data?.institution ?? null
         setInstitutionDetected(detected)
+        if (!detected) {
+          // Institution no registrada en el sistema — error de dominio
+          const domain = email.split('@')[1]
+          setEmailDomainError(`El dominio "${domain}" no está registrado. Solicita registro ante el administrador.`)
+        }
         if (detected && !formCrear.institution) {
           setFormCrear((prev) => ({ ...prev, institution: detected }))
         }
@@ -348,6 +354,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
     handleChangeCrear,
     handleEmailBlur,
     institutionDetected,
+    emailDomainError,
     handleGuardarCrear,
     abrirModalEstado,
     handleConfirmarEstado,
