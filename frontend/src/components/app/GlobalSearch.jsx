@@ -276,7 +276,7 @@ function GlobalSearch() {
                       </div>
                     </div>
                     <div style={{ flexShrink: 0 }}>
-                      <StatusBadge status={instr.status} />
+                      <StatusBadge status={instr.is_active ? 'active' : 'inactive'} />
                     </div>
                   </button>
                 ))}
