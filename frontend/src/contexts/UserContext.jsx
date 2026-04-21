@@ -55,6 +55,7 @@ UserProvider.propTypes = {
   children: PropTypes.node.isRequired,
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useUser() {
   const ctx = useContext(UserContext)
   if (!ctx) throw new Error('useUser debe usarse dentro de UserProvider')
