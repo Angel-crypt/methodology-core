@@ -19,6 +19,7 @@ app.use(API, require('./routes/m2'));
 app.use(API, require('./routes/m3'));
 app.use(API, require('./routes/m4'));
 app.use(API, require('./routes/m5'));
+app.use(API, require('./routes/m6'));
 app.use(API, require('./routes/projects'));
 app.use(API, require('./routes/config'));
 app.use(`${API}/institutions`, require('./routes/institutions'));
