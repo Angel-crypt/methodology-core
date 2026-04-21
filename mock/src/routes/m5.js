@@ -104,6 +104,7 @@ router.get('/applications', authMiddleware(RESEARCHER_ROLES), (req, res) => {
   const instrumentId = (req.query.instrument_id || '').toString().trim()
   const startDate    = (req.query.start_date    || '').toString().trim()
   const endDate      = (req.query.end_date      || '').toString().trim()
+  const projectId    = (req.query.project_id    || '').toString().trim()
 
   // Validar formato de fechas
   if (startDate && !isValidDate(startDate)) {
@@ -126,7 +127,23 @@ router.get('/applications', authMiddleware(RESEARCHER_ROLES), (req, res) => {
     }
   }
 
+  // Validar project_id si se provee
+  if (projectId) {
+    const projectExists = store.projects.some((p) => p.id === projectId && !p.deleted)
+    if (!projectExists) {
+      return res.status(404).json({ status: 'error', message: 'Proyecto no encontrado', data: null })
+    }
+  }
+
   let apps = [...store.applications]
+
+  // Filtro por proyecto (via subjects)
+  if (projectId) {
+    const subjectsInProject = new Set(
+      store.subjects.filter((s) => s.project_id === projectId).map((s) => s.id)
+    )
+    apps = apps.filter((a) => subjectsInProject.has(a.subject_id))
+  }
 
   // Filtro por instrumento
   if (instrumentId) {

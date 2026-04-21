@@ -54,6 +54,7 @@ function applyFilters(query) {
   const instrumentId = (query.instrument_id || '').toString().trim()
   const startDate    = (query.start_date    || '').toString().trim()
   const endDate      = (query.end_date      || '').toString().trim()
+  const projectId    = (query.project_id    || '').toString().trim()
 
   if (startDate && !isValidDate(startDate)) {
     return { error: { status: 400, message: 'Formato de start_date inválido. Use ISO 8601 (YYYY-MM-DD).' } }
@@ -70,13 +71,25 @@ function applyFilters(query) {
       return { error: { status: 404, message: 'Instrumento no encontrado.' } }
     }
   }
+  if (projectId) {
+    const exists = store.projects.some((p) => p.id === projectId && !p.deleted)
+    if (!exists) {
+      return { error: { status: 404, message: 'Proyecto no encontrado.' } }
+    }
+  }
 
   let apps = [...store.applications]
+  if (projectId) {
+    const subjectsInProject = new Set(
+      store.subjects.filter((s) => s.project_id === projectId).map((s) => s.id)
+    )
+    apps = apps.filter((a) => subjectsInProject.has(a.subject_id))
+  }
   if (instrumentId) apps = apps.filter((a) => a.instrument_id === instrumentId)
   if (startDate)    apps = apps.filter((a) => a.application_date >= startDate)
   if (endDate)      apps = apps.filter((a) => a.application_date <= endDate)
 
-  return { apps, instrumentId, startDate, endDate }
+  return { apps, instrumentId, startDate, endDate, projectId }
 }
 
 /**
