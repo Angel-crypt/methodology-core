@@ -69,6 +69,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
   const [errorApiCrear, setErrorApiCrear] = useState('')
   const [guardandoCrear, setGuardandoCrear] = useState(false)
   const [institutionDetected, setInstitutionDetected] = useState(null) // string | null
+  const [emailDomainError, setEmailDomainError] = useState('') // error de dominio no registrado
 
   // ─── Estado cambio de estado ───────────────────────────────────
   const [errorApiEstado, setErrorApiEstado] = useState('')
