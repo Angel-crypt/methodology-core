@@ -130,6 +130,7 @@ function CambiarPasswordModal({ open, onClose, onSuccess, forced = false }) {
           type="password"
           placeholder="••••••••"
           required
+          reveal
           value={form.current_password}
           onChange={handleChange('current_password')}
           autoComplete="current-password"
@@ -142,6 +143,7 @@ function CambiarPasswordModal({ open, onClose, onSuccess, forced = false }) {
             type="password"
             placeholder="••••••••"
             required
+            reveal
             value={form.new_password}
             onChange={handleChange('new_password')}
             autoComplete="new-password"
@@ -156,6 +158,7 @@ function CambiarPasswordModal({ open, onClose, onSuccess, forced = false }) {
           type="password"
           placeholder="••••••••"
           required
+          reveal
           value={form.confirm}
           onChange={handleChange('confirm')}
           autoComplete="new-password"
