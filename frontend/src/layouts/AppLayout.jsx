@@ -104,7 +104,7 @@ function AppLayout({ children }) {
             fullName={fullName}
             role={role}
             email={email}
-            onChangePassword={() => setModalOpen(true)}
+            onChangePassword={esAdmin ? () => setModalOpen(true) : undefined}
             onRequestEmailChange={role !== 'superadmin' ? () => setEmailModalOpen(true) : undefined}
           />
         </header>
