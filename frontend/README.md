@@ -35,7 +35,7 @@ Framework: **Vitest** + React Testing Library + MSW (Mock Service Worker).
 
 ```
 src/
-├── pages/           # Una página por ruta (ver docs/INVENTARIO.md §4)
+├── pages/           # Una página por ruta (ver docs/INVENTARIO.md 4)
 ├── components/
 │   └── app/         # Design system: botones, modales, tablas, etc.
 ├── services/        # Llamadas a la API REST

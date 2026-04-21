@@ -6,33 +6,30 @@ import { useState, useEffect } from 'react'
 export default function PrivacyPage() {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     fetch('/api/v1/legal/privacy')
       .then((r) => r.json())
       .then((json) => setContent(json.data?.content ?? ''))
-      .catch(() => setContent('No se pudo cargar el documento.'))
+      .catch(() => setError('No se pudo cargar el documento.'))
       .finally(() => setLoading(false))
   }, [])
 
   return (
     <div className="login-layout">
-      <div className="login-card" style={{ maxWidth: 640 }}>
-        <h2 style={{ margin: '0 0 var(--space-4)' }}>Aviso de Privacidad</h2>
+      <div className="login-card legal-document">
+        <h1 className="legal-title">Aviso de Privacidad y Protección de Datos Personales</h1>
 
         {loading ? (
-          <p style={{ color: 'var(--color-text-secondary)' }}>Cargando...</p>
+          <p className="legal-loading">Cargando...</p>
+        ) : error ? (
+          <p className="legal-error">{error}</p>
         ) : (
           <div
-            style={{
-              whiteSpace: 'pre-wrap',
-              color: 'var(--color-text-secondary)',
-              fontSize: 'var(--font-size-sm)',
-              lineHeight: 1.7,
-            }}
-          >
-            {content}
-          </div>
+            className="legal-content"
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
         )}
       </div>
     </div>

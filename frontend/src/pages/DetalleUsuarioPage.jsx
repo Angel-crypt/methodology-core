@@ -15,9 +15,12 @@ import PropTypes from 'prop-types'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { ChevronLeft, Copy, Monitor, FolderOpen, ExternalLink, Trash2 } from 'lucide-react'
+import SessionCard from '@/components/SessionCard'
 import {
   Button,
   Alert,
+  Modal,
+  FormField,
   RoleBadge,
   StatusBadge,
   Typography,
@@ -30,6 +33,8 @@ import {
   cambiarEstadoUsuario,
   resetearPassword,
 } from '@/services/users'
+import { aprobarCambioCorreo } from '@/services/emailChangeRequests'
+import { listarProyectosMiembro, eliminarMiembro } from '@/services/projects'
 import { formatFecha, getUserStatus } from '@/hooks/useGestionUsuarios'
 import CredencialesModal from '@/pages/CredencialesModal'
 
@@ -62,13 +67,18 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
   const [modalCredenciales,  setModalCredenciales]  = useState(false)
   const [credencialesNuevas, setCredencialesNuevas] = useState(null)
 
+  const [modalCambiarCorreo,   setModalCambiarCorreo]   = useState(false)
+  const [nuevoCorreo,          setNuevoCorreo]          = useState('')
+  const [errorCambioCorreo,    setErrorCambioCorreo]    = useState('')
+  const [guardandoCambioCorreo, setGuardandoCambioCorreo] = useState(false)
+
   useEffect(() => {
     if (usuario) return
     setCargandoUsuario(true)
     obtenerUsuario(token, id)
       .then((data) => {
-        if (data.status === 'success') setUsuario(data.data)
-        else setErrorUsuario(data.message || 'No se pudo cargar el usuario.')
+        if (data.ok) setUsuario(data.data)
+        else setErrorUsuario(data.error || 'No se pudo cargar el usuario.')
       })
       .catch(() => setErrorUsuario('Error de conexión.'))
       .finally(() => setCargandoUsuario(false))
@@ -79,7 +89,7 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
     setCargandoSesiones(true)
     listarSesionesUsuario(token, id)
       .then((data) => {
-        if (data.status === 'success') setSesiones(data.data)
+        if (data.ok) setSesiones(data.data)
         else setErrorSesiones(true)
       })
       .catch(() => setErrorSesiones(true))
@@ -90,27 +100,20 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
   useEffect(() => {
     if (!usuario || usuario.role === 'superadmin') return
     setCargandoProyectos(true)
-    fetch(`/api/v1/projects?member_id=${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.ok ? r.json() : { data: [] })
-      .then((json) => setProyectos(json.data ?? []))
+    listarProyectosMiembro(token, id)
+      .then((res) => { if (res.ok) setProyectos(res.data ?? []) })
       .catch(() => {})
       .finally(() => setCargandoProyectos(false))
   }, [id, token, usuario])
 
   async function handleQuitarDeProyecto(projectId, projectName) {
     try {
-      const res = await fetch(`/api/v1/projects/${projectId}/members/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (res.ok || res.status === 204) {
+      const res = await eliminarMiembro(token, projectId, id)
+      if (res.ok) {
         setProyectos((prev) => prev.filter((p) => p.id !== projectId))
         toast({ type: 'success', title: 'Removido del proyecto', message: `${usuario.full_name} fue quitado de "${projectName}".` })
       } else {
-        const json = await res.json().catch(() => ({}))
-        toast({ type: 'error', title: 'Error', message: json.message || 'No se pudo quitar del proyecto.' })
+        toast({ type: 'error', title: 'Error', message: res.error || 'No se pudo quitar del proyecto.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -122,7 +125,7 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
     setGuardandoEstado(true)
     try {
       const data = await cambiarEstadoUsuario(token, id, !usuario.active)
-      if (data.status === 'success') {
+      if (data.ok) {
         setUsuario((prev) => ({ ...prev, active: !prev.active }))
         toast({
           type: 'success',
@@ -130,7 +133,7 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
           message: `La cuenta de ${usuario.full_name} fue ${usuario.active ? 'desactivada' : 'activada'}.`,
         })
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo cambiar el estado.' })
+        toast({ type: 'error', title: 'Error', message: data.error || 'No se pudo cambiar el estado.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -139,22 +142,43 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
     }
   }
 
-  async function handleResetearPassword() {
+  async function handleReenviarActivacion() {
     if (!usuario) return
     setGuardandoReset(true)
     try {
       const data = await resetearPassword(token, id)
-      if (data.status === 'success') {
-        const setupToken = data.data?._mock_setup_token
-        setCredencialesNuevas({ email: usuario.email, setupToken, nombreUsuario: usuario.full_name })
+      if (data.ok) {
+        setCredencialesNuevas({ email: usuario.email, magicLink: data.data?._mock_magic_link, nombreUsuario: usuario.full_name })
         setModalCredenciales(true)
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo restablecer la contraseña.' })
+        toast({ type: 'error', title: 'Error', message: data.error || 'No se pudo generar el enlace.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
     } finally {
       setGuardandoReset(false)
+    }
+  }
+
+  async function handleGuardarCambiarCorreo() {
+    const email = nuevoCorreo.trim()
+    if (!email) { setErrorCambioCorreo('El correo es obligatorio.'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setErrorCambioCorreo('Formato de correo inválido.'); return }
+    setGuardandoCambioCorreo(true)
+    setErrorCambioCorreo('')
+    try {
+      const data = await aprobarCambioCorreo(token, id, email)
+      if (data.ok) {
+        setModalCambiarCorreo(false)
+        setUsuario((prev) => ({ ...prev, email }))
+        toast({ type: 'success', title: 'Correo actualizado', message: 'El correo fue actualizado. El usuario fue desconectado.' })
+      } else {
+        setErrorCambioCorreo(data.error || 'No se pudo actualizar el correo.')
+      }
+    } catch {
+      setErrorCambioCorreo('Error de conexión. Intenta nuevamente.')
+    } finally {
+      setGuardandoCambioCorreo(false)
     }
   }
 
@@ -280,23 +304,7 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
           ) : (
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               {sesiones.map((s) => (
-                <li
-                  key={s.jti}
-                  style={{
-                    padding:        'var(--space-2) var(--space-3)',
-                    background:     'var(--color-bg-subtle)',
-                    borderRadius:   'var(--radius-md)',
-                    fontSize:       'var(--font-size-caption)',
-                    display:        'flex',
-                    justifyContent: 'space-between',
-                    gap:            'var(--space-2)',
-                  }}
-                >
-                  <span style={{ fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
-                    {s.ip}
-                  </span>
-                  <span style={{ color: 'var(--color-text-tertiary)' }}>{formatFecha(s.created_at)}</span>
-                </li>
+                <SessionCard key={s.jti} session={s} />
               ))}
             </ul>
           )}
@@ -309,13 +317,21 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
             Gestión de credenciales y estado de la cuenta.
           </Typography>
           <div style={{ flex: 1 }} />
-          <Button
-            variant="secondary"
-            loading={guardandoReset}
-            onClick={handleResetearPassword}
-          >
-            {status === 'pending' ? 'Regenerar contraseña' : 'Restablecer contraseña'}
-          </Button>
+          {status === 'pending_activation' && (
+            <Button variant="secondary" loading={guardandoReset} onClick={handleReenviarActivacion}>
+              Reenviar activación
+            </Button>
+          )}
+          {(status === 'active' || status === 'disabled') && usuario.role !== 'superadmin' && (
+            <Button variant="secondary" onClick={() => { setNuevoCorreo(''); setErrorCambioCorreo(''); setModalCambiarCorreo(true) }}>
+              Cambiar correo
+            </Button>
+          )}
+          {status === 'pending' && (
+            <Button variant="secondary" loading={guardandoReset} onClick={handleReenviarActivacion}>
+              Regenerar contraseña
+            </Button>
+          )}
           <Button
             variant={usuario.active ? 'danger' : 'primary'}
             loading={guardandoEstado}
@@ -414,10 +430,36 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
           open={modalCredenciales}
           onClose={() => setModalCredenciales(false)}
           email={credencialesNuevas.email}
-          setupToken={credencialesNuevas.setupToken}
+          magicLink={credencialesNuevas.magicLink}
           nombreUsuario={credencialesNuevas.nombreUsuario}
         />
       )}
+
+      <Modal
+        open={modalCambiarCorreo}
+        onClose={() => setModalCambiarCorreo(false)}
+        title="Cambiar correo electrónico"
+        size="sm"
+        footer={
+          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+            <Button variant="ghost" onClick={() => setModalCambiarCorreo(false)} disabled={guardandoCambioCorreo}>Cancelar</Button>
+            <Button onClick={handleGuardarCambiarCorreo} loading={guardandoCambioCorreo}>Guardar</Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          {errorCambioCorreo && <Alert variant="error">{errorCambioCorreo}</Alert>}
+          <FormField
+            id="detalle-cambiar-correo"
+            label="Nuevo correo electrónico"
+            type="email"
+            placeholder="nuevo@institución.edu"
+            required
+            value={nuevoCorreo}
+            onChange={(e) => setNuevoCorreo(e.target.value)}
+          />
+        </div>
+      </Modal>
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>

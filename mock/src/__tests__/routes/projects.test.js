@@ -32,7 +32,7 @@ function getSuperadminToken(app) {
   if (sa) sa.must_change_password = false;
   return request(app)
     .post('/api/v1/auth/login')
-    .send({ email: sa.email, password: process.env.SUPERADMIN_PASSWORD || 'metodologia-bootstrap-cambiar-pronto' })
+    .send({ email: sa.email, password: process.env.SUPERADMIN_PASSWORD || 'cambiar-pronto' })
     .then((r) => r.body.data.access_token);
 }
 
@@ -140,7 +140,7 @@ describe('POST /projects', () => {
   });
 
   it('config explícita → 201 con la config provista', async () => {
-    const config = { education_levels: ['básica', 'media'], age_cohort_ranges: ['6-12'], subject_limit: 20, mode: 'normal' };
+    const config = { education_levels: ['básica', 'media'], age_cohort_map: { 'básica': '6-12' }, cohort_mode: 'libre', subject_limit: 20, mode: 'normal' };
     const res = await request(app)
       .post('/api/v1/projects')
       .set('Authorization', `Bearer ${tk}`)
@@ -499,11 +499,12 @@ describe('GET /config/system-defaults', () => {
     expect(res.status).toBe(401);
   });
 
-  it('superadmin → 200 con education_levels, age_cohort_ranges, subject_limit, mode', async () => {
+  it('superadmin → 200 con education_levels, age_cohort_map, cohort_mode, subject_limit, mode', async () => {
     const res = await request(app).get('/api/v1/config/system-defaults').set('Authorization', `Bearer ${tk}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data.education_levels)).toBe(true);
-    expect(Array.isArray(res.body.data.age_cohort_ranges)).toBe(true);
+    expect(typeof res.body.data.age_cohort_map).toBe('object');
+    expect(res.body.data.cohort_mode).toBeDefined();
     expect(typeof res.body.data.subject_limit).toBe('number');
     expect(res.body.data.mode).toBeDefined();
   });

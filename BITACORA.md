@@ -243,7 +243,7 @@ Se añade `must_change_password BOOLEAN DEFAULT TRUE` para modelar el estado **p
 - `inactive` = `active=FALSE` (desactivado por el administrador)
 
 **Motivo:** Un usuario recién creado con contraseña temporal no debe tener acceso completo al
-sistema hasta cambiar su contraseña. Esto alinea con NIST SP 800-63B §5.1.1.2 y elimina la
+sistema hasta cambiar su contraseña. Esto alinea con NIST SP 800-63B 5.1.1.2 y elimina la
 necesidad de artefactos persistentes (archivos PDF, cifrados) para la entrega de credenciales.
 
 **AD-12 — Modal de credenciales una sola vez**
@@ -253,7 +253,7 @@ de crear el usuario o restablecer su contraseña. El modal tiene botones de copi
 No se genera ningún archivo descargable. Las credenciales no se persisten en ningún estado
 del frontend después de que el admin cierra el modal.
 
-**Motivo:** Minimización de datos (SRS General §4.3). Sin artefactos persistentes fuera del
+**Motivo:** Minimización de datos (SRS General 4.3). Sin artefactos persistentes fuera del
 sistema controlado.
 
 **AD-13 — Cambio forzado de contraseña interceptado en App.jsx**
@@ -354,7 +354,7 @@ El Administrador ya no provee la contraseña al crear un usuario. El servidor la
 | `frontend/src/pages/GestionInvestigadores.jsx` | Eliminar FormField de contraseña inicial |
 | `frontend/src/pages/GestionAplicadores.jsx` | Ídem |
 | `frontend/src/services/users.js` | Actualizar JSDoc de `crearUsuario` (sin password) |
-| `docs/srs/SRS_M1_Autenticacion_v2.0.md` → v2.2 | RF-M1-01 sin password, RF-M1-RESET con detalle CSPRNG, nuevos RNF-M1-15 y RNF-M1-16, CA-HU1-01 actualizado, §7.2 actualizado |
+| `docs/srs/SRS_M1_Autenticacion_v2.0.md` → v2.2 | RF-M1-01 sin password, RF-M1-RESET con detalle CSPRNG, nuevos RNF-M1-15 y RNF-M1-16, CA-HU1-01 actualizado, 7.2 actualizado |
 | `mock/responses/MockContract_M1_Autenticacion_v2.xml` → v2.2 | RF-M1-01 sin password, RF-M1-03 + must_change_password, RF-M1-05 paso 4b, RF-M1-LIST + must_change_password, RF-M1-06 allowPending, +RF-M1-RESET, authorizationRules CSPRNG, databaseSchema +must_change_password +updated_at |
 
 ---
@@ -556,7 +556,7 @@ Los hallazgos de ambas revisiones fueron cruzados con `POST_MERGE_AUDIT.md` (202
 
 | ID | Descripción | Archivo | Estado |
 |----|-------------|---------|--------|
-| D-01 | POST_MERGE_AUDIT §7 — [CODE-TRANS-01] revertido intencionalmente (usuario decidió páginas separadas) | `POST_MERGE_AUDIT.md` | ⏳ Pendiente |
+| D-01 | POST_MERGE_AUDIT 7 — [CODE-TRANS-01] revertido intencionalmente (usuario decidió páginas separadas) | `POST_MERGE_AUDIT.md` | ⏳ Pendiente |
 | D-02 | [FUNC-M1-02] RF-M1-SETUP sin ID formal en SRS M1 | `docs/srs/SRS_M1_*` | ⏳ Pendiente |
-| D-03 | [FUNC-TRANS-02] SRS M4 §3.2 desalineado con SRS General v1.1 (admin no registra en M4) | `docs/srs/SRS_M4_*` | ⏳ Pendiente |
-| D-04 | [DS-TRANS-02] `frontend/README.md §8` — componentes del barrel desactualizados | `frontend/README.md` | ⏳ Pendiente |
+| D-03 | [FUNC-TRANS-02] SRS M4 3.2 desalineado con SRS General v1.1 (admin no registra en M4) | `docs/srs/SRS_M4_*` | ⏳ Pendiente |
+| D-04 | [DS-TRANS-02] `frontend/README.md 8` — componentes del barrel desactualizados | `frontend/README.md` | ⏳ Pendiente |

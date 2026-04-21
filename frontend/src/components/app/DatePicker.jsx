@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import PropTypes from 'prop-types'
+import { APP_LOCALE } from '@/constants/locale'
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -167,7 +168,7 @@ function DatePicker({ id, value, onChange, min, max, placeholder, disabled }) {
                   ].filter(Boolean).join(' ')}
                   onClick={() => !isDis && selectDay(date)}
                   disabled={isDis}
-                  aria-label={date.toLocaleDateString('es-MX')}
+                  aria-label={date.toLocaleDateString(APP_LOCALE)}
                   aria-pressed={isSelected || false}
                 >
                   {date.getDate()}

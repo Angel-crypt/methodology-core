@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import PropTypes from 'prop-types'
 import { Button, DatePicker, FormField, Alert, Spinner, Typography, ToastContainer, useToast } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
+import { parseResponse } from '@/lib/api'
+import { APP_LOCALE } from '@/constants/locale'
 
 const AGE_COHORT_REGEX = /^\d+-\d+$/
 
@@ -213,6 +215,8 @@ function Step1Subject({
                   {mySubjects.map((s) => {
                     const lastApp = s.applications?.[s.applications.length - 1]
                     const blocked = lastApp?.next_available_date && lastApp.next_available_date > todayISO
+                    const daysSince = blocked ? Math.floor((new Date(todayISO) - new Date(lastApp.application_date)) / 86400000) : 0
+                    const daysLeft  = blocked ? Math.ceil((new Date(lastApp.next_available_date) - new Date(todayISO)) / 86400000) : 0
                     return (
                       <button
                         key={s.id}
@@ -227,7 +231,9 @@ function Step1Subject({
                         {lastApp && (
                           <Typography as="small" style={{ color: 'var(--color-text-secondary)', display: 'block' }}>
                             Última aplicación: {lastApp.application_date} · {lastApp.instrument_name}
-                            {blocked && <> · Disponible desde: <strong>{lastApp.next_available_date}</strong></>}
+                            {blocked && (
+                              <> · Hace {daysSince} día{daysSince !== 1 ? 's' : ''} · Faltan {daysLeft} día{daysLeft !== 1 ? 's' : ''} (mín. {daysSince + daysLeft})</>
+                            )}
                           </Typography>
                         )}
                       </button>
@@ -276,6 +282,7 @@ function Step2Context({
   contextOptions,
   cohortMode,
   ageCohortOptions,
+  recommendedAgeCohort,
   isValid,
   alreadySaved,
   contextDirty,
@@ -350,12 +357,19 @@ function Step2Context({
               style={{ backgroundColor: 'var(--color-bg-subtle)', cursor: 'not-allowed', color: 'var(--color-text-secondary)' }}
             />
           ) : (
-            <select className="input-base" value={contextData.age_cohort} onChange={(e) => onChange('age_cohort', e.target.value)}>
+            <>
+              <select className="input-base" value={contextData.age_cohort} onChange={(e) => onChange('age_cohort', e.target.value)}>
               <option value="">Selecciona...</option>
               {ageCohortOptions.map((value) => (
                 <option key={value} value={value}>{value}</option>
               ))}
-            </select>
+              </select>
+              {recommendedAgeCohort && (
+                <Typography as="small" style={{ color: 'var(--color-text-secondary)', display: 'block', marginTop: 'var(--space-1)' }}>
+                  Recomendación según nivel educativo: <strong>{recommendedAgeCohort}</strong>. Puedes cambiarla.
+                </Typography>
+              )}
+            </>
           )}
         </label>
 
@@ -406,6 +420,7 @@ Step2Context.propTypes = {
   contextOptions: PropTypes.object.isRequired,
   cohortMode: PropTypes.string.isRequired,
   ageCohortOptions: PropTypes.array.isRequired,
+  recommendedAgeCohort: PropTypes.string,
   isValid: PropTypes.bool,
   alreadySaved: PropTypes.bool,
   contextDirty: PropTypes.bool,
@@ -512,7 +527,7 @@ function Step3Application({
             background: 'var(--color-bg-subtle)',
             borderRadius: 'var(--radius-md)',
           }}>
-            {new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {new Date().toLocaleDateString(APP_LOCALE, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         )}
         {dateMode === 'other' && (
@@ -802,18 +817,6 @@ function RegistroOperativoWizardPage() {
     setUiState((prev) => ({ ...prev, apiError: '', validationError: '' }))
   }
 
-  async function parseResponse(res) {
-    try {
-      return await res.json()
-    } catch {
-      return {
-        status: 'error',
-        message: `Error del servidor (HTTP ${res.status})`,
-        data: null,
-      }
-    }
-  }
-
   const authHeaders = useMemo(
     () => ({
       'Content-Type': 'application/json',
@@ -854,13 +857,19 @@ function RegistroOperativoWizardPage() {
     return [...new Set(Object.values(map))].filter(Boolean)
   }, [operativoConfig])
 
+  const recommendedAgeCohort = useMemo(() => {
+    if (cohortMode !== 'libre') return ''
+    const levelName = EDUCATION_LEVEL_KEY_TO_NAME[wizardState.contextData.education_level] || wizardState.contextData.education_level
+    return operativoConfig?.age_cohort_map?.[levelName] || ''
+  }, [cohortMode, wizardState.contextData.education_level, operativoConfig])
+
   // CF-015: Cargar proyectos al montar
   useEffect(() => {
     fetch('/api/v1/projects', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
+      .then((r) => parseResponse(r))
       .then((data) => {
         setLoadingProjects(false)
-        if (data.status === 'success') setProjects(data.data || [])
+        if (data.ok) setProjects(data.data || [])
       })
       .catch(() => setLoadingProjects(false))
   }, [token])
@@ -880,8 +889,8 @@ function RegistroOperativoWizardPage() {
 >>>>>>> 3a7630c009c6f33a2d92137b75d439562b99d0c1
       ])
       const [configData, instData] = await Promise.all([parseResponse(configRes), parseResponse(instRes)])
-      if (configData.status === 'success') setOperativoConfig(configData.data)
-      if (instData.status === 'success')   setInstruments(instData.data || [])
+      if (configData.ok) setOperativoConfig(configData.data)
+      if (instData.ok)   setInstruments(instData.data || [])
     } catch { /* silencioso */ }
     setLoadingConfig(false)
     setLoadingProjectInstruments(false)
@@ -898,7 +907,7 @@ function RegistroOperativoWizardPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = await parseResponse(res)
-      if (data.status === 'success') setMySubjects(data.data || [])
+      if (data.ok) setMySubjects(data.data || [])
     } catch { /* silent */ }
     setLoadingMySubjects(false)
   }
@@ -917,12 +926,12 @@ function RegistroOperativoWizardPage() {
       const data = await parseResponse(response)
       setUiState((prev) => ({ ...prev, loadingMetrics: false }))
 
-      if (data.status === 'success') {
+      if (data.ok) {
         setMetricDefinitions(data.data || [])
         return
       }
 
-      setApiError(data.message || 'No se pudieron cargar las métricas.')
+      setApiError(data.error || 'No se pudieron cargar las métricas.')
     }
 
     loadMetrics()
@@ -941,8 +950,8 @@ function RegistroOperativoWizardPage() {
 
     setUiState((prev) => ({ ...prev, loadingSubject: false }))
 
-    if (data.status !== 'success') {
-      setApiError(data.message || 'No se pudo registrar el sujeto.')
+    if (!data.ok) {
+      setApiError(data.error || 'No se pudo registrar el sujeto.')
       return
     }
 
@@ -964,8 +973,8 @@ function RegistroOperativoWizardPage() {
 
     setUiState((prev) => ({ ...prev, loadingSubject: false }))
 
-    if (data.status !== 'success') {
-      setApiError(data.message || 'No se encontró el sujeto.')
+    if (!data.ok) {
+      setApiError(data.error || 'No se encontró el sujeto.')
       return
     }
 
@@ -1005,6 +1014,11 @@ function RegistroOperativoWizardPage() {
         const levelName = EDUCATION_LEVEL_KEY_TO_NAME[value] || value
         updated.age_cohort = operativoConfig?.age_cohort_map?.[levelName] || ''
       }
+      // En modo libre, sugerir cohorte al elegir nivel educativo solo si aún no hay valor
+      if (field === 'education_level' && cohortMode === 'libre' && !updated.age_cohort) {
+        const levelName = EDUCATION_LEVEL_KEY_TO_NAME[value] || value
+        updated.age_cohort = operativoConfig?.age_cohort_map?.[levelName] || ''
+      }
       return { ...prev, contextData: updated }
     })
   }
@@ -1041,9 +1055,9 @@ function RegistroOperativoWizardPage() {
     const data = await parseResponse(response)
     setUiState((prev) => ({ ...prev, loadingContext: false }))
 
-    if (data.status !== 'success') {
+    if (!data.ok) {
       // Transformar errores técnicos de validación de enum en mensajes legibles
-      const raw = data.message || ''
+      const raw = data.error || ''
       const friendlyError =
         raw.includes('education_level') ? 'Nivel educativo no válido. Selecciona una opción de la lista.' :
         raw.includes('school_type')     ? 'Tipo de institución no válido. Selecciona una opción de la lista.' :
@@ -1120,8 +1134,8 @@ function RegistroOperativoWizardPage() {
     const data = await parseResponse(response)
     setUiState((prev) => ({ ...prev, loadingApplication: false }))
 
-    if (data.status !== 'success') {
-      setApiError(data.message || 'No se pudo registrar la aplicacion.')
+    if (!data.ok) {
+      setApiError(data.error || 'No se pudo registrar la aplicacion.')
       return
     }
 
@@ -1220,8 +1234,8 @@ function RegistroOperativoWizardPage() {
     const data = await parseResponse(response)
     setUiState((prev) => ({ ...prev, loadingMetricSubmit: false }))
 
-    if (data.status !== 'success') {
-      setApiError(data.message || 'No se pudieron guardar las métricas.')
+    if (!data.ok) {
+      setApiError(data.error || 'No se pudieron guardar las métricas.')
       return
     }
 
@@ -1401,6 +1415,7 @@ function RegistroOperativoWizardPage() {
           contextOptions={contextOptions}
           cohortMode={cohortMode}
           ageCohortOptions={ageCohortOptions}
+          recommendedAgeCohort={recommendedAgeCohort}
           isValid={step2Valid}
           alreadySaved={maxReachedStep >= 3}
           contextDirty={contextDirty}

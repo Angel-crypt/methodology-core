@@ -217,7 +217,8 @@ function formFromMetrica(m) {
 // ── Componente principal ─────────────────────────────────────────────────────
 
 function InstrumentoDetallePage() {
-  const { token } = useAuth()
+  const { token, role } = useAuth()
+  const canEdit = role === 'superadmin'
   const { id }       = useParams()
   const navigate     = useNavigate()
   const location     = useLocation()
@@ -256,8 +257,8 @@ function InstrumentoDetallePage() {
     setCargando(true)
     try {
       const res = await obtenerInstrumento(token, id)
-      if (res.status === 'success') setInstrumento(res.data)
-      else toast({ type: 'error', title: 'Error', message: res.message || 'No se pudo cargar el instrumento.' })
+      if (res.ok) setInstrumento(res.data)
+      else toast({ type: 'error', title: 'Error', message: res.error || 'No se pudo cargar el instrumento.' })
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
     } finally {
@@ -269,7 +270,7 @@ function InstrumentoDetallePage() {
     setCargandoMetricas(true)
     try {
       const res = await listarMetricas(token, id)
-      if (res.status === 'success') setMetricas(res.data)
+      if (res.ok) setMetricas(res.data)
     } catch {
       // silencioso — lista vacía
     } finally {
@@ -309,14 +310,14 @@ function InstrumentoDetallePage() {
     try {
       const body = { ...buildBody(formAgregar), instrument_id: id }
       const res = await crearMetrica(token, body)
-      if (res.status === 'success') {
+      if (res.ok) {
         setMetricas((prev) => [...prev, res.data])
         toast({ type: 'success', title: 'Métrica agregada', message: `"${res.data.name}" fue registrada.` })
         setModalAgregar(false)
         setFormAgregar(emptyForm())
         setErroresAgregar({})
       } else {
-        setErrorApiAgregar(res.message || 'Error al crear la métrica.')
+        setErrorApiAgregar(res.error || 'Error al crear la métrica.')
       }
     } catch {
       setErrorApiAgregar('No se pudo conectar con el servidor.')
@@ -349,12 +350,12 @@ function InstrumentoDetallePage() {
     setErrorApiEditar('')
     try {
       const res = await editarMetrica(token, metricaEditar.id, buildBody(formEditar))
-      if (res.status === 'success') {
+      if (res.ok) {
         setMetricas((prev) => prev.map((m) => (m.id === res.data.id ? res.data : m)))
         toast({ type: 'success', title: 'Métrica actualizada', message: 'Los cambios se guardaron correctamente.' })
         setModalEditar(false)
       } else {
-        setErrorApiEditar(res.message || 'Error al actualizar la métrica.')
+        setErrorApiEditar(res.error || 'Error al actualizar la métrica.')
       }
     } catch {
       setErrorApiEditar('No se pudo conectar con el servidor.')
@@ -376,12 +377,12 @@ function InstrumentoDetallePage() {
     setErrorApiEliminar('')
     try {
       const res = await eliminarMetrica(token, metricaEliminar.id)
-      if (res.status === 'success') {
+      if (res.ok) {
         setMetricas((prev) => prev.filter((m) => m.id !== metricaEliminar.id))
         toast({ type: 'success', title: 'Métrica eliminada', message: `"${metricaEliminar.name}" fue eliminada.` })
         setModalEliminar(false)
       } else {
-        setErrorApiEliminar(res.message || 'Error al eliminar la métrica.')
+        setErrorApiEliminar(res.error || 'Error al eliminar la métrica.')
       }
     } catch {
       setErrorApiEliminar('No se pudo conectar con el servidor.')
@@ -470,9 +471,11 @@ function InstrumentoDetallePage() {
         <Typography as="h2" style={{ fontSize: 'var(--font-size-h2)' }}>
           Métricas del instrumento
         </Typography>
-        <Button icon={Plus} onClick={abrirAgregar}>
-          Agregar métrica
-        </Button>
+        {canEdit && (
+          <Button icon={Plus} onClick={abrirAgregar}>
+            Agregar métrica
+          </Button>
+        )}
       </div>
 
       {/* Lista de métricas */}
@@ -482,9 +485,11 @@ function InstrumentoDetallePage() {
           title="Sin métricas definidas"
           message="Agrega al menos una métrica para que el instrumento pueda recibir registros."
           action={
-            <Button size="sm" icon={Plus} iconPosition="left" onClick={abrirAgregar}>
-              Agregar métrica
-            </Button>
+            canEdit ? (
+              <Button size="sm" icon={Plus} iconPosition="left" onClick={abrirAgregar}>
+                Agregar métrica
+              </Button>
+            ) : null
           }
         />
       ) : (
@@ -549,17 +554,19 @@ function InstrumentoDetallePage() {
                 )}
               </div>
 
-              <ActionsMenu actions={[
-                { label: 'Editar',   icon: Pencil, onClick: () => abrirEditar(metrica) },
-                { label: 'Eliminar', icon: Trash2, onClick: () => abrirEliminar(metrica), variant: 'danger' },
-              ]} />
+              {canEdit && (
+                <ActionsMenu actions={[
+                  { label: 'Editar',   icon: Pencil, onClick: () => abrirEditar(metrica) },
+                  { label: 'Eliminar', icon: Trash2, onClick: () => abrirEliminar(metrica), variant: 'danger' },
+                ]} />
+              )}
             </div>
           ))}
         </div>
       )}
 
-      {/* Modal: Agregar métrica */}
-      <Modal
+      {/* Modals solo disponibles para superadmin */}
+      {canEdit && <Modal
         open={modalAgregar}
         onClose={() => setModalAgregar(false)}
         title="Agregar métrica"
@@ -583,10 +590,9 @@ function InstrumentoDetallePage() {
             onClearError={clearErrAgregar}
           />
         </div>
-      </Modal>
+      </Modal>}
 
-      {/* Modal: Editar métrica */}
-      <Modal
+      {canEdit && <Modal
         open={modalEditar}
         onClose={() => setModalEditar(false)}
         title={metricaEditar ? `Editar — ${metricaEditar.name}` : 'Editar métrica'}
@@ -610,10 +616,9 @@ function InstrumentoDetallePage() {
             onClearError={clearErrEditar}
           />
         </div>
-      </Modal>
+      </Modal>}
 
-      {/* Modal: Confirmar eliminar */}
-      <Modal
+      {canEdit && <Modal
         open={modalEliminar}
         onClose={() => setModalEliminar(false)}
         size="sm"
@@ -637,7 +642,7 @@ function InstrumentoDetallePage() {
             Esta acción no se puede deshacer.
           </p>
         </div>
-      </Modal>
+      </Modal>}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>

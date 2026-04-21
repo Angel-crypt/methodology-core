@@ -1,10 +1,12 @@
 import PropTypes from 'prop-types'
-import { forwardRef } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { forwardRef, useState } from 'react'
+import { AlertCircle, Eye, EyeOff } from 'lucide-react'
 
 /**
  * FormField — label + input + helper/error message
- * Props: id, label, type, error, helper, required, disabled, ...inputProps
+ * Props: id, label, type, error, helper, required, disabled, reveal, ...inputProps
+ * 
+ * Si reveal=true y type="password", agrega un botón para mostrar/ocultar la contraseña.
  */
 
 const FormField = forwardRef(function FormField(
@@ -16,11 +18,16 @@ const FormField = forwardRef(function FormField(
     helper,
     required = false,
     disabled,
+    reveal = false,
     className = '',
     ...inputProps
   },
   ref
 ) {
+  const [showPassword, setShowPassword] = useState(false)
+  const showToggle = reveal && type === 'password'
+  const inputType = showToggle ? (showPassword ? 'text' : 'password') : type
+
   const helperId = helper ? `${id}-helper` : undefined
   const errorId = error ? `${id}-error` : undefined
   const describedBy = [helperId, errorId].filter(Boolean).join(' ') || undefined
@@ -48,17 +55,43 @@ const FormField = forwardRef(function FormField(
         </label>
       )}
 
-      <input
-        ref={ref}
-        id={id}
-        type={type}
-        disabled={disabled}
-        required={required}
-        aria-invalid={error ? 'true' : undefined}
-        aria-describedby={describedBy}
-        className={`input-base ${className}`}
-        {...inputProps}
-      />
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={ref}
+          id={id}
+          type={inputType}
+          disabled={disabled}
+          required={required}
+          aria-invalid={error ? 'true' : undefined}
+          aria-describedby={describedBy}
+          className={`input-base ${className}`}
+          style={showToggle ? { paddingRight: 'var(--space-9)' } : undefined}
+          {...inputProps}
+        />
+        {showToggle && (
+          <button
+            type="button"
+            aria-label={showPassword ? 'Ocultar' : 'Ver'}
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              position: 'absolute',
+              right: 'var(--space-2)',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              padding: 'var(--space-1)',
+              cursor: 'pointer',
+              color: 'var(--color-text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+      </div>
 
       {error && (
         <p
@@ -90,6 +123,7 @@ FormField.propTypes = {
   helper: PropTypes.string,
   required: PropTypes.bool,
   disabled: PropTypes.bool,
+  reveal: PropTypes.bool,
   className: PropTypes.string,
 }
 
