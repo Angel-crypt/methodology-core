@@ -99,6 +99,10 @@ export const handlers = [
     HttpResponse.json({ status: 'success', data: { _mock_magic_link: '/api/v1/auth/activate/mock-token' } })
   ),
 
+  http.get(`${API}/users/sessions`, () =>
+    HttpResponse.json({ status: 'success', data: [] })
+  ),
+
   http.get(`${API}/auth/activate/:token`, () =>
     new HttpResponse(null, { status: 302, headers: { location: '/login?activated=1' } })
   ),
