@@ -38,6 +38,14 @@ function CambiarPasswordModal({ open, onClose, onSuccess, forced = false }) {
     onClose()
   }
 
+  function validateStrength(password) {
+    if (password.length < 8) return 'Mínimo 8 caracteres.'
+    if (!/[A-Z]/.test(password)) return 'Requiere al menos una mayúscula.'
+    if (!/\d/.test(password)) return 'Requiere al menos un número.'
+    if (!/[!@#$%^&*()_+\-=[\]{}|;':",.<>?/`~\\]/.test(password)) return 'Requiere al menos un carácter especial.'
+    return null
+  }
+
   async function handleSubmit() {
     if (!form.current_password.trim() || !form.new_password.trim() || !form.confirm.trim()) {
       setError('Todos los campos son obligatorios.')
@@ -49,6 +57,11 @@ function CambiarPasswordModal({ open, onClose, onSuccess, forced = false }) {
     }
     if (form.new_password !== form.confirm) {
       setError('La nueva contraseña y su confirmación no coinciden.')
+      return
+    }
+    const strengthError = validateStrength(form.new_password)
+    if (strengthError) {
+      setError(strengthError)
       return
     }
 
@@ -122,16 +135,21 @@ function CambiarPasswordModal({ open, onClose, onSuccess, forced = false }) {
           autoComplete="current-password"
           autoFocus
         />
-        <FormField
-          id="cp-new"
-          label="Nueva contraseña"
-          type="password"
-          placeholder="••••••••"
-          required
-          value={form.new_password}
-          onChange={handleChange('new_password')}
-          autoComplete="new-password"
-        />
+        <div>
+          <FormField
+            id="cp-new"
+            label="Nueva contraseña"
+            type="password"
+            placeholder="••••••••"
+            required
+            value={form.new_password}
+            onChange={handleChange('new_password')}
+            autoComplete="new-password"
+          />
+          <p style={{ fontSize: 'var(--font-size-caption)', color: 'var(--color-text-tertiary)', marginTop: 'var(--space-1)' }}>
+            Mínimo 8 caracteres, una mayúscula, un número y un carácter especial.
+          </p>
+        </div>
         <FormField
           id="cp-confirm"
           label="Confirmar nueva contraseña"

@@ -47,33 +47,40 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(async (reason) => {
-    if (token) {
-      try {
-        await fetch('/api/v1/auth/logout', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      } catch {
-        // best effort — cierra sesión local aunque falle la revocación
-      }
+    if (!token) return
+    try {
+      await fetch('/api/v1/auth/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    } catch {
+      // best effort — cierra sesión local aunque falle la revocación
     }
     sessionStorage.removeItem('access_token')
     sessionStorage.removeItem('role')
     sessionStorage.removeItem('must_change_password')
     if (reason === 'session_revoked') {
-      sessionStorage.setItem('login_message', 'Tu sesión fue cerrada porque tu correo fue actualizado. Inicia sesión nuevamente.')
+      sessionStorage.setItem('login_message', 'Tu sesión fue cerrada porque tu correo fue actualizado. Iniciá sesión nuevamente.')
+    } else if (reason === 'session_expired') {
+      sessionStorage.setItem('login_message', 'Tu sesión expiró. Iniciá sesión nuevamente.')
     }
     setToken('')
     setRole(null)
     setMustChangePassword(false)
   }, [token])
 
-  // Escucha el evento global de sesión revocada (token_version incrementado
-  // por aprobación de cambio de correo del superadmin).
+  // Sesión revocada: correo cambiado por superadmin, token invalidado.
   useEffect(() => {
     function handleRevoked() { logout('session_revoked') }
     window.addEventListener('auth:session-revoked', handleRevoked)
     return () => window.removeEventListener('auth:session-revoked', handleRevoked)
+  }, [logout])
+
+  // Sesión expirada: cualquier 401 de endpoint autenticado (token vencido).
+  useEffect(() => {
+    function handleExpired() { logout('session_expired') }
+    window.addEventListener('auth:session-expired', handleExpired)
+    return () => window.removeEventListener('auth:session-expired', handleExpired)
   }, [logout])
 
   return (

@@ -91,8 +91,11 @@ function createSubjectHandler(projectId) {
       }
     }
 
+    const id = uuidv4();
+    const anonymous_code = id.replace(/-/g, '').slice(0, 8).toUpperCase();
     const subject = {
-      id: uuidv4(),
+      id,
+      anonymous_code,
       project_id: projectId,
       created_by: req.user.id,
       created_at: new Date(),
@@ -103,7 +106,7 @@ function createSubjectHandler(projectId) {
     return res.status(201).json({
       status: 'success',
       message: 'Sujeto registrado correctamente',
-      data: { id: subject.id, project_id: subject.project_id, created_at: subject.created_at },
+      data: { id: subject.id, anonymous_code, project_id: subject.project_id, created_at: subject.created_at },
     });
   };
 }
@@ -339,9 +342,10 @@ router.get('/applications/my', authMiddleware(APPLICATOR_ROLES), (req, res) => {
     const instrument = store.instruments.find((i) => i.id === app.instrument_id);
     const values = store.metricValues.filter((v) => v.application_id === app.id);
 
+    const subject = store.subjects.find((s) => s.id === app.subject_id);
     return {
       application_id: app.id,
-      subject_id:     app.subject_id,
+      anonymous_code: subject?.anonymous_code || app.subject_id.replace(/-/g, '').slice(0, 8).toUpperCase(),
       instrument_id:  app.instrument_id,
       instrument_name: instrument ? instrument.name : '—',
       application_date: app.application_date,

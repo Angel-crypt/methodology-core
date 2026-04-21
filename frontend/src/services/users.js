@@ -7,15 +7,9 @@
  * Todas las peticiones requieren Authorization: Bearer {token}
  */
 
-const BASE = '/api/v1/users'
+import { parseResponse } from '@/lib/api'
 
-async function parseResponse(res) {
-  try {
-    return await res.json()
-  } catch {
-    return { status: 'error', message: `Error del servidor (HTTP ${res.status})` }
-  }
-}
+const BASE = '/api/v1/users'
 
 function headers(token) {
   return {
