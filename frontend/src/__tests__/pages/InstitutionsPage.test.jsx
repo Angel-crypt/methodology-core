@@ -94,3 +94,47 @@ describe('InstitutionsPage — modal de creación', () => {
     await vi.waitFor(() => expect(posted).toBe(true))
   })
 })
+
+describe('InstitutionsPage — edición de institución (PATCH)', () => {
+  beforeEach(() => {
+    server.use(
+      http.get('/api/v1/institutions', () =>
+        HttpResponse.json({ status: 'success', data: MOCK_INSTITUTIONS })
+      )
+    )
+  })
+
+  it('abre modal de edición con datos precargados al hacer clic en Editar', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Universidad Nacional')
+    const editButtons = await screen.findAllByRole('button', { name: /editar/i })
+    await user.click(editButtons[0])
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Universidad Nacional')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('unam.mx')).toBeInTheDocument()
+  })
+
+  it('envía PATCH y cierra el modal al guardar cambios', async () => {
+    let patched = false
+    server.use(
+      http.patch('/api/v1/institutions/:id', () => {
+        patched = true
+        return HttpResponse.json({
+          status: 'success',
+          data: { id: 'inst-1', name: 'Universidad Nacional Editada', domain: 'unam.mx', created_at: '2026-01-01T00:00:00Z' },
+        })
+      })
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Universidad Nacional')
+    const editButtons = await screen.findAllByRole('button', { name: /editar/i })
+    await user.click(editButtons[0])
+    const nameInput = await screen.findByDisplayValue('Universidad Nacional')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Universidad Nacional Editada')
+    await user.click(screen.getByRole('button', { name: /guardar cambios/i }))
+    await vi.waitFor(() => expect(patched).toBe(true))
+  })
+})
