@@ -51,6 +51,24 @@ Para minimizar ambigüedad, cada conclusión relevante se interpreta con esta es
 - **Certeza media:** inferencia técnica consistente basada en múltiples evidencias internas.
 - **No determinable:** requiere artefactos no presentes.
 
+## 1.4 Limitación de inferencias: mitigación
+
+**Dependencia de inferencias:** El documento admite que no tiene acceso físico a las rutas de evolución futura (`./future/backend/auth-module`), por lo que la comparación técnica se basa en **evolución esperada inferida**.
+
+**Mitigación aplicada:**
+
+| Enfoque | Descripción |
+|---------|-------------|
+| Análisis de código actual | Examinar estado observable de backend, frontend, mock |
+| Rastreo de deuda documentada | Identificar gaps explícitos en documentación y código |
+| Comparación con roadmap | Contrastar con planeación del proyecto (SRS, tareas) |
+| Consistencia con patrones | Usar arquitectura de referencia como base de inferencia |
+
+**Lo que esto significa para el lector:**
+- Las secciones "Estado actual" tienen **certeza alta**.
+- Las secciones "Evolución esperada" tienen **certeza media** (inferencia consistente, no diff físico).
+- La evolución se infiere del código presente y la dirección arquitectónica del proyecto.
+
 ---
 
 ## 2) Vista arquitectónica integral del sistema actual
@@ -228,17 +246,23 @@ Esta arquitectura de validación opera en conjunto con la cadena Zero Trust de s
 
 ## 4.4 Criterios de Suficiencia de Datos (transición Fase 1 → Fase 2)
 
-Para declarar que la Fase 1 produce un dataset sufficientemente representativo y habilitar la Fase 2 (analítica/IA), se definen umbrales objetivos:
+Para declarar que la Fase 1 produce un dataset suficientemente representativo y habilitar la Fase 2 (analítica/IA), se definen umbrales objetivos con fundamentación estadística y metodológica:
 
-| Criterio | Umbral mínimo | Fundamento |
-|---------|--------------|------------|
-| Volumen de registros | ≥ 500 aplicaciones únicas | Suficiente para análisis exploratorio básico |
-| Diversidad de instrumentos | ≥ 3 instrumentos activos | Variabilidad metodológica representativa |
-| Cobertura temporal | ≥ 3 meses de operación | Estabilidad temporal y detección de patrones estacionales |
-| Diversidad de proyectos | ≥ 2 proyectos con datos | Generalización entre contextos |
-| Usuarios activos | ≥ 5 aplicadores registrados | Variabilidad de actor |
+| Criterio | Umbral mínimo | Fundamento Estadístico/Metodológico |
+|---------|--------------|-----------------------------------|
+| Volumen de registros | ≥ 500 aplicaciones únicas | Suficiente para EDA (Análisis Exploratorio de Datos) y muestreo representativo. n>30-100 cumple ley de grandes números; AWS usa hasta 200k para prototipos. Evita submuestreo que impide detectar diferencias. |
+| Diversidad de instrumentos | ≥ 3 instrumentos activos | Garantiza variabilidad (evita sesgos por homogeneidad); diversidad > cantidad para generalización en IA. |
+| Cobertura temporal | ≥ 3 meses de operación | Captura patrones estacionales (1 ciclo completo para series mensuales); se recomienda ≥1 ciclo para ajuste estacional. |
+| Diversidad de proyectos | ≥ 2 proyectos con datos | Permite generalización contextual (mínimo para comparación cross-domain, como en muestreo estratificado). |
+| Usuarios activos | ≥ 5 aplicadores registrados | Representa variabilidad de actors (mínimo para análisis de fuentes; estadística descriptiva viable con n=5-10). |
 
-Estos criterios son **objetivos y verificables** en el sistema. La transición Fase 1 → Fase 2 requiere evidencia documental de cumplimiento.
+**Base metodológica:**
+- **Teorema central del límite:** n≥30 para normalidad aproximada.
+- **Guías de IA:** diversidad y temporalidad > volumen puro para datasets iniciales.
+- **Balanceo:** Para IA, ≥1000 por categoría es ideal; ≥500 totales habilita prototipos con verificación de balanceo.
+- **Verificabilidad:** Cada criterio se documenta mediante queries SQL para transición auditable.
+
+Estos umbrales son **objetivos, verificables y escalables**. La transición Fase 1 → Fase 2 requiere evidencia documental de cumplimiento.
 
 ## 4.5 Marco legal y cumplimiento
 
