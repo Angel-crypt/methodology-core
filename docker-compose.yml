@@ -1,12 +1,23 @@
 services:
 
+  # ── Mock server ──────────────────────────────────────────────────────────────
   mock:
     build:
       context: ./mock
+    env_file:
+      - ./mock/.env
     ports:
       - "3000:3000"
     environment:
       PORT: "3000"
+      SUPERADMIN_EMAIL:    "super@methodology.local"
+      SUPERADMIN_PASSWORD: "cambiar-pronto"
+      JWT_SECRET:          "dev-secret-local"
+      # Keycloak OIDC — dejar vacío para usar el Mock SSO (simulado)
+      KEYCLOAK_ISSUER:         "http://keycloak:8080/realms/sctda"
+      KEYCLOAK_PUBLIC_URL:     "http://localhost:8180/realms/sctda"
+      KEYCLOAK_CLIENT_ID:      "sctda-mock"
+      KEYCLOAK_CLIENT_SECRET:  "mock-secret-dev"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
       interval: 10s
@@ -14,6 +25,7 @@ services:
       retries: 5
       start_period: 5s
 
+  # ── Frontend ─────────────────────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
@@ -24,6 +36,25 @@ services:
     depends_on:
       mock:
         condition: service_healthy
+
+  # ── Keycloak (OIDC real) ─────────────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: start-dev --import-realm
+    profiles: ["keycloak"]
+    environment:
+      KEYCLOAK_ADMIN:          admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    volumes:
+      - ./deploy/keycloak/realm-sctda.json:/opt/keycloak/data/import/realm-sctda.json:ro
+    ports:
+      - "8180:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 45s
 
 networks:
   default:
