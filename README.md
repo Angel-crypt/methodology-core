@@ -1,153 +1,168 @@
-# Sistema de Registro de Metricas Linguisticas
+# Sistema de Registro Metodológico de Métricas Lingüísticas
 
 [![Tests](https://github.com/Angel-crypt/methodology-core/actions/workflows/test.yml/badge.svg?branch=dev)](https://github.com/Angel-crypt/methodology-core/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 ![JavaScript](https://img.shields.io/badge/-JavaScript_ES2020+-F7DF1E?style=flat&logo=javascript&logoColor=white)
 ![Python](https://img.shields.io/badge/-Python_3.11+-3776AB?style=flat&logo=python&logoColor=white)
 
-Herramienta academica para registrar metricas linguisticas de forma estructurada, trazable y anonima.
+Herramienta académica para registrar métricas lingüísticas de forma estructurada, trazable y anónima, orientada a estudios de investigación metodológica y desarrollo lingüístico.
 
-## Inventario y estado del proyecto
+## Tabla de contenidos
 
-Ver [`docs/INVENTARIO.md`](docs/INVENTARIO.md) para una descripción completa de qué existe,
-qué está implementado, todos los endpoints, páginas y componentes.
+- [Descripción](#descripción)
+- [Características](#características)
+- [Datos y privacidad](#datos-y-privacidad)
+- [Arquitectura](#arquitectura)
+- [Inicio rápido](#inicio-rápido)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Estado actual](#estado-actual)
+- [Documentación](#documentación)
+- [Contribuciones](#contribuciones)
+- [Licencia](#licencia)
 
-## Desarrollo por componente
+## Descripción
 
-- Backend: `backend/README.md`
-- Frontend: `frontend/README.md`
-- Mock server: `mock/README.md`
+Este sistema centraliza el registro de evaluaciones lingüísticas para evitar dispersión de datos, mejorar la trazabilidad de cada aplicación y facilitar la generación de datasets consistentes para análisis posteriores.
 
-Tambien puedes usar `Makefile` para desarrollo local sin k3s:
+El proyecto está diseñado para:
 
-```bash
-make help
-make backend-dev
-make frontend-dev
-make mock-dev
-```
+- Registrar aplicaciones de instrumentos lingüísticos de forma estructurada.
+- Mantener trazabilidad de usuario, fecha, instrumento y métricas.
+- Proteger la identidad de los sujetos mediante identificadores anónimos.
+- Permitir consulta y exportación de datos para investigación.
 
-## Clonar
+## Características
+
+- Gestión de proyectos e instrumentos metodológicos.
+- Registro operativo de sujetos y evaluaciones.
+- Control de acceso por roles.
+- Generación de datasets anonimizados.
+- Trazabilidad y auditoría de acciones relevantes.
+
+## Datos y privacidad
+
+El sistema diferencia entre usuarios operativos e información de sujetos de estudio.
+
+- **Usuarios operativos:** correo institucional, rol, estado de cuenta y registros de sesión/auditoría.
+- **Sujetos de estudio:** identificador UUID y datos contextuales genéricos necesarios para fines metodológicos.
+- **No se almacenan datos personales directos** de los sujetos de estudio.
+- Se aplica minimización de datos y anonimización conforme a la LFPDPPP.
+
+Para detalles normativos y operativos, consulta el Aviso de Privacidad y la documentación legal del proyecto.
+
+## Arquitectura
+
+| Componente | Tecnología |
+|-----------|------------|
+| Frontend | React 18 + Vite |
+| Backend | Node.js + Express |
+| Mock server | Node.js + Express |
+| Despliegue | k3s + Ansible |
+| Testing | Vitest, Jest |
+
+### Roles principales
+
+| Rol | Descripción |
+|-----|-------------|
+| `superadmin` | Administración general del sistema |
+| `researcher` | Consulta y exportación de datos anonimizados |
+| `applicator` | Registro operativo de sujetos y evaluaciones |
+
+## Inicio rápido
+
+### Requisitos
+
+- Node.js 20+
+- Python 3.11+
+- `make`
+- `kubectl`, `k3s`, `ansible` (solo para despliegue)
+
+### Clonar el repositorio
 
 ```bash
 git clone https://github.com/Angel-crypt/methodology-core.git
 cd methodology-core
+make help
 ```
 
-## Requisitos del sistema
-
-Para despliegue con k3s y automatizacion con Ansible necesitas:
-
-- `make`
-- `kubectl`
-- `k3s`
-- `ansible`
-
-Verifica instalacion:
+### Desarrollo local
 
 ```bash
-make --version
-kubectl version --client
-ansible --version
-k3s --version
+make backend-install
+make backend-dev
+
+mkae frontend-install
+make frontend-dev
+
+make mocke-install
+make mock-dev
 ```
 
-### Linux (Ubuntu/Debian)
+### Tests
 
 ```bash
-sudo apt update
-sudo apt install -y make curl ca-certificates
-curl -sfL https://get.k3s.io | sh -
-sudo apt install -y ansible
+cd frontend && npm install && npm test
+cd ../mock && npm install && npm test
 ```
 
-`kubectl` queda disponible con k3s en `/usr/local/bin/kubectl`.
-
-### macOS
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-brew install make ansible kubectl
-curl -sfL https://get.k3s.io | sh -
-```
-
-Si prefieres no instalar k3s local en macOS, puedes usar un cluster remoto y solo instalar `kubectl` + `ansible`.
-
-### Windows
-
-Recomendado: usar WSL2 (Ubuntu) para ejecutar `k3s`, `ansible` y `make`.
-
-Pasos generales:
-
-1. Instalar WSL2 y Ubuntu.
-2. Abrir terminal Ubuntu y ejecutar los comandos de la seccion Linux.
-
-Si solo operaras un cluster remoto, instala en Windows:
-
-- `kubectl`
-- `ansible` (desde WSL)
-- `make` (por ejemplo con Chocolatey: `choco install make`)
-
-## Despliegue local (k3s)
-
-Antes de desplegar, construye e importa imagenes al runtime de k3s:
-
-```bash
-docker build -t methodology-frontend:latest ./frontend
-docker build -t methodology-backend:latest ./backend
-docker build -t methodology-mock:latest ./mock
-
-docker save methodology-frontend:latest | sudo k3s ctr images import -
-docker save methodology-backend:latest | sudo k3s ctr images import -
-docker save methodology-mock:latest | sudo k3s ctr images import -
-```
-
-Primero crea namespace y secret (desde variables de entorno):
-
-```bash
-export db_primary_password='...'
-export db_replica_password='...'
-export db_keycloak_user='...'
-export db_keycloak_password='...'
-export master_encryption_key='...'
-export jwt_secret_key='...'
-export keycloak_admin_user='...'
-export keycloak_admin_password='...'
-export keycloak_client_secret='...'
-export redis_password='...'
-make k3s-secret-from-env
-```
-
-Tambien puedes ver ayuda del script:
-
-```bash
-./scripts/create-k8s-secret.sh --help
-```
-
-Luego aplica modo mock:
+### Despliegue con k3s
 
 ```bash
 make k3s-deploy-mock
-```
-
-## Despliegue real (k3s)
-
-```bash
 make k3s-deploy-real
 ```
 
-## Ver estado y limpieza
+## Estructura del proyecto
 
-```bash
-make k3s-status
-make k3s-delete
+```text
+methodology-core/
+├── frontend/      # Aplicación React
+├── backend/       # API Python
+├── mock/          # Servidor mock para pruebas
+├── ansible/       # Playbooks de despliegue
+├── docs/          # Documentación técnica y funcional
+├── scripts/       # Scripts auxiliares
+└── Makefile       # Comandos de desarrollo
 ```
 
-## Despliegue automatizado (1 maquina o cluster)
+## Estado actual
 
-Usa `ansible/README.md` para instalacion k3s, secrets y despliegue homogeneo.
+### Operativo
 
-## Seguridad
+- Autenticación
+- Gestión de instrumentos
+- Definición de métricas
+- Registro operativo
+- Documentación legal base
 
-Credenciales y llaves se inyectan como Kubernetes Secrets.
-No se usa `.env` para secretos de despliegue.
+### En progreso
+
+- Consulta interna
+- Exportación estructurada
+
+## Contribuciones
+
+Proyecto académico en desarrollo.
+
+1. Revisa `docs/contributing/commit_conventions.md`.
+2. Abre un issue antes de cambios mayores.
+3. Ejecuta lint y tests antes de enviar un PR.
+
+### Convención de commits
+
+```bash
+feat: agregar módulo de exportación
+fix: corregir redirección en sesión expirada
+docs: actualizar README
+test: agregar tests para autenticación
+```
+
+## Licencia
+
+MIT License © 2026 Equipo de Registro Metodológico de Métricas Lingüísticas
+
+Consulta el archivo [LICENSE](LICENSE) para más detalles.
+
+## Contacto
+
+Para dudas o soporte, contacta al administrador del sistema.
