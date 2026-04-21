@@ -356,6 +356,10 @@ export const handlers = [
     HttpResponse.json({ status: 'success', data: { id: 'inst-1', name: 'test', domain: null, created_at: new Date().toISOString() } }, { status: 201 })
   ),
 
+  http.patch(`${API}/institutions/:id`, () =>
+    HttpResponse.json({ status: 'success', data: { id: 'inst-1', name: 'Editado', domain: 'editado.edu', created_at: new Date().toISOString() } })
+  ),
+
   http.get(`${API}/institutions/resolve`, () =>
     HttpResponse.json({ status: 'success', data: null })
   ),
