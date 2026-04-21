@@ -45,7 +45,7 @@ make k3s-deploy-mock   # despliegue en k3s con overlay mock
 
 ## Endpoints
 
-Ver `docs/INVENTARIO.md` §5 para la lista completa y actualizada de todos los endpoints.
+Ver `docs/INVENTARIO.md` 5 para la lista completa y actualizada de todos los endpoints.
 
 ### Resumen rápido
 
