@@ -243,15 +243,72 @@ El esfuerzo principal **no es técnico sino de estandarización de proceso**. Pa
 
 Para declarar que la Fase 1 produce un dataset representativo y habilitar Fase 2 (analítica/IA):
 
-| Criterio | Umbral mínimo | Fundamento |
-|---------|--------------|------------|
-| Volumen de registros | ≥ 500 aplicaciones únicas | Suficiente para análisis exploratorio básico |
-| Diversidad de instrumentos | ≥ 3 instrumentos activos | Variabilidad metodológica |
-| Cobertura temporal | ≥ 3 meses de operación | Estabilidad temporal |
-| Diversidad de proyectos | ≥ 2 proyectos con datos | Generalización entre contextos |
-| Usuarios activos | ≥ 5 aplicadores registrados | Variabilidad de actor |
+| Criterio | Umbral mínimo | Fundamento Estadístico/Metodológico |
+|---------|--------------|-----------------------------------|
+| Volumen de registros | ≥ 500 aplicaciones únicas | Suficiente para EDA y muestreo representativo. n>30-100 cumple ley de grandes números. |
+| Diversidad de instrumentos | ≥ 3 instrumentos activos | Garantiza variabilidad; evita sesgos por homogeneidad para generalización en IA. |
+| Cobertura temporal | ≥ 3 meses de operación | Captura patrones estacionales (1 ciclo completo). |
+| Diversidad de proyectos | ≥ 2 proyectos con datos | Generalización contextual cross-domain. |
+| Usuarios activos | ≥ 5 aplicadores registrados | Variabilidad de actor; descriptiva viable con n=5-10. |
 
-Estos criterios son **objetivos y verificables** en el sistema. La transición requiere evidencia documental de cumplimiento.
+Estos criterios son **objetivos, verificables y escalables**. La transición requiere evidencia documental de cumplimiento (queries SQL auditables).
+
+---
+
+## 9.5) Perspectiva UX: Wizard Multi-Paso y Prevención de Fatiga
+
+El wizard de registro operativo (M4) está diseñado para minimizar la carga cognitiva del aplicador:
+
+**Mecanismos de reducción de fatiga:**
+
+| Mecanismo | Descripción | Objetivo |
+|-----------|-------------|----------|
+| Pasos dividos | Registro en 4 pasos: proyecto, sujeto, contexto, métricas | Evita carga mental excesiva en un solo formulario |
+| Validación inline | Validación en tiempo real por campo | Previene errores antes de enviar |
+| Contexto persistente | El proyecto se selecciona una vez | Reduce repeticiones innecesarias |
+| Estados de progreso | Indicadores visuales de avance | Reduce ansiedad de "no saber cuánto falta" |
+
+**Prevención de GIGO por UX:**
+
+- Cada paso muestra únicamente los campos relevantes al contexto.
+- Métricas preconfiguradas según instrumento seleccionado.
+- Campos obligatorios vs opcionales según definición del instrumento.
+
+**Riesgo identificado:** aplicadores en entornos escolares pueden registrar múltiples sesiones consecutivas. El diseño debe soportar pausas y retomar sin pérdida de datos (estados intermedios).
+
+---
+
+## 9.6) Marco Ético Preliminar: Recolección Responsable de Datos
+
+Dado que el objetivo final es IA, se establece desde ahora un marco ético que previene los sesgos mencionados en la crisis lingüística post-pandemia.
+
+**Principios de equidad desde la captura:**
+
+| Principio | Aplicación |
+|---------|-----------|
+| **Representatividad geográfica** | Captura distribuida en múltiples estados/regiones de México (no solo CDMX). |
+| **Representatividad socioeconómica** | Inclusión de contextos urbanos, suburbanos y rurales. |
+| **Representatividade de nivel socioeconómico** | Datos de contexto: tipo de escuela, nivel SES estimado. |
+| **No discriminación algorítmica** | El dataset debe ser auditable por grupo demográfico antes de modelado. |
+| **Transparencia de sesgo** | Documentar y reportar sesgos detectados en el dataset. |
+
+**Criterios de diversificación para Fase 1 → Fase 2:**
+
+| Criterio | Umbral mínimo | Justificación |
+|---------|--------------|---------------|
+| Estados representados | ≥ 5 estados diferentes | Diversidad geográfica del país |
+| Tipos de escuela | ≥ 2 (pública/privada) | Variabilidad de recursos |
+| Niveles educativos | ≥ 2 (preescolar/primaria) | Rango de desarrollo lingüístico |
+
+**Nota:** Estos criterios son complementarios a los de suficiencia de datos. Un dataset representativo requiere tanto volumen como diversidad.
+
+**Marco de gobernanza de sesgos:**
+
+1. **Auditoría pre-modelado:** análisis exploratorio por variables demográficas antes de entrenar modelos.
+2. **Umbrales de equidad:** métricas de disparidad de rendimiento entre grupos (antes de declarar listo para producción).
+3. **Monitoreo continuo:** métricas de fairness en producción si se despliega IA.
+
+*(Los detalles técnicos de implementación están en arquitectura.md y decisiones-tecnicas.md)*
 
 ### Fase 2 (Evolución)
 - Dataset suficiente y validado para modelado (cumple criterios de suficiencia).
