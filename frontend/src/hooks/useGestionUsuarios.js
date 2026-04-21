@@ -3,6 +3,7 @@ import { useToast } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
 import { listarUsuarios, crearUsuario, cambiarEstadoUsuario, resetearPassword, listarTodasLasSesiones } from '@/services/users'
 import { aprobarCambioCorreo } from '@/services/emailChangeRequests'
+import { APP_LOCALE } from '@/constants/locale'
 
 export const FILTROS_ESTADO = [
   { value: '', label: 'Todos' },
@@ -14,7 +15,7 @@ export const FORM_INICIAL = { full_name: '', email: '', institution: '' }
 
 export function formatFecha(iso) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('es-CO', {
+  return new Date(iso).toLocaleDateString(APP_LOCALE, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -32,7 +33,7 @@ export function formatFecha(iso) {
  */
 export function getUserStatus(user) {
   if (!user.active) return 'disabled'
-  if (user.must_change_password) return 'pending'
+  if (user.must_change_password) return 'pending_activation'
   return 'active'
 }
 
@@ -119,14 +120,14 @@ export function useGestionUsuarios({ role, labelSingular }) {
         listarTodasLasSesiones(token),
       ])
 
-      if (data.status === 'success') {
-        setUsuarios(data.data)
+      if (data.ok) {
+        setUsuarios(data.data ?? [])
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo cargar la lista.' })
+        toast({ type: 'error', title: 'Error', message: data.error || 'No se pudo cargar la lista.' })
       }
 
-      if (sesionesData.status === 'success') {
-        setUsuariosConSesion(new Set(sesionesData.data.map((s) => s.user_id)))
+      if (sesionesData.ok) {
+        setUsuariosConSesion(new Set((sesionesData.data ?? []).map((s) => s.user_id)))
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -161,11 +162,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
         const json = await res.json()
         const detected = json.data?.institution ?? null
         setInstitutionDetected(detected)
-        if (!detected) {
-          // Institution no registrada en el sistema — error de dominio
-          const domain = email.split('@')[1]
-          setEmailDomainError(`El dominio "${domain}" no está registrado. Solicita registro ante el administrador.`)
-        }
+        // Detection is informational only — no error if domain not registered
         if (detected && !formCrear.institution) {
           setFormCrear((prev) => ({ ...prev, institution: detected }))
         }
@@ -207,10 +204,9 @@ export function useGestionUsuarios({ role, labelSingular }) {
       }
       if (formCrear.institution.trim()) payload.institution = formCrear.institution.trim()
       const data = await crearUsuario(token, payload)
-      if (data.status === 'success') {
+      if (data.ok) {
         setModalCrear(false)
         setFormCrear(FORM_INICIAL)
-        // Mostrar magic link al admin una sola vez (TTL 24h, single-use)
         setCredencialesNuevas({
           email: data.data.email,
           magicLink: data.data._mock_magic_link,
@@ -219,7 +215,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
         setModalCredenciales(true)
         cargarUsuarios()
       } else {
-        setErrorApiCrear(data.message || `No se pudo crear el ${labelSingular}.`)
+        setErrorApiCrear(data.error || `No se pudo crear el ${labelSingular}.`)
       }
     } catch {
       setErrorApiCrear('Error de conexión. Intenta nuevamente.')
@@ -253,7 +249,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
     const nuevoEstado = !usuarioSeleccionado.active
     try {
       const data = await cambiarEstadoUsuario(token, usuarioSeleccionado.id, nuevoEstado)
-      if (data.status === 'success') {
+      if (data.ok) {
         setModalEstado(false)
         const accion = nuevoEstado ? 'activado' : 'desactivado'
         toast({
@@ -263,7 +259,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
         })
         cargarUsuarios()
       } else {
-        setErrorApiEstado(data.message || 'No se pudo cambiar el estado.')
+        setErrorApiEstado(data.error || 'No se pudo cambiar el estado.')
       }
     } catch {
       setErrorApiEstado('Error de conexión. Intenta nuevamente.')
@@ -277,8 +273,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
     setGuardandoReset(true)
     try {
       const data = await resetearPassword(token, usuario.id)
-      if (data.status === 'success') {
-        // Mostrar magic link al admin (TTL 24h, single-use)
+      if (data.ok) {
         setCredencialesNuevas({
           email: usuario.email,
           magicLink: data.data._mock_magic_link,
@@ -287,7 +282,7 @@ export function useGestionUsuarios({ role, labelSingular }) {
         setModalCredenciales(true)
         cargarUsuarios()
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo restablecer la contraseña.' })
+        toast({ type: 'error', title: 'Error', message: data.error || 'No se pudo restablecer la contraseña.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -312,12 +307,12 @@ export function useGestionUsuarios({ role, labelSingular }) {
     setErrorCambioCorreo('')
     try {
       const data = await aprobarCambioCorreo(token, usuarioSeleccionado.id, email)
-      if (data.status === 'success') {
+      if (data.ok) {
         setModalCambiarCorreo(false)
         toast({ type: 'success', title: 'Correo actualizado', message: 'El correo fue actualizado. El usuario fue desconectado.' })
         cargarUsuarios()
       } else {
-        setErrorCambioCorreo(data.message || 'No se pudo actualizar el correo.')
+        setErrorCambioCorreo(data.error || 'No se pudo actualizar el correo.')
       }
     } catch {
       setErrorCambioCorreo('Error de conexión. Intenta nuevamente.')
