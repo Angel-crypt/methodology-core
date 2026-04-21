@@ -308,7 +308,7 @@ Dado que el objetivo final es IA, se establece desde ahora un marco ético que p
 2. **Umbrales de equidad:** métricas de disparidad de rendimiento entre grupos (antes de declarar listo para producción).
 3. **Monitoreo continuo:** métricas de fairness en producción si se despliega IA.
 
-*(Los detalles técnicos de implementación están en arquitectura.md y decisiones-tecnicas.md)*
+*(Los detalles técnicos de implementación están en arquitectura.md, decisiones-tecnicas.md y diagrama-sistema.md)*
 
 ### Fase 2 (Evolución)
 - Dataset suficiente y validado para modelado (cumple criterios de suficiencia).
