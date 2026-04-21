@@ -18,6 +18,8 @@ import { ChevronLeft, Copy, Monitor, FolderOpen, ExternalLink, Trash2 } from 'lu
 import {
   Button,
   Alert,
+  Modal,
+  FormField,
   RoleBadge,
   StatusBadge,
   Typography,
@@ -30,6 +32,7 @@ import {
   cambiarEstadoUsuario,
   resetearPassword,
 } from '@/services/users'
+import { aprobarCambioCorreo } from '@/services/emailChangeRequests'
 import { formatFecha, getUserStatus } from '@/hooks/useGestionUsuarios'
 import CredencialesModal from '@/pages/CredencialesModal'
 
@@ -61,6 +64,11 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
   const [guardandoReset,    setGuardandoReset]    = useState(false)
   const [modalCredenciales,  setModalCredenciales]  = useState(false)
   const [credencialesNuevas, setCredencialesNuevas] = useState(null)
+
+  const [modalCambiarCorreo,   setModalCambiarCorreo]   = useState(false)
+  const [nuevoCorreo,          setNuevoCorreo]          = useState('')
+  const [errorCambioCorreo,    setErrorCambioCorreo]    = useState('')
+  const [guardandoCambioCorreo, setGuardandoCambioCorreo] = useState(false)
 
   useEffect(() => {
     if (usuario) return
@@ -139,22 +147,43 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
     }
   }
 
-  async function handleResetearPassword() {
+  async function handleReenviarActivacion() {
     if (!usuario) return
     setGuardandoReset(true)
     try {
       const data = await resetearPassword(token, id)
       if (data.status === 'success') {
-        const setupToken = data.data?._mock_setup_token
-        setCredencialesNuevas({ email: usuario.email, setupToken, nombreUsuario: usuario.full_name })
+        setCredencialesNuevas({ email: usuario.email, magicLink: data.data?._mock_magic_link, nombreUsuario: usuario.full_name })
         setModalCredenciales(true)
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo restablecer la contraseña.' })
+        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo generar el enlace.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
     } finally {
       setGuardandoReset(false)
+    }
+  }
+
+  async function handleGuardarCambiarCorreo() {
+    const email = nuevoCorreo.trim()
+    if (!email) { setErrorCambioCorreo('El correo es obligatorio.'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setErrorCambioCorreo('Formato de correo inválido.'); return }
+    setGuardandoCambioCorreo(true)
+    setErrorCambioCorreo('')
+    try {
+      const data = await aprobarCambioCorreo(token, id, email)
+      if (data.status === 'success') {
+        setModalCambiarCorreo(false)
+        setUsuario((prev) => ({ ...prev, email }))
+        toast({ type: 'success', title: 'Correo actualizado', message: 'El correo fue actualizado. El usuario fue desconectado.' })
+      } else {
+        setErrorCambioCorreo(data.message || 'No se pudo actualizar el correo.')
+      }
+    } catch {
+      setErrorCambioCorreo('Error de conexión. Intenta nuevamente.')
+    } finally {
+      setGuardandoCambioCorreo(false)
     }
   }
 
@@ -309,13 +338,21 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
             Gestión de credenciales y estado de la cuenta.
           </Typography>
           <div style={{ flex: 1 }} />
-          <Button
-            variant="secondary"
-            loading={guardandoReset}
-            onClick={handleResetearPassword}
-          >
-            {status === 'pending' ? 'Regenerar contraseña' : 'Restablecer contraseña'}
-          </Button>
+          {status === 'pending_activation' && (
+            <Button variant="secondary" loading={guardandoReset} onClick={handleReenviarActivacion}>
+              Reenviar activación
+            </Button>
+          )}
+          {(status === 'active' || status === 'disabled') && usuario.role !== 'superadmin' && (
+            <Button variant="secondary" onClick={() => { setNuevoCorreo(''); setErrorCambioCorreo(''); setModalCambiarCorreo(true) }}>
+              Cambiar correo
+            </Button>
+          )}
+          {status === 'pending' && (
+            <Button variant="secondary" loading={guardandoReset} onClick={handleReenviarActivacion}>
+              Regenerar contraseña
+            </Button>
+          )}
           <Button
             variant={usuario.active ? 'danger' : 'primary'}
             loading={guardandoEstado}
@@ -414,10 +451,36 @@ function DetalleUsuarioPage({ backTo = '/usuarios/aplicadores', backLabel = 'Apl
           open={modalCredenciales}
           onClose={() => setModalCredenciales(false)}
           email={credencialesNuevas.email}
-          setupToken={credencialesNuevas.setupToken}
+          magicLink={credencialesNuevas.magicLink}
           nombreUsuario={credencialesNuevas.nombreUsuario}
         />
       )}
+
+      <Modal
+        open={modalCambiarCorreo}
+        onClose={() => setModalCambiarCorreo(false)}
+        title="Cambiar correo electrónico"
+        size="sm"
+        footer={
+          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+            <Button variant="ghost" onClick={() => setModalCambiarCorreo(false)} disabled={guardandoCambioCorreo}>Cancelar</Button>
+            <Button onClick={handleGuardarCambiarCorreo} loading={guardandoCambioCorreo}>Guardar</Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          {errorCambioCorreo && <Alert variant="error">{errorCambioCorreo}</Alert>}
+          <FormField
+            id="detalle-cambiar-correo"
+            label="Nuevo correo electrónico"
+            type="email"
+            placeholder="nuevo@institución.edu"
+            required
+            value={nuevoCorreo}
+            onChange={(e) => setNuevoCorreo(e.target.value)}
+          />
+        </div>
+      </Modal>
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
