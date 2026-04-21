@@ -26,6 +26,7 @@ export async function listarAplicaciones(token, params = {}) {
   const query = new URLSearchParams()
   if (params.page)          query.set('page',          String(params.page))
   if (params.page_size)     query.set('page_size',     String(params.page_size))
+  if (params.project_id)    query.set('project_id',    params.project_id)
   if (params.instrument_id) query.set('instrument_id', params.instrument_id)
   if (params.start_date)    query.set('start_date',    params.start_date)
   if (params.end_date)      query.set('end_date',      params.end_date)

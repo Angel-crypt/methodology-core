@@ -12,6 +12,7 @@ function headers(token) {
 
 function buildParams(params = {}) {
   const q = new URLSearchParams()
+  if (params.project_id)    q.set('project_id',    params.project_id)
   if (params.instrument_id) q.set('instrument_id', params.instrument_id)
   if (params.start_date)    q.set('start_date',    params.start_date)
   if (params.end_date)      q.set('end_date',      params.end_date)
