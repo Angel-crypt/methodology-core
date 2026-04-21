@@ -1,0 +1,23 @@
+MIT License
+
+Copyright (c) 2026 Equipo de Registro Metodológico de Métricas Lingüísticas
+
+Copyright (c) 2026 Equipo de Registro Metodológico de Métricas Lingüísticas.
+Todos los derechos reservados. Este software es de uso académico interno.
+Queda prohibida su reproducción, distribución o uso sin autorización expresa.
+
+incluyendo sin limitación los derechos
+de usar, copiar, modificar, fusionar, publicar, distribuir, sublicenciar y/o
+vender copias del Software, y para permitir a las personas a quienes se les
+proporcione el Software que lo hagan, sujeto a las siguientes condiciones:
+
+El aviso de copyright anterior y este aviso de permiso deberán incluirse en
+todas las copias o partes sustanciales del Software.
+
+EL SOFTWARE SE PROPORCIONA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA O
+IMPLÍCITA, INCLUYENDO PERO NO LIMITADO A LAS GARANTÍAS DE COMERCIABILIDAD,
+IDONEIDAD PARA UN PROPÓSITO PARTICULAR Y NO INFRACCIÓN. EN NINGÚN CASO LOS
+AUTORES O TITULARES DE LOS DERECHOS DE AUTOR SERÁN RESPONSABLES DE NINGUNA
+RECLAMACIÓN, DAÑO U OTRA RESPONSABILIDAD, YA SEA EN UNA ACCIÓN CONTRACTUAL,
+EXTRACONTRACTUAL O DE OTRO MODO, QUE SURJA DE, FUERA O EN CONEXIÓN CON EL
+SOFTWARE O EL USO U OTROS TRATOS EN EL SOFTWARE.

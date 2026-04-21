@@ -11,7 +11,7 @@
     para todos los Aplicadores.
 
   Relacionado:
-    - SRS_General_v1.0.md §3.5 — Configuración Global del Registro Operativo
+    - SRS_General_v1.0.md 3.5 — Configuración Global del Registro Operativo
     - MockContract_M1_Autenticacion_v2.xml — permisos granulares por aplicador
     - MockContract_M4_RegistroOperativo_v1.xml — wizard que consume esta config
     - mock/src/routes/config.js — implementación
@@ -190,9 +190,9 @@
        TRAZABILIDAD
   ═══════════════════════════════════════════════════════════ -->
   <traceability>
-    <entry desc="RF-CFG-01 — Obtener configuración operativa" endpoint="GET /api/v1/config/operativo"  db="store.registroConfig" risk="Bajo" srs="SRS_General §3.5"/>
-    <entry desc="RF-CFG-02 — Actualizar configuración operativa" endpoint="PUT /api/v1/config/operativo" db="store.registroConfig" risk="Medio" srs="SRS_General §3.5"/>
-    <entry desc="Relación con permisos granulares" endpoint="GET/PUT /api/v1/users/:id/permissions" db="store.userPermissions" risk="Medio" srs="SRS_General §3.4" contract="MockContract_M1_Autenticacion_v2.xml v2.3"/>
+    <entry desc="RF-CFG-01 — Obtener configuración operativa" endpoint="GET /api/v1/config/operativo"  db="store.registroConfig" risk="Bajo" srs="SRS_General 3.5"/>
+    <entry desc="RF-CFG-02 — Actualizar configuración operativa" endpoint="PUT /api/v1/config/operativo" db="store.registroConfig" risk="Medio" srs="SRS_General 3.5"/>
+    <entry desc="Relación con permisos granulares" endpoint="GET/PUT /api/v1/users/:id/permissions" db="store.userPermissions" risk="Medio" srs="SRS_General 3.4" contract="MockContract_M1_Autenticacion_v2.xml v2.3"/>
     <entry desc="Consumidor de configuración — wizard" endpoint="Registro Operativo wizard (M4)" db="store.registroConfig (read-only)" risk="Bajo" contract="MockContract_M4_RegistroOperativo_v1.xml"/>
   </traceability>
 

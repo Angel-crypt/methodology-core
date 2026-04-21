@@ -65,7 +65,8 @@ function authMiddleware(roles = [], { allowPending = false } = {}) {
     }
 
     // (3) Usuario existe y está activo
-    const user = store.users.find((u) => u.id === payload.sub);
+    const userId = payload.sub || payload.user_id || payload.userId;
+    const user = store.users.find((u) => u.id === userId);
     if (!user || !user.active) {
       return res.status(401).json({ status: 'error', message: 'No autorizado', data: null });
     }
@@ -80,7 +81,7 @@ function authMiddleware(roles = [], { allowPending = false } = {}) {
     }
 
     req.user = {
-      id: payload.sub,
+      id: userId,
       role: payload.role,
       jti: payload.jti,
       exp: payload.exp,

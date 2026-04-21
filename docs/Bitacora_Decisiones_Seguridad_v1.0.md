@@ -40,24 +40,24 @@ El sistema emite un token JWT de sesión única con tiempo de vida de **6 horas*
 
 **Sobre la eliminación del refresh token:**
 
-NIST SP 800-63B §7.1 establece que la complejidad de los mecanismos de sesión debe ser proporcional al nivel de aseguramiento requerido (AAL). El doble token con rotación introduce una superficie de ataque adicional: el refresh token es un secreto persistente de larga vida que, si se compromete, permite generar access tokens indefinidamente. RFC 6819 §4.1.2 documenta que el refresh token representa un riesgo de seguridad mayor que el access token precisamente por su mayor duración.
+NIST SP 800-63B 7.1 establece que la complejidad de los mecanismos de sesión debe ser proporcional al nivel de aseguramiento requerido (AAL). El doble token con rotación introduce una superficie de ataque adicional: el refresh token es un secreto persistente de larga vida que, si se compromete, permite generar access tokens indefinidamente. RFC 6819 4.1.2 documenta que el refresh token representa un riesgo de seguridad mayor que el access token precisamente por su mayor duración.
 
 Para el contexto operativo de este sistema (sesiones de campo acotadas, equipo reducido, sin acceso público), la relación riesgo/complejidad no justifica el doble token en el MVP.
 
 **Sobre la duración de 6 horas:**
 
-NIST SP 800-63B §4.3.2 (AAL2) recomienda re-autenticación al menos cada 12 horas para sesiones continuas. 6 horas es un 50% más restrictivo que ese límite, balanceando la realidad operativa de sesiones de campo con la reducción de la ventana de exposición de un token comprometido.
+NIST SP 800-63B 4.3.2 (AAL2) recomienda re-autenticación al menos cada 12 horas para sesiones continuas. 6 horas es un 50% más restrictivo que ese límite, balanceando la realidad operativa de sesiones de campo con la reducción de la ventana de exposición de un token comprometido.
 
 OWASP Session Management Cheat Sheet establece que el tiempo absoluto de sesión debe ser el mínimo operativamente viable. 8 horas fue el valor original; se reduce a 6 horas para acotar la ventana de exposición sin afectar la operación en campo.
 
 **Sobre la no imposición de re-login por inactividad:**
 
-El servicio opera en Docker Swarm con múltiples réplicas stateless. Rastrear inactividad requeriría estado compartido entre réplicas (timestamp de última actividad en BD), lo que introduce latencia en cada petición y un punto único de fallo. NIST SP 800-207 §3.3 establece que las decisiones de acceso Zero Trust no deben depender de estado de sesión en memoria. La mitigación de inactividad se delega al timeout absoluto de 6 horas y a la revocación explícita.
+El servicio opera en Docker Swarm con múltiples réplicas stateless. Rastrear inactividad requeriría estado compartido entre réplicas (timestamp de última actividad en BD), lo que introduce latencia en cada petición y un punto único de fallo. NIST SP 800-207 3.3 establece que las decisiones de acceso Zero Trust no deben depender de estado de sesión en memoria. La mitigación de inactividad se delega al timeout absoluto de 6 horas y a la revocación explícita.
 
 #### Consecuencias técnicas
 
 - `jwtExpiresSeconds` = 21 600 en todos los módulos y el XML M1.
-- Se elimina el endpoint `POST /auth/refresh` de SRS General (§7.4, §11 RF-M1-03b) y del glosario (§1.3).
+- Se elimina el endpoint `POST /auth/refresh` de SRS General (7.4, 11 RF-M1-03b) y del glosario (1.3).
 - La ventana máxima de exposición de un token comprometido es de 6 horas si el usuario no hace logout y no es desactivado.
 - El audit_log registra el evento logout con `jti` para correlación forense. Si el logout no se produjo, la ausencia del evento es evidencia de sesión no cerrada.
 
@@ -79,19 +79,19 @@ El Módulo 1 incluye el endpoint `PATCH /users/me/password`. El usuario autentic
 
 **Sobre la inclusión del cambio de contraseña:**
 
-NIST SP 800-63B §5.1.1.2 establece que los sistemas deben permitir a los usuarios cambiar su propia contraseña. Delegar este proceso al Administrador crea un riesgo operativo documentado: el intervalo entre la detección de un compromiso y la intervención del Administrador es una ventana de exposición no controlada. El cambio de contraseña autogestionado es el único mecanismo que permite al usuario cerrar esa ventana sin depender de un tercero.
+NIST SP 800-63B 5.1.1.2 establece que los sistemas deben permitir a los usuarios cambiar su propia contraseña. Delegar este proceso al Administrador crea un riesgo operativo documentado: el intervalo entre la detección de un compromiso y la intervención del Administrador es una ventana de exposición no controlada. El cambio de contraseña autogestionado es el único mecanismo que permite al usuario cerrar esa ventana sin depender de un tercero.
 
 **Sobre la validación de la contraseña actual:**
 
-OWASP Authentication Cheat Sheet, sección "Change Password": "Before changing the password, verify the current one to prevent CSRF-style attacks." Sin esta validación, un atacante con acceso físico al dispositivo desbloqueado puede cambiar la contraseña sin conocer la actual. La verificación del valor actual es un control de autenticación re-validada (step-up authentication mínima) conforme a NIST SP 800-63B §4.3.3.
+OWASP Authentication Cheat Sheet, sección "Change Password": "Before changing the password, verify the current one to prevent CSRF-style attacks." Sin esta validación, un atacante con acceso físico al dispositivo desbloqueado puede cambiar la contraseña sin conocer la actual. La verificación del valor actual es un control de autenticación re-validada (step-up authentication mínima) conforme a NIST SP 800-63B 4.3.3.
 
 **Sobre la prohibición de reusar la contraseña actual:**
 
-NIST SP 800-63B §5.1.1.2: "Verifiers SHALL NOT permit the subscriber to change to a value identical to any of their previous passwords." Una operación de cambio que acepta la misma contraseña no produce ningún efecto de seguridad y genera un falso sentido de control. Rechazar con 400 fuerza al usuario a producir un cambio real.
+NIST SP 800-63B 5.1.1.2: "Verifiers SHALL NOT permit the subscriber to change to a value identical to any of their previous passwords." Una operación de cambio que acepta la misma contraseña no produce ningún efecto de seguridad y genera un falso sentido de control. Rechazar con 400 fuerza al usuario a producir un cambio real.
 
 **Sobre la invalidación de todos los tokens previos via `password_changed_at`:**
 
-OWASP Session Management Cheat Sheet, sección "Session Invalidation": "Upon password change, all active sessions for the user should be invalidated." El mecanismo `password_changed_at` en la tabla `users` es la implementación stateless de este principio para un entorno de réplicas múltiples: no requiere revocar cada `jti` individualmente, sino que el middleware evalúa si el token fue emitido antes del último cambio de contraseña. Es consistente con NIST SP 800-207 §3.3 (verificación continua en cada petición).
+OWASP Session Management Cheat Sheet, sección "Session Invalidation": "Upon password change, all active sessions for the user should be invalidated." El mecanismo `password_changed_at` en la tabla `users` es la implementación stateless de este principio para un entorno de réplicas múltiples: no requiere revocar cada `jti` individualmente, sino que el middleware evalúa si el token fue emitido antes del último cambio de contraseña. Es consistente con NIST SP 800-207 3.3 (verificación continua en cada petición).
 
 **Consecuencia directa:** el usuario queda desautenticado inmediatamente tras el cambio. Debe iniciar sesión con la nueva contraseña. Esto es el comportamiento esperado y deseado bajo Zero Trust: un cambio de credencial es un evento de identidad que invalida todas las sesiones anteriores.
 
@@ -101,7 +101,7 @@ OWASP Session Management Cheat Sheet, sección "Session Invalidation": "Upon pas
 - Middleware: check adicional `if user.password_changed_at and token_iat < user.password_changed_at: return 401`.
 - Endpoint: `PATCH /api/v1/users/me/password` con body `{ current_password, new_password }`.
 - El evento se registra en audit_log con `user_id`, timestamp y acción `password_changed`. Sin registro de las contraseñas ni de sus hashes.
-- Se actualiza SRS M1 (§1.2, §4.2, §4.3, §5, §9) y XML M1 para incluir el endpoint.
+- Se actualiza SRS M1 (1.2, 4.2, 4.3, 5, 9) y XML M1 para incluir el endpoint.
 
 ---
 
@@ -111,19 +111,19 @@ OWASP Session Management Cheat Sheet, sección "Session Invalidation": "Upon pas
 
 #### Decisión
 
-La matriz de permisos del middleware (SRS M1 §5, RF-M1-05) se corrige: el rol `administrator` tiene permiso para registrar sujetos, contextos, aplicaciones y valores de métricas. El Administrador puede ejecutar todos los flujos operativos del sistema.
+La matriz de permisos del middleware (SRS M1 5, RF-M1-05) se corrige: el rol `administrator` tiene permiso para registrar sujetos, contextos, aplicaciones y valores de métricas. El Administrador puede ejecutar todos los flujos operativos del sistema.
 
 #### Fundamentación
 
-El principio de *least privilege* (NIST SP 800-207 §2.1, CIS Control 6) establece que cada entidad debe tener solo los permisos necesarios para su función. Sin embargo, la restricción de acceso al Administrador para operaciones de M4 viola el principio de **disponibilidad operativa**: crea una dependencia estructural del sistema en el rol Aplicador para casos de soporte, pruebas de integración, y situaciones de emergencia donde el Aplicador no está disponible.
+El principio de *least privilege* (NIST SP 800-207 2.1, CIS Control 6) establece que cada entidad debe tener solo los permisos necesarios para su función. Sin embargo, la restricción de acceso al Administrador para operaciones de M4 viola el principio de **disponibilidad operativa**: crea una dependencia estructural del sistema en el rol Aplicador para casos de soporte, pruebas de integración, y situaciones de emergencia donde el Aplicador no está disponible.
 
-NIST SP 800-207 §3.1 define que el Administrador del sistema es una entidad de confianza extendida con capacidad de gestión operativa. Restringir al Administrador a solo operaciones de configuración, sin capacidad de ejecución operativa, contradice el modelo de gestión documentado en SRS General §3.2 ("Control total del sistema").
+NIST SP 800-207 3.1 define que el Administrador del sistema es una entidad de confianza extendida con capacidad de gestión operativa. Restringir al Administrador a solo operaciones de configuración, sin capacidad de ejecución operativa, contradice el modelo de gestión documentado en SRS General 3.2 ("Control total del sistema").
 
 La inconsistencia documentada entre SRS M1 (✗ para Admin en M4) y SRS General + SRS M4 (✓ para Admin en M4) evidencia un error de transcripción en la matriz de M1, no una decisión de diseño intencional.
 
 #### Consecuencias técnicas
 
-- Corregir la fila "Registrar sujetos y aplicar pruebas" en la matriz de SRS M1 §5: `administrator = ✓`.
+- Corregir la fila "Registrar sujetos y aplicar pruebas" en la matriz de SRS M1 5: `administrator = ✓`.
 - La constante centralizada de permisos en el código debe reflejar este cambio.
 
 ---
@@ -164,7 +164,7 @@ El código de respuesta para "instrumento existe pero está inactivo" es **HTTP 
 
 #### Fundamentación
 
-RFC 9110 §15.5.21 define HTTP 422 como la respuesta apropiada cuando la solicitud está bien formada sintácticamente pero no puede procesarse por una condición semántica del servidor. RFC 9110 §15.5.1 define HTTP 400 para errores de formato o sintaxis en la solicitud.
+RFC 9110 15.5.21 define HTTP 422 como la respuesta apropiada cuando la solicitud está bien formada sintácticamente pero no puede procesarse por una condición semántica del servidor. RFC 9110 15.5.1 define HTTP 400 para errores de formato o sintaxis en la solicitud.
 
 Un instrumento inactivo es una condición semántica válida del estado del sistema, no un error del cliente en la formación de la solicitud. La distinción es operativamente relevante: el cliente puede diferenciar entre un error en sus datos (400) y un estado del recurso que impide la operación (422), sin necesidad de parsear el mensaje de error.
 
@@ -174,7 +174,7 @@ Tener el mismo caso bajo dos códigos distintos en el mismo contrato es una ambi
 
 - XML M4, endpoint `RF-M4-03`: eliminar "instrumento inactivo" de la lista de causas del `<response status="400">`.
 - El `<response status="422">` permanece como único código para este caso.
-- SRS M4 §5 RF-M4-03 ya es correcto.
+- SRS M4 5 RF-M4-03 ya es correcto.
 
 ---
 
@@ -231,7 +231,7 @@ OWASP Testing Guide, OTG-AUTHN-004 — Testing for Account Enumeration and Guess
 
 CWE-204 — Observable Response Discrepancy: "The product provides different responses to incoming requests in a way that reveals internal state information to an unauthorized actor." El código HTTP 403 para cuenta desactivada revela que: (a) el correo existe en el sistema y (b) la cuenta está en estado inactivo. Esta información combinada con el 401 genérico para credenciales incorrectas crea un canal de oráculos que permite clasificar todas las cuentas del sistema.
 
-NIST SP 800-63B §8.2.2 — Verifier Impersonation Resistance establece que los verifiers no deben revelar si el identificador del suscriptor existe al retornar mensajes de error de autenticación.
+NIST SP 800-63B 8.2.2 — Verifier Impersonation Resistance establece que los verifiers no deben revelar si el identificador del suscriptor existe al retornar mensajes de error de autenticación.
 
 En el contexto de este sistema — donde el Administrador es el único que puede crear cuentas — la información de si un correo está registrado o desactivado no tiene valor legítimo para el cliente que hace la solicitud de login. Solo tiene valor para un atacante que realiza reconocimiento.
 
@@ -243,7 +243,7 @@ El audit_log registra la causa real con `user_id` (si aplica), timestamp y acci�
 - Toda falla de autenticación retorna `{ "status": "error", "message": "Invalid credentials", "data": null }` con HTTP 401.
 - Tiempo de respuesta constante entre los distintos escenarios de fallo (constant-time comparison via bcrypt ya lo garantiza para el caso de contraseña incorrecta; para correo no encontrado, aplicar delay artificial equivalente al tiempo de bcrypt para evitar timing attacks).
 - Audit_log registra la causa real: `AUTH_FAILED_WRONG_PASSWORD`, `AUTH_FAILED_USER_NOT_FOUND`, `AUTH_FAILED_ACCOUNT_DISABLED`.
-- Se actualiza SRS M1 §5 RF-M1-03 y XML M1 RF-M1-03.
+- Se actualiza SRS M1 5 RF-M1-03 y XML M1 RF-M1-03.
 
 ---
 
@@ -257,18 +257,18 @@ Durante el periodo de bloqueo por rate limiting (5 intentos fallidos en 60 s →
 
 #### Fundamentación
 
-RFC 6585 §4 define HTTP 429 Too Many Requests como la respuesta estándar para rate limiting. Sin embargo, retornar 429 proporciona al atacante información operativamente valiosa: (a) confirma que el sistema tiene rate limiting, (b) indica que fue detectado, y (c) le permite calibrar la frecuencia de sus intentos para permanecer bajo el umbral.
+RFC 6585 4 define HTTP 429 Too Many Requests como la respuesta estándar para rate limiting. Sin embargo, retornar 429 proporciona al atacante información operativamente valiosa: (a) confirma que el sistema tiene rate limiting, (b) indica que fue detectado, y (c) le permite calibrar la frecuencia de sus intentos para permanecer bajo el umbral.
 
 OWASP Automated Threats to Web Applications, OAT-007 — Credential Cracking: los sistemas de defensa efectivos no revelan su detección para impedir la adaptación del atacante.
 
-La postura Zero Trust (NIST SP 800-207 §3.1) requiere que "the enterprise monitors and measures the integrity and security posture of all owned and associated assets." El monitoreo debe ser interno y no debe señalizar su activación al exterior. El audit_log registra el bloqueo con IP, timestamp y conteo de intentos, lo que preserva la capacidad forense sin revelar el estado del sistema al atacante.
+La postura Zero Trust (NIST SP 800-207 3.1) requiere que "the enterprise monitors and measures the integrity and security posture of all owned and associated assets." El monitoreo debe ser interno y no debe señalizar su activación al exterior. El audit_log registra el bloqueo con IP, timestamp y conteo de intentos, lo que preserva la capacidad forense sin revelar el estado del sistema al atacante.
 
 **Contrapunto documentado:** HTTP 429 beneficia al cliente legítimo que cometió errores tipográficos, permitiéndole entender que debe esperar. Esta UX se sacrifica intencionalmente a favor de la postura de seguridad. En el contexto del sistema — donde solo tres roles fijos usan el sistema y los usuarios legítimos conocen sus credenciales — la probabilidad de que un usuario legítimo alcance 5 intentos fallidos en 60 segundos es mínima.
 
 #### Consecuencias técnicas
 
 - XML M1 RF-M1-03: eliminar `<response status="429">`. La descripción del bloqueo se mueve a una nota interna (comment XML) en el nodo del endpoint.
-- SRS M1 §5 CA-HU3-06 y RNF-M1-07: actualizar para especificar que la respuesta es HTTP 401, no 429.
+- SRS M1 5 CA-HU3-06 y RNF-M1-07: actualizar para especificar que la respuesta es HTTP 401, no 429.
 - El audit_log registra el evento `AUTH_RATE_LIMIT_TRIGGERED` con IP y timestamp.
 
 ---
@@ -294,7 +294,7 @@ El rechazo activo fuerza al cliente a corregir su implementación antes de que p
 #### Consecuencias técnicas
 
 - `POST /subjects`: Pydantic schema con `model_config = ConfigDict(extra='forbid')`. Cualquier campo adicional falla la validación de esquema con HTTP 400.
-- SRS M4 §5 RF-M4-01: documentar explícitamente "Si el body contiene cualquier campo, el sistema retorna HTTP 400."
+- SRS M4 5 RF-M4-01: documentar explícitamente "Si el body contiene cualquier campo, el sistema retorna HTTP 400."
 - XML M4 RF-M4-01: agregar `<response status="400"><description>Body no debe contener campos</description></response>`.
 
 ---
@@ -311,7 +311,7 @@ El sistema nunca persiste el token JWT completo en ninguna capa: audit_log, logs
 
 CWE-532 — Insertion of Sensitive Information into Log File: "Information written to log files can be of a sensitive nature and give valuable guidance to an attacker or expose sensitive user information." Un token JWT completo en un log es funcionalmente equivalente a almacenar una contraseña en texto plano: cualquier entidad con acceso al log puede suplantar al usuario hasta la expiración del token.
 
-NIST SP 800-92 — Guide to Computer Security Log Management §6.2.3: "Log files should not contain sensitive data such as passwords, security tokens, or personal data beyond what is operationally necessary." El `jti` es el mínimo necesario para correlacionar un evento de log con un token específico (para revocación, auditoría o respuesta a incidentes) sin exponer el token como credencial reutilizable.
+NIST SP 800-92 — Guide to Computer Security Log Management 6.2.3: "Log files should not contain sensitive data such as passwords, security tokens, or personal data beyond what is operationally necessary." El `jti` es el mínimo necesario para correlacionar un evento de log con un token específico (para revocación, auditoría o respuesta a incidentes) sin exponer el token como credencial reutilizable.
 
 OWASP Logging Cheat Sheet: "Never log sensitive data: passwords, session tokens, credit card numbers, authentication tokens." El JWT es explícitamente un token de autenticación.
 
@@ -322,7 +322,7 @@ Privacy by Design Principio 7 (Cavoukian): "Respect for User Privacy — Keep it
 - El esquema de la tabla `audit_log` incluye: `id`, `user_id`, `jti`, `event_type`, `timestamp`, `ip_address`, `details` (JSON no-sensible). Sin columna para el token completo.
 - La configuración de logging del framework (FastAPI/Uvicorn) debe excluir el header `Authorization` de los access logs. Esto se configura a nivel de middleware o del servidor ASGI.
 - Los logs de infraestructura (Docker, proxy de Swarm) deben configurarse para no capturar headers de autorización. Esta es una restricción de configuración de despliegue que debe documentarse en la estrategia de despliegue.
-- Se actualiza SRS General §6.1 (atributos de `AuditLog`) y RNF-SEC-12 para especificar explícitamente que solo se almacena `jti`.
+- Se actualiza SRS General 6.1 (atributos de `AuditLog`) y RNF-SEC-12 para especificar explícitamente que solo se almacena `jti`.
 
 ---
 

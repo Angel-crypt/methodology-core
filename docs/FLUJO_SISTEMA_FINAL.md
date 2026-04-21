@@ -190,7 +190,7 @@ Activación → Login OIDC → Guards en orden:
 
 ---
 
-## 5. FLUJO ADMINISTRATOR
+## 5. FLUJO SUPERADMIN
 
 ### 5.1 Crear usuario
 
@@ -319,7 +319,7 @@ PASO 1a: Crear sujeto
 
 PASO 2: Registrar contexto
   school_type, education_level (de config del proyecto)
-  age_cohort (regex ^\d+-\d+$, de config del proyecto)
+  age_cohort (regex ^\d+-\d+$, valores de age_cohort_map del proyecto)
   gender, socioeconomic_level, additional_attributes
   POST /projects/:id/subjects/:sid/context
 

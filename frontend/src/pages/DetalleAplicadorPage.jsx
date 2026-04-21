@@ -71,8 +71,8 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
     setCargandoUsuario(true)
     obtenerUsuario(token, id)
       .then((data) => {
-        if (data.status === 'success') setUsuario(data.data)
-        else setErrorUsuario(data.message || 'No se pudo cargar el usuario.')
+        if (data.ok) setUsuario(data.data)
+        else setErrorUsuario(data.error || 'No se pudo cargar el usuario.')
       })
       .catch(() => setErrorUsuario('Error de conexión.'))
       .finally(() => setCargandoUsuario(false))
@@ -84,7 +84,7 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
     setCargandoSesiones(true)
     listarSesionesUsuario(token, id)
       .then((data) => {
-        if (data.status === 'success') setSesiones(data.data)
+        if (data.ok) setSesiones(data.data)
         else setErrorSesiones(true)
       })
       .catch(() => setErrorSesiones(true))
@@ -98,7 +98,7 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
     setGuardandoEstado(true)
     try {
       const data = await cambiarEstadoUsuario(token, id, !usuario.active)
-      if (data.status === 'success') {
+      if (data.ok) {
         setUsuario((prev) => ({ ...prev, active: !prev.active }))
         toast({
           type: 'success',
@@ -106,7 +106,7 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
           message: `La cuenta de ${usuario.full_name} fue ${usuario.active ? 'desactivada' : 'activada'}.`,
         })
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo cambiar el estado.' })
+        toast({ type: 'error', title: 'Error', message: data.error || 'No se pudo cambiar el estado.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -120,12 +120,12 @@ function DetalleAplicadorPage({ backTo = '/usuarios/aplicadores', backLabel = 'A
     setGuardandoReset(true)
     try {
       const data = await resetearPassword(token, id)
-      if (data.status === 'success') {
+      if (data.ok) {
         const setupToken = data.data?._mock_setup_token
         setCredencialesNuevas({ email: usuario.email, setupToken, nombreUsuario: usuario.full_name })
         setModalCredenciales(true)
       } else {
-        toast({ type: 'error', title: 'Error', message: data.message || 'No se pudo restablecer la contraseña.' })
+        toast({ type: 'error', title: 'Error', message: data.error || 'No se pudo restablecer la contraseña.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })

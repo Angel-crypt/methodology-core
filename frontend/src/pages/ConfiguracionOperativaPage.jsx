@@ -84,11 +84,11 @@ function ConfiguracionOperativaPage() {
     setCargando(true)
     obtenerConfigOperativo(token)
       .then((data) => {
-        if (data.status === 'success') {
+        if (data.ok) {
           setConfig(data.data)
           setSavedConfig(data.data)
         } else {
-          setError(data.message || 'No se pudo cargar la configuración.')
+          setError(data.error || 'No se pudo cargar la configuración.')
         }
       })
       .catch(() => setError('Error de conexión.'))
@@ -122,12 +122,12 @@ function ConfiguracionOperativaPage() {
     setError(null)
     try {
       const data = await guardarConfigOperativo(token, config)
-      if (data.status === 'success') {
+      if (data.ok) {
         setConfig(data.data)
         setSavedConfig(data.data)
         toast({ type: 'success', title: 'Configuración guardada', message: 'Los cambios se aplicarán a nuevos registros.' })
       } else {
-        setError(data.message || 'No se pudo guardar la configuración.')
+        setError(data.error || 'No se pudo guardar la configuración.')
       }
     } catch {
       setError('Error de conexión.')

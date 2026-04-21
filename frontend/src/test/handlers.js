@@ -99,6 +99,10 @@ export const handlers = [
     HttpResponse.json({ status: 'success', data: { _mock_magic_link: '/api/v1/auth/activate/mock-token' } })
   ),
 
+  http.get(`${API}/users/sessions`, () =>
+    HttpResponse.json({ status: 'success', data: [] })
+  ),
+
   http.get(`${API}/auth/activate/:token`, () =>
     new HttpResponse(null, { status: 302, headers: { location: '/login?activated=1' } })
   ),
@@ -197,6 +201,28 @@ export const handlers = [
     HttpResponse.json({ status: 'success', data: null }, { status: 201 })
   ),
 
+  http.get(`${API}/applications/my`, () =>
+    HttpResponse.json({ status: 'success', data: [], meta: { total: 0, page: 1, page_size: 20, pages: 1 } })
+  ),
+
+  http.get(`${API}/applications/:appId`, ({ params }) =>
+    HttpResponse.json({
+      status: 'success',
+      data: {
+        application_id: params.appId,
+        application_date: '2026-04-15',
+        instrument_name: 'Instrumento A',
+        values_count: 3,
+        notes: 'Condiciones normales.',
+        metric_values: [
+          { metric_id: 'mv-1', metric_name: 'Puntaje total', metric_type: 'numeric', value: '42' },
+          { metric_id: 'mv-2', metric_name: 'Observación clínica', metric_type: 'text', value: 'Sin alteraciones' },
+          { metric_id: 'mv-3', metric_name: 'Requiere seguimiento', metric_type: 'boolean', value: 'false' },
+        ],
+      },
+    })
+  ),
+
   // ── M5 — Consulta ──────────────────────────────────────────────────────────
   http.get(`${API}/applications`, () =>
     HttpResponse.json({
@@ -226,6 +252,43 @@ export const handlers = [
   ),
 
   http.post(`${API}/projects/:projectId/applications/:appId/metric-values`, () =>
+    HttpResponse.json({ status: 'success', data: null }, { status: 201 })
+  ),
+
+  http.get(`${API}/subjects/mine`, () =>
+    HttpResponse.json({
+      status: 'success',
+      data: [
+        { id: 'subj-1', anonymous_code: 'ABC123', project_name: 'Estudio Piloto 2026', project_id: 'proj-1', created_at: '2026-04-15T10:00:00Z' },
+        { id: 'subj-2', anonymous_code: 'DEF456', project_name: 'Cohorte B', project_id: 'proj-2', created_at: '2026-04-16T14:30:00Z' },
+      ],
+    })
+  ),
+
+  http.get(`${API}/subjects/:subjectId/applications`, () =>
+    HttpResponse.json({
+      status: 'success',
+      data: [
+        {
+          application_id: 'app-1', application_date: '2026-04-15', instrument_name: 'Instrumento A', values_count: 3, notes: 'Condiciones normales.',
+          metric_values: [
+            { metric_id: 'mv-1', metric_name: 'Puntaje total', metric_type: 'numeric', value: '42' },
+            { metric_id: 'mv-2', metric_name: 'Observación clínica', metric_type: 'text', value: 'Sin alteraciones' },
+            { metric_id: 'mv-3', metric_name: 'Requiere seguimiento', metric_type: 'boolean', value: 'false' },
+          ],
+        },
+        {
+          application_id: 'app-2', application_date: '2026-04-10', instrument_name: 'Instrumento B', values_count: 2, notes: null,
+          metric_values: [
+            { metric_id: 'mv-4', metric_name: 'Resultado', metric_type: 'text', value: 'Normal' },
+            { metric_id: 'mv-5', metric_name: 'Puntaje', metric_type: 'numeric', value: '75' },
+          ],
+        },
+      ],
+    })
+  ),
+
+  http.post(`${API}/subjects/:id/context`, () =>
     HttpResponse.json({ status: 'success', data: null }, { status: 201 })
   ),
 
@@ -298,7 +361,10 @@ export const handlers = [
   ),
 
   http.get(`${API}/projects/:projectId/instruments`, () =>
-    HttpResponse.json({ status: 'success', data: [] })
+    HttpResponse.json({
+      status: 'success',
+      data: [{ id: 'inst-proj-1', name: 'Instrumento del Proyecto', is_active: true }],
+    })
   ),
 
   http.delete(`${API}/projects/:id/instruments/:instrumentId`, () => new HttpResponse(null, { status: 204 })),
@@ -347,6 +413,10 @@ export const handlers = [
 
   http.post(`${API}/institutions`, () =>
     HttpResponse.json({ status: 'success', data: { id: 'inst-1', name: 'test', domain: null, created_at: new Date().toISOString() } }, { status: 201 })
+  ),
+
+  http.patch(`${API}/institutions/:id`, () =>
+    HttpResponse.json({ status: 'success', data: { id: 'inst-1', name: 'Editado', domain: 'editado.edu', created_at: new Date().toISOString() } })
   ),
 
   http.get(`${API}/institutions/resolve`, () =>

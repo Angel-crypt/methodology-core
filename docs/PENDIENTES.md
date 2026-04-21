@@ -14,7 +14,7 @@ Lista consolidada con criterios de aceptacion minimos. Aplica Zero Trust y Priva
 - [G-05] Enforce `min_days_between_applications` en backend. Criterio: bloqueo y error consistente en API al violar gap.
 - [C-02] Bloqueo correos demo/prueba. Criterio: validacion rechaza dominios o patrones definidos.
 - [C-04] Reset password solo SUPERADMIN. Criterio: endpoints retornan 403 para otros roles y UI no muestra opcion.
-- [C-06] Resolucion de institucion por subdominio. Criterio: `sub.dominio.tld` resuelve al dominio principal.
+- ~~[C-06] Resolucion de institucion por subdominio.~~ ✅ Resuelto 2026-04-21: stripping progresivo de subdominios en `/institutions/resolve`; `unam.edu.mx` ≠ `globaluniversity.edu.mx`.
 - [F-06] Indicador de usuario desactivado en proyecto. Criterio: badge visible en lista de miembros.
 - [E-05] Click en fila de instrumentos abre detalle. Criterio: click en fila navega a `/instruments/:id`.
 - [E-02] Texto dinamico “Agregar metrica”. Criterio: sin metricas = “Agregar metrica”, con metricas = “Anadir otra metrica”.

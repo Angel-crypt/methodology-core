@@ -34,10 +34,10 @@ function SystemLoginPage({ onLogin }) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email: form.email.trim(), password: form.password }),
       })
-      const data = await res.json()
+      const json = await res.json()
 
-      if (data.status === 'success') {
-        const { access_token, must_change_password, user } = data.data
+      if (res.ok && json.data?.access_token) {
+        const { access_token, must_change_password, user } = json.data
         if (user?.role !== 'superadmin') {
           setError('Esta vía es solo para administradores del sistema.')
           return
@@ -105,6 +105,7 @@ function SystemLoginPage({ onLogin }) {
             type="password"
             placeholder="••••••••"
             required
+            reveal
             value={form.password}
             onChange={handleChange('password')}
             onKeyDown={handleKeyDown}

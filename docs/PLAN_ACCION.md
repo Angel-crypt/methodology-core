@@ -176,7 +176,41 @@ Sprint 4 sin commit final. Trabajo completado.
 | Preasignación institución (CF-S4-011) | ✅ | Auto-detección en crear usuario. |
 | **M5 — Consulta investigador + SUPERADMIN stats** | ❌ | **Próximo — Sprint 5** |
 | **M6 — Exportación (solo investigador)** | ❌ | Sprint 5 |
-| Tests de integración Sprint 4 | ⚠️ | MSW handlers actualizados. Tests unitarios pendientes. |
+| Tests de integración Sprint 4 | ✅ | Tests unitarios creados: TermsPage, OnboardingPage, InstitutionsPage, SuperadminProfileConfigPage, DetalleUsuarioPage. |
+
+---
+
+## CIERRE PRE-SPRINT 5 — 2026-04-20
+
+Bugs y deuda técnica cerrados antes de iniciar M5/M6.
+
+| ID | Fix | Estado |
+|----|-----|--------|
+| Privacy (PbD) | `GET /applications/my` exponía `subject_id` (UUID interno). Reemplazado por `anonymous_code` (8 chars, derivado del UUID) tanto en mock como en frontend `MisRegistrosPage`. | ✅ |
+| GlobalSearch | `StatusBadge` usaba `instr.status` (campo inexistente). Ahora usa `instr.is_active ? 'active' : 'inactive'`. | ✅ |
+| DataTable | `row-inactive` solo chequeaba `row.active`. Ahora también cubre `row.is_active` (instrumentos). | ✅ |
+| [C-05] | Sesión expirada no redirigía. `lib/api.js` despacha `auth:session-expired` en cualquier 401. `AuthContext` escucha y llama `logout('session_expired')` con mensaje visible en `LoginPage`. `projects.js` y `emailChangeRequests.js` actualizados para distinguir SESSION_REVOKED vs expiración genérica. | ✅ |
+| [C-03] | Sin validación de password fuerte para SUPERADMIN. Mock: `validatePasswordStrength()` aplicado en `POST /auth/password-reset` y `PATCH /users/me/password`. Respuesta de contraseña incorrecta cambiada de 401→422 (semántica correcta). Frontend: `CambiarPasswordModal` valida en cliente y muestra requisitos. | ✅ |
+| Docs | INVENTARIO 10: eliminados P-01/P-02 (resueltos Sprint 2). FLUJO_SISTEMA_FINAL 5: título corregido "ADMINISTRATOR"→"SUPERADMIN". FLUJO_SISTEMA_FINAL 6.1: `age_cohort_ranges`→`age_cohort_map`. | ✅ |
+
+---
+
+## CIERRE PRE-SPRINT 5 FASE 2 — 2026-04-21
+
+Deuda técnica y UX cerrada antes de iniciar M5/M6 (continuación del cierre 2026-04-20).
+
+| ID | Fix | Estado |
+|----|-----|--------|
+| [C-06] Subdominios | `extractBaseDomain` reemplazado por stripping progresivo. `unam.edu.mx` y `globaluniversity.edu.mx` se discriminan correctamente. Mock + OnboardingPage + useGestionUsuarios. | ✅ |
+| emailDomainError | Calculado en hook pero no exportado → GestionAplicadores/GestionInvestigadores mostraban silencio ante dominio desconocido. Exportado y visualizado bajo campo email. | ✅ |
+| InstitutionsPage edición | Agregar PATCH (editar institución) faltaba — solo había POST. Modal con modo crear/editar. | ✅ |
+| Dropdown miembros | `--color-bg-surface` no existe como token → fondo transparente. Corregido a `--color-surface`. | ✅ |
+| Express route order | `GET /subjects/mine` registrada DESPUÉS de `GET /subjects/:id` → "mine" interpretado como `:id`. Intercambiadas. | ✅ |
+| project_name en registros | `/applications/my` y `/subjects/mine` ahora incluyen `project_id` y `project_name`. | ✅ |
+| Filtro proyecto Mis Registros | MisRegistrosPage: filtro Proyecto agregado (server-side via `?project_id=`). Columna Proyecto en tabla. | ✅ |
+| Filtros Mis Usuarios | MisUsuariosPage: filtros Proyecto + Fecha desde/hasta para panel de sujetos; filtro Instrumento para panel de aplicaciones. Manejo de errores con toast. | ✅ |
+| Caracteres chinos | Comentarios en `institutions.js` tenían caracteres chinos (artifact de generación). Eliminados. | ✅ |
+| Tests | 17/17 test files verdes (105 tests). Test MisUsuariosPage actualizado para `findAllByText` al aparecer instrumento también en filtro select. | ✅ |
 
 ---
 
@@ -265,7 +299,7 @@ Sprint 2 cerrado. Resumen de lo entregado y lo que sigue pendiente.
 13. **Instituciones:** Tienen flag `public: boolean`. En onboarding el usuario solo ve instituciones públicas (salvo auto-asignación por dominio). Solo SUPERADMIN ve todas en la UI de gestión.
 14. **Sujetos repetidos en wizard:** El aplicador puede seleccionar un sujeto registrado previamente. Cada instrumento tiene `min_days_between_applications` (default 15, configurable al crear). Si el gap no se cumple, el instrumento aparece bloqueado con fecha de próxima disponibilidad.
 15. **Acceso no autorizado:** Cualquier rol sin permiso es redirigido a `/forbidden` con mensaje explicito. Nunca silencioso.
-16. **Bootstrap del SUPERADMIN:** se siembra al arranque del mock leyendo `SUPERADMIN_EMAIL` y `SUPERADMIN_PASSWORD` del `.env`. Si las variables no están, se usan defaults locales (`super@methodology.local` / `metodologia-bootstrap-cambiar-pronto`) y el mock emite WARNING en consola. El seed bootstrappeado por defaults nace con `must_change_password=true`; el seed configurado por env nace con `false` (el operador eligió). Crear más SUPERADMIN o rotar password en runtime queda fuera de Sprint 2 y se documenta como CLI futuro (`scripts/create-superadmin.js`, `scripts/rotate-superadmin.js`).
+16. **Bootstrap del SUPERADMIN:** se siembra al arranque del mock leyendo `SUPERADMIN_EMAIL` y `SUPERADMIN_PASSWORD` del `.env`. Si las variables no están, se usan defaults locales (`super@methodology.local` / `cambiar-pronto`) y el mock emite WARNING en consola. El seed bootstrappeado por defaults nace con `must_change_password=true`; el seed configurado por env nace con `false` (el operador eligió). Crear más SUPERADMIN o rotar password en runtime queda fuera de Sprint 2 y se documenta como CLI futuro (`scripts/create-superadmin.js`, `scripts/rotate-superadmin.js`).
 17. **Cambio de correo (no autoservicio):** Los usuarios NO pueden cambiar su propio correo. Pueden enviar una **solicitud** (`POST /users/me/email-change-request { new_email }`) que queda pendiente para el SUPERADMIN. El SUPERADMIN ve las solicitudes en la página de gestión de usuarios y aplica el cambio manualmente vía `PATCH /users/:id/email`. Aplicar un cambio de correo invalida el `broker_subject`, revoca todas las sesiones del usuario y dispara logout forzoso global de ese usuario.
 18. **Path `/__sys-auth`:** El path del SystemLoginPage es configurable vía `VITE_SYSTEM_LOGIN_PATH` (default `/__sys-auth`). Garantía: **no enumeración** — no aparece en menús, sitemap, robots.txt, mensajes para usuarios ni redirects. NO garantiza secrecy criptográfica: el path estará como string literal en el bundle JS, igual que cualquier ruta de React Router. Para true secret URL haría falta SSR o un proxy reverso por header — fuera de scope de la fase mock. El bundle agrega `<meta name="robots" content="noindex">`.
 19. **Vinculación `broker_subject` (Google `sub`):** El magic link de activación NO emite JWT; solo marca la cuenta como `active=true, broker_subject=null`. El primer login OIDC posterior captura el `sub` de Google y lo vincula al usuario. Logins siguientes deben presentar el mismo `sub`; cualquier mismatch retorna `401 INVALID_CREDENTIALS` (genérico, sin distinguir entre "email no encontrado", "cuenta inactiva" o "broker mismatch"). El audit log SÍ registra la causa real.
@@ -638,7 +672,7 @@ Sección de **documentación**, no de tareas ejecutables. Cubre cómo nace la pr
 - Variables `SUPERADMIN_EMAIL` y `SUPERADMIN_PASSWORD` leídas desde `process.env` al arrancar `mock/src/index.js`.
 - Defaults si no están definidas:
   - `SUPERADMIN_EMAIL = "super@methodology.local"`
-  - `SUPERADMIN_PASSWORD = "metodologia-bootstrap-cambiar-pronto"`
+  - `SUPERADMIN_PASSWORD = "cambiar-pronto"`
 - Si se usaron defaults → `must_change_password = true` y el banner del mock imprime una advertencia clara: `"⚠️  SUPERADMIN bootstrap usando defaults. Define SUPERADMIN_EMAIL y SUPERADMIN_PASSWORD en .env para producción."`
 - Si las variables están definidas en `.env` → `must_change_password = false`, sin banner.
 - Se elimina todo rastro de `superadmin@mock.local` (migracion completada en Bloque 0 de Sprint 2).

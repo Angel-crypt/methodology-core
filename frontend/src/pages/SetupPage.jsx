@@ -35,11 +35,11 @@ function SetupPage() {
 
     validarSetupToken(token)
       .then((data) => {
-        if (data.status === 'success') {
+        if (data.ok) {
           setInfoUsuario(data.data)
           setEstado('formulario')
         } else {
-          setErrorToken(data.message || 'El enlace es inválido o ha expirado.')
+          setErrorToken(data.error || 'El enlace es inválido o ha expirado.')
           setEstado('error')
         }
       })
@@ -80,11 +80,11 @@ function SetupPage() {
 
     try {
       const data = await completarSetup(token, form.password)
-      if (data.status === 'success') {
+      if (data.ok) {
         setEstado('exito')
         setTimeout(() => navigate('/login'), 3000)
       } else {
-        setErrorApi(data.message || 'No se pudo configurar la contraseña.')
+        setErrorApi(data.error || 'No se pudo configurar la contraseña.')
       }
     } catch {
       setErrorApi('Error de conexión. Intenta nuevamente.')

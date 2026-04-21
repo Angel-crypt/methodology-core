@@ -39,13 +39,12 @@ beforeEach(() => {
         },
       })
     ),
-    http.get('/api/v1/instruments', ({ request }) => {
+    // Capturar llamadas al endpoint de instrumentos del proyecto (CF-015/CF-017)
+    http.get('/api/v1/projects/:projectId/instruments', ({ request }) => {
       capturedInstrumentsRequests.push(new URL(request.url))
       return HttpResponse.json({
         status: 'success',
-        data: [
-          { id: 'inst-active', name: 'Activo', is_active: true },
-        ],
+        data: [{ id: 'inst-active', name: 'Activo', is_active: true }],
       })
     })
   )
@@ -63,19 +62,27 @@ async function seleccionarProyecto(user) {
 }
 
 async function avanzarHastaPaso3(user) {
-  // CF-015: primero hay que seleccionar un proyecto
-  await seleccionarProyecto(user)
+  // Simular que el aplicador ya tiene un sujeto registrado con contexto
+  // (beforeEach tiene handler para GET /subjects/:id que devuelve contexto)
+  server.use(
+    http.get('/api/v1/projects/:id/subjects/mine', () =>
+      HttpResponse.json({
+        status: 'success',
+        data: [{ id: SUBJECT_UUID, anonymous_code: '11111111', created_at: '2026-04-01T00:00:00Z', applications: [] }],
+      })
+    )
+  )
 
+  // CF-015: seleccionar proyecto
+  await seleccionarProyecto(user)
   await screen.findByRole('heading', { name: /paso 1: identificar sujeto/i })
 
-  await user.click(screen.getByRole('button', { name: /sujeto existente/i }))
+  // Cargar sujeto existente (con contexto) desde "Mis sujetos"
+  await user.click(screen.getByRole('button', { name: /mis sujetos/i }))
+  await user.click(await screen.findByRole('button', { name: /11111111/i }))
 
-  const uuidInput = screen.getByPlaceholderText(/xxxxxxxx-xxxx-xxxx-xxxx/i)
-  await user.type(uuidInput, SUBJECT_UUID)
-  await user.click(screen.getByRole('button', { name: /cargar sujeto/i }))
-
+  // Sujeto con contexto → Step 2 con "Continuar →" habilitado
   await screen.findByRole('heading', { name: /paso 2: registrar contexto/i })
-
   await user.click(screen.getByRole('button', { name: /continuar/i }))
 
   await screen.findByRole('heading', { name: /paso 3: registrar aplicación/i })

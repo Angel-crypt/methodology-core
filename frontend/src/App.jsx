@@ -8,15 +8,13 @@ import { UserProvider, useUser } from './contexts/UserContext'
 import LoginPage from './pages/LoginPage'
 import SystemLoginPage from './pages/SystemLoginPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
-import GestionAplicadores from './pages/GestionAplicadores'
-import GestionInvestigadores from './pages/GestionInvestigadores'
+import GestionUsuarios from './pages/GestionUsuarios'
 import GestionInstrumentos from './pages/GestionInstrumentos'
 import CambiarPasswordModal from './pages/CambiarPasswordModal'
 import SetupPage from './pages/SetupPage'
 import RegistroOperativoWizardPage from './pages/RegistroOperativoWizardPage'
 import MisRegistrosPage from './pages/MisRegistrosPage'
-import ConfiguracionOperativaPage from './pages/ConfiguracionOperativaPage'
-import DetalleAplicadorPage from './pages/DetalleAplicadorPage'
+import MisUsuariosPage from './pages/MisUsuariosPage'
 import DetalleUsuarioPage from './pages/DetalleUsuarioPage'
 import InstrumentoDetallePage from './pages/InstrumentoDetallePage'
 import SuperadminProfileConfigPage from './pages/SuperadminProfileConfigPage'
@@ -107,10 +105,14 @@ function AppRoutes() {
           path="/mis-registros"
           element={applicatorLayout(<MisRegistrosPage />)}
         />
+        <Route
+          path="/mis-usuarios"
+          element={applicatorLayout(<MisUsuariosPage />)}
+        />
 
         {/* Módulo 1 — Gestión de usuarios (solo Administrador) */}
-        <Route path="/usuarios/aplicadores" element={adminLayout(<GestionAplicadores />)} />
-        <Route path="/usuarios/investigadores" element={adminLayout(<GestionInvestigadores />)} />
+        <Route path="/usuarios/aplicadores" element={adminLayout(<GestionUsuarios role="applicator" />)} />
+        <Route path="/usuarios/investigadores" element={adminLayout(<GestionUsuarios role="researcher" />)} />
         <Route path="/usuarios/aplicadores/:id" element={adminLayout(<DetalleUsuarioPage />)} />
         <Route
           path="/usuarios/investigadores/:id"

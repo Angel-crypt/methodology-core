@@ -4,17 +4,19 @@
  * Tabs: General · Miembros · Instrumentos · Configuración Operativa
  */
 import { useState, useEffect, useCallback } from 'react'
+import PropTypes from 'prop-types'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Users, BookOpen, Settings, Info } from 'lucide-react'
 import {
   Button, Alert, Spinner, Typography, ToastContainer, useToast,
-  StatusBadge, PillToggle,
+  StatusBadge,
 } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
+import { APP_LOCALE } from '@/constants/locale'
 import {
   obtenerProyecto, listarMiembros, agregarMiembro, eliminarMiembro,
   listarInstrumentosProyecto, asignarInstrumento, quitarInstrumento,
-  obtenerConfigProyecto, guardarConfigProyecto, obtenerSystemDefaults,
+  obtenerConfigProyecto, guardarConfigProyecto,
 } from '@/services/projects'
 import { listarTodosUsuarios } from '@/services/users'
 import { listarInstrumentos } from '@/services/instruments'
@@ -45,11 +47,21 @@ function TabGeneral({ project }) {
         </div>
         <div>
           <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>Creado</Typography>
-          <Typography as="p">{new Date(project.created_at).toLocaleDateString('es-MX')}</Typography>
+          <Typography as="p">{new Date(project.created_at).toLocaleDateString(APP_LOCALE)}</Typography>
         </div>
       </div>
     </div>
   )
+}
+
+TabGeneral.propTypes = {
+  project: PropTypes.shape({
+    name: PropTypes.string,
+    description: PropTypes.string,
+    member_count: PropTypes.number,
+    instrument_count: PropTypes.number,
+    created_at: PropTypes.string,
+  }).isRequired,
 }
 
 // ── Tab Miembros ──────────────────────────────────────────────────────────────
@@ -61,6 +73,9 @@ function TabMiembros({ projectId, token, toast }) {
   const [adding, setAdding]       = useState(false)
   const [selectedUser, setSelUser] = useState('')
   const [addError, setAddError]   = useState('')
+  const [userSearch, setUserSearch] = useState('')
+  const [comboOpen, setComboOpen]   = useState(false)
+  const [roleFilter, setRoleFilter] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -69,7 +84,7 @@ function TabMiembros({ projectId, token, toast }) {
       listarTodosUsuarios(token),
     ])
     if (mRes.ok) setMembers(mRes.data)
-    if (uRes.status === 'success') setUsers(
+    if (uRes.ok) setUsers(
       uRes.data.filter((u) => u.role !== 'superadmin' && u.active)
     )
     setLoading(false)
@@ -99,6 +114,15 @@ function TabMiembros({ projectId, token, toast }) {
   }
 
   const availableUsers = users.filter((u) => !members.some((m) => m.user_id === u.id))
+  const selectedUserObj = availableUsers.find((u) => u.id === selectedUser)
+  const filteredUsers = availableUsers.filter((u) => {
+    if (roleFilter && u.role !== roleFilter) return false
+    if (!userSearch) return true
+    return (
+      u.full_name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.email.toLowerCase().includes(userSearch.toLowerCase())
+    )
+  })
   const noUsersInSystem = !loading && users.length === 0
 
   if (loading) return <div style={{ padding: 'var(--space-6)' }}><Spinner /></div>
@@ -119,21 +143,82 @@ function TabMiembros({ projectId, token, toast }) {
         ) : availableUsers.length === 0 ? (
             <Alert variant="info">No hay más usuarios disponibles para agregar.</Alert>
         ) : (
+          <>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+            {[
+              { value: '', label: 'Todos' },
+              { value: 'applicator', label: 'Aplicadores' },
+              { value: 'researcher', label: 'Investigadores' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => { setRoleFilter(value); setSelUser(''); setUserSearch('') }}
+                style={{
+                  padding: '2px var(--space-3)', borderRadius: 'var(--radius-full)',
+                  border: '1px solid var(--color-border)', cursor: 'pointer',
+                  background: roleFilter === value ? 'var(--color-primary)' : 'var(--color-bg-surface)',
+                  color: roleFilter === value ? '#fff' : 'var(--color-text-secondary)',
+                  fontSize: 'var(--font-size-caption)', fontWeight: roleFilter === value ? 'var(--font-weight-medium)' : 'normal',
+                }}
+              >{label}</button>
+            ))}
+          </div>
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-            <select
-              className="input-base"
-              style={{ flex: 1, minWidth: 220 }}
-              value={selectedUser}
-              onChange={(e) => setSelUser(e.target.value)}
-            >
-              <option value="">Selecciona un usuario...</option>
-              {availableUsers.map((u) => {
-                const roleLabel = u.role === 'researcher' ? 'Investigador' : 'Aplicador'
-                return <option key={u.id} value={u.id}>{u.full_name} — {roleLabel}</option>
-              })}
-            </select>
+            <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
+              <input
+                className="input-base"
+                style={{ width: '100%' }}
+                placeholder="Buscar usuario por nombre o correo..."
+                value={comboOpen ? userSearch : (selectedUserObj ? `${selectedUserObj.full_name} (${selectedUserObj.email})` : userSearch)}
+                onChange={(e) => { setUserSearch(e.target.value); setSelUser(''); setComboOpen(true) }}
+                onFocus={() => { setComboOpen(true); setUserSearch('') }}
+                onBlur={() => setTimeout(() => setComboOpen(false), 150)}
+                role="combobox"
+                aria-expanded={comboOpen}
+                aria-haspopup="listbox"
+                aria-autocomplete="list"
+              />
+              {comboOpen && (
+                <ul
+                  role="listbox"
+                  style={{
+                    position: 'absolute', zIndex: 100, top: '100%', left: 0, right: 0,
+                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)', maxHeight: 220, overflowY: 'auto',
+                    margin: 0, padding: 0, listStyle: 'none', marginTop: 2,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  }}
+                >
+                  {filteredUsers.length === 0 ? (
+                    <li style={{ padding: 'var(--space-2) var(--space-3)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-small)' }}>
+                      Sin coincidencias
+                    </li>
+                  ) : filteredUsers.map((u) => {
+                    const roleLabel = u.role === 'researcher' ? 'Investigador' : 'Aplicador'
+                    return (
+                      <li
+                        key={u.id}
+                        role="option"
+                        aria-selected={selectedUser === u.id}
+                        onMouseDown={() => { setSelUser(u.id); setUserSearch(''); setComboOpen(false) }}
+                        style={{
+                          padding: 'var(--space-2) var(--space-3)', cursor: 'pointer',
+                          background: selectedUser === u.id ? 'var(--color-primary-subtle)' : 'var(--color-surface)',
+                          fontSize: 'var(--font-size-small)',
+                        }}
+                      >
+                        <strong>{u.full_name}</strong>{' '}
+                        <span style={{ color: 'var(--color-text-secondary)' }}>{u.email} · {roleLabel}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
             <Button onClick={handleAdd} loading={adding}>Agregar</Button>
           </div>
+          </>
         )}
       </div>
 
@@ -153,8 +238,15 @@ function TabMiembros({ projectId, token, toast }) {
               </thead>
               <tbody>
                 {members.map((m) => (
-                  <tr key={m.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: 'var(--space-3) var(--space-4)' }}>{m.full_name || '—'}</td>
+                  <tr key={m.id} style={{ borderBottom: '1px solid var(--color-border)', opacity: m.active === false ? 0.6 : 1 }}>
+                    <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                        {m.full_name || '—'}
+                        {m.active === false && (
+                          <StatusBadge status="disabled" label="Desactivado" />
+                        )}
+                      </span>
+                    </td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-small)' }}>{m.email}</td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                       <StatusBadge status={m.role === 'researcher' ? 'active' : 'pending'} label={m.role === 'researcher' ? 'Investigador' : 'Aplicador'} />
@@ -173,6 +265,12 @@ function TabMiembros({ projectId, token, toast }) {
   )
 }
 
+TabMiembros.propTypes = {
+  projectId: PropTypes.string.isRequired,
+  token: PropTypes.string.isRequired,
+  toast: PropTypes.func.isRequired,
+}
+
 // ── Tab Instrumentos ──────────────────────────────────────────────────────────
 
 function TabInstrumentos({ projectId, token, toast }) {
@@ -189,8 +287,8 @@ function TabInstrumentos({ projectId, token, toast }) {
       listarInstrumentosProyecto(token, projectId),
       listarInstrumentos(token),
     ])
-    if (piRes.ok)  setProjInstruments(piRes.data)
-    if (allRes.ok) setAllInstruments(allRes.data)
+    if (piRes.ok)                     setProjInstruments(piRes.data)
+    if (allRes.ok)  setAllInstruments(allRes.data)
     setLoading(false)
   }, [token, projectId])
 
@@ -283,6 +381,12 @@ function TabInstrumentos({ projectId, token, toast }) {
       )}
     </div>
   )
+}
+
+TabInstrumentos.propTypes = {
+  projectId: PropTypes.string.isRequired,
+  token: PropTypes.string.isRequired,
+  toast: PropTypes.func.isRequired,
 }
 
 // ── Tab Configuración Operativa ───────────────────────────────────────────────
@@ -516,6 +620,12 @@ function TabConfig({ projectId, token, toast }) {
       </div>
     </div>
   )
+}
+
+TabConfig.propTypes = {
+  projectId: PropTypes.string.isRequired,
+  token: PropTypes.string.isRequired,
+  toast: PropTypes.func.isRequired,
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────

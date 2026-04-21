@@ -34,11 +34,10 @@ function AuthCallbackPage({ onLogin }) {
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ code, state }),
         })
-        const data = await res.json()
+        const json = await res.json()
 
-        if (data.status === 'success') {
-          const { access_token } = data.data
-          onLogin(access_token, false)
+        if (res.ok && json.data?.access_token) {
+          onLogin(json.data.access_token, false)
           navigate('/instruments', { replace: true })
         } else {
           setError(true)

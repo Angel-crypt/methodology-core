@@ -19,6 +19,11 @@ const statusConfig = {
     Icon: Clock,
     className: 'badge-status badge-status-pending',
   },
+  pending_activation: {
+    label: 'Pendiente activación',
+    Icon: Clock,
+    className: 'badge-status badge-status-pending',
+  },
   inactive: {
     label: 'Inactivo',
     Icon: XCircle,
@@ -45,7 +50,7 @@ function StatusBadge({ status, label: labelOverride }) {
 }
 
 StatusBadge.propTypes = {
-  status: PropTypes.oneOf(['active', 'pending', 'inactive', 'disabled']).isRequired,
+  status: PropTypes.oneOf(['active', 'pending', 'pending_activation', 'inactive', 'disabled']).isRequired,
   label:  PropTypes.string,
 }
 

@@ -1,7 +1,7 @@
 /* =============================================================
    TOKENS — COLORES
    Sistema de Perfiles Lingüísticos · Design System v1.0
-   Fuente: DESIGN_SYSTEM.md § 2.1
+   Fuente: DESIGN_SYSTEM.md  2.1
    ============================================================= */
 
 :root {
@@ -196,7 +196,7 @@
 
 
    /* -----------------------------------------------------------
-     SIDEBAR — Tema claro (§ 3.8 DESIGN_SYSTEM.md)
+     SIDEBAR — Tema claro ( 3.8 DESIGN_SYSTEM.md)
      Fondo blanco · texto oscuro · acentos Verde Salvia
      ----------------------------------------------------------- */
    --color-sidebar-bg:                var(--color-surface);
