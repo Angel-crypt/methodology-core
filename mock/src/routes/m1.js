@@ -15,8 +15,18 @@ const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
 const { validateStrictInput } = require('../middleware/validateStrictInput');
 const { content: privacyContent, version: privacyVersion, updated_at: privacyUpdatedAt } = require('../data/privacy-notice');
 const { content: termsContent, version: termsVersion, updated_at: termsUpdatedAt } = require('../data/terms-of-service');
+const mailer = require('../services/mailer');
 
 const router = express.Router();
+
+// ── Keycloak mode (opcional) ──────────────────────────────────────────────────
+// Cuando KEYCLOAK_ISSUER está definido, /auth/oidc/authorize redirige al IdP real
+// y /auth/oidc/callback hace el code exchange real en lugar de usar oidcCodes.
+const KC_ISSUER     = process.env.KEYCLOAK_ISSUER     || '';
+const KC_PUBLIC_URL = process.env.KEYCLOAK_PUBLIC_URL || KC_ISSUER; // URL visible al browser
+const KC_CLIENT     = process.env.KEYCLOAK_CLIENT_ID  || '';
+const KC_SECRET     = process.env.KEYCLOAK_CLIENT_SECRET || '';
+const KC_MODE       = !!KC_ISSUER;
 
 const VALID_ROLES = ['superadmin', 'researcher', 'applicator'];
 const JWT_EXPIRES_IN = 21600; // 6 horas (segundos)
@@ -160,27 +170,33 @@ router.post('/auth/login', (req, res) => {
  * oidcCodes: Map<code, { email, sub }>
  * Single-use; se elimina tras el callback.
  */
-if (!store.oidcCodes) store.oidcCodes = new Map();
+if (!store.oidcCodes)  store.oidcCodes  = new Map();
+if (!store.oidcStates) store.oidcStates = new Map(); // state → redirect_uri (Keycloak mode)
 
 // GET /auth/oidc/authorize
-// Emite un code de autorización y redirige al redirect_uri.
-// El email del usuario se resuelve desde store.oidcCodes cuando el test lo registra,
-// o desde el sub generado cuando no hay mapeo previo.
+// KC_MODE: redirige al IdP real (Keycloak).
+// Mock mode: genera code propio y redirige al simulador de SSO.
 router.get('/auth/oidc/authorize', (req, res) => {
   const { redirect_uri, state } = req.query;
   if (!redirect_uri) {
     return res.status(400).json({ status: 'error', message: 'redirect_uri requerido', data: null });
   }
 
+  if (KC_MODE) {
+    // Guardar redirect_uri asociado al state para recuperarlo en el callback
+    store.oidcStates.set(state ?? '', redirect_uri);
+    const params = new URLSearchParams({
+      client_id:     KC_CLIENT,
+      redirect_uri:  redirect_uri,
+      response_type: 'code',
+      scope:         'openid email profile',
+      state:         state ?? '',
+    });
+    return res.redirect(302, `${KC_PUBLIC_URL}/protocol/openid-connect/auth?${params}`);
+  }
+
   const code = crypto.randomBytes(16).toString('hex');
   store.oidcCodes.set(code, null);
-
-  // En tests automatizados el test sobreescribe store.oidcCodes antes de que
-  // el callback sea invocado, por lo que nunca llegan aquí con null.
-  // En el browser (desarrollo manual) redirigimos al simulador de Google SSO
-  // para que el desarrollador seleccione con qué cuenta ingresar.
-  // Redirigimos al selector de usuario bajo /api/v1/ para que Vite lo proxie
-  // a este mismo servidor (evita que el SPA intercepte la URL).
   const ssoUrl = `/api/v1/auth/oidc/mock-sso?code=${code}&redirect_uri=${encodeURIComponent(redirect_uri)}&state=${encodeURIComponent(state ?? '')}`;
   return res.redirect(302, ssoUrl);
 });
@@ -255,29 +271,87 @@ router.get('/auth/oidc/mock-sso/select', (req, res) => {
 
 // POST /auth/oidc/callback
 // Valida el code, vincula broker_subject si es primer login, emite JWT.
-router.post('/auth/oidc/callback', (req, res) => {
-  const { code } = req.body || {};
+// KC_MODE: hace el code exchange real con Keycloak y extrae email/sub del id_token.
+// Mock mode: resuelve email desde store.oidcCodes (flujo simulado).
+router.post('/auth/oidc/callback', async (req, res) => {
+  const { code, state } = req.body || {};
   const ERR = { status: 'error', message: 'Credenciales inválidas', data: null };
 
-  if (!code || !store.oidcCodes.has(code)) {
-    addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Código inválido o no existe');
-    return res.status(401).json(ERR);
-  }
-
-  const mapping = store.oidcCodes.get(code);
-  store.oidcCodes.delete(code); // single-use
-
-  // mapping puede ser: null | string (email) | { email, sub }
   let email, incomingSub;
-  if (mapping === null) {
-    addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Code sin email asociado');
-    return res.status(401).json(ERR);
-  } else if (typeof mapping === 'string') {
-    email = mapping;
-    incomingSub = `google-sub-${crypto.randomBytes(8).toString('hex')}`;
+
+  if (KC_MODE) {
+    if (!code) {
+      addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Código ausente (Keycloak mode)');
+      return res.status(401).json(ERR);
+    }
+
+    // Recuperar redirect_uri desde el state guardado en /authorize
+    const redirect_uri = store.oidcStates.get(state ?? '');
+    store.oidcStates.delete(state ?? '');
+
+    if (!redirect_uri) {
+      addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'State inválido o expirado');
+      return res.status(401).json({ status: 'error', message: 'Estado de sesión inválido. Intentá de nuevo.', data: null });
+    }
+
+    try {
+      const tokenRes = await fetch(`${KC_ISSUER}/protocol/openid-connect/token`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body:    new URLSearchParams({
+          grant_type:    'authorization_code',
+          client_id:     KC_CLIENT,
+          client_secret: KC_SECRET,
+          code,
+          redirect_uri,
+        }).toString(),
+      });
+
+      if (!tokenRes.ok) {
+        const errBody = await tokenRes.text().catch(() => '');
+        addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, `Keycloak token exchange: ${tokenRes.status} ${errBody}`);
+        return res.status(401).json(ERR);
+      }
+
+      const tokens = await tokenRes.json();
+      if (!tokens.id_token) {
+        addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Keycloak: id_token ausente');
+        return res.status(401).json(ERR);
+      }
+
+      // Decodificar payload del id_token (sin verificar firma — mock, no producción)
+      const idPayload = JSON.parse(Buffer.from(tokens.id_token.split('.')[1], 'base64url').toString('utf8'));
+      email       = idPayload.email;
+      incomingSub = idPayload.sub;
+
+      if (!email) {
+        addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Keycloak: id_token sin email');
+        return res.status(401).json({ status: 'error', message: 'El token del proveedor no contiene email. Verificá la config del cliente.', data: null });
+      }
+    } catch (err) {
+      addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, `Keycloak fetch error: ${err.message}`);
+      return res.status(502).json({ status: 'error', message: 'No se pudo comunicar con el proveedor de identidad.', data: null });
+    }
   } else {
-    email = mapping.email;
-    incomingSub = mapping.sub ?? `google-sub-${crypto.randomBytes(8).toString('hex')}`;
+    // ── Mock mode ────────────────────────────────────────────────────────────
+    if (!code || !store.oidcCodes.has(code)) {
+      addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Código inválido o no existe');
+      return res.status(401).json(ERR);
+    }
+
+    const mapping = store.oidcCodes.get(code);
+    store.oidcCodes.delete(code); // single-use
+
+    if (mapping === null) {
+      addAuditEvent('OIDC_CALLBACK_FALLIDO', null, req.ip, 'Code sin email asociado');
+      return res.status(401).json(ERR);
+    } else if (typeof mapping === 'string') {
+      email       = mapping;
+      incomingSub = `google-sub-${crypto.randomBytes(8).toString('hex')}`;
+    } else {
+      email       = mapping.email;
+      incomingSub = mapping.sub ?? `google-sub-${crypto.randomBytes(8).toString('hex')}`;
+    }
   }
 
   const user = store.users.find((u) => u.email === email);
@@ -373,7 +447,7 @@ router.get('/legal/privacy', (_req, res) => {
 router.post(
   '/auth/password-recovery',
   validateStrictInput(['email']),
-  (req, res) => {
+  async (req, res) => {
     const { email } = req.body || {};
 
     if (!email) {
@@ -387,14 +461,13 @@ router.post(
       const expiresAt = Math.floor(Date.now() / 1000) + RECOVERY_TOKEN_TTL;
       store.passwordRecoveryTokens.set(token, { userId: user.id, expiresAt });
 
-      // SOLO EN MOCK: el token se devuelve en la respuesta para facilitar pruebas
       console.log(`[RECOVERY] Token para ${email}: ${token} (expira en 15 min)`);
+      const sent = await mailer.sendPasswordRecovery(user, token);
+
       return res.status(200).json({
         status: 'success',
         message: 'Si el correo está registrado, recibirá instrucciones de recuperación',
-        data: {
-          _mock_recovery_token: token, // ELIMINAR en producción
-        },
+        data: sent ? null : { _mock_recovery_token: token },
       });
     }
 
@@ -539,7 +612,7 @@ router.post(
   '/users',
   authMiddleware(['superadmin']),
   validateStrictInput(['full_name', 'email', 'role', 'institution']),
-  (req, res) => {
+  async (req, res) => {
     const { full_name, email, role, institution } = req.body || {};
 
     if (!full_name || !email || !role) {
@@ -590,6 +663,8 @@ router.post(
     });
 
     const mockMagicLink = `/api/v1/auth/activate/${activationToken}`;
+    console.log(`[SETUP] Magic link para ${email}: ${mockMagicLink}`);
+    const sent = await mailer.sendActivationLink(user, activationToken);
 
     return res.status(201).json({
       status: 'success',
@@ -601,7 +676,7 @@ router.post(
         role: user.role,
         active: user.active,
         created_at: user.created_at,
-        _mock_magic_link: mockMagicLink, // En producción: enviar por email; no exponer en API
+        ...(sent ? {} : { _mock_magic_link: mockMagicLink }),
       },
     });
   }
@@ -861,7 +936,7 @@ router.patch('/users/:id/status', authMiddleware(['superadmin']), (req, res) => 
 // POST /users/:id/magic-link — reenvío de enlace de activación (solo superadmin)
 // Regenera un magic link para un usuario existente (activo o inactivo).
 // En producción: el enlace se entrega por email; no se expone en la API.
-router.post('/users/:id/magic-link', authMiddleware(['superadmin']), (req, res) => {
+router.post('/users/:id/magic-link', authMiddleware(['superadmin']), async (req, res) => {
   const user = store.users.find((u) => u.id === req.params.id);
   if (!user) {
     return res.status(404).json({ status: 'error', message: 'Usuario no encontrado', data: null });
@@ -874,16 +949,18 @@ router.post('/users/:id/magic-link', authMiddleware(['superadmin']), (req, res) 
   });
 
   const mockMagicLink = `/api/v1/auth/activate/${activationToken}`;
+  console.log(`[SETUP] Magic link para ${user.email}: ${mockMagicLink}`);
+  const sent = await mailer.sendActivationLink(user, activationToken);
 
   addAuditEvent('MAGIC_LINK_GENERADO', req.user.id, req.ip, `Para usuario ${user.id}`);
 
   return res.status(200).json({
     status: 'success',
-    message: 'Enlace de activación generado.',
+    message: sent ? 'Enlace de activación enviado por email.' : 'Enlace de activación generado.',
     data: {
       id: user.id,
       email: user.email,
-      _mock_magic_link: mockMagicLink,
+      ...(sent ? {} : { _mock_magic_link: mockMagicLink }),
     },
   });
 });
