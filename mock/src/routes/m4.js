@@ -83,7 +83,7 @@ function createSubjectHandler(projectId) {
       return res.status(400).json({ status: 'error', message: 'El cuerpo de la solicitud debe estar vacío', data: null });
     }
 
-    // Verificar subject_limit del aplicador (SRS General §3.4)
+    // Verificar subject_limit del aplicador (SRS General 3.4)
     const perms = store.userPermissions.get(req.user.id);
     if (perms?.subject_limit != null) {
       const count = store.subjects.filter((s) => s.created_by === req.user.id).length;

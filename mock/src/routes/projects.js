@@ -334,7 +334,7 @@ router.get('/projects/:id/members', authMiddleware(ANY_AUTH), (req, res) => {
     status: 'success',
     data: members.map((m) => {
       const user = store.users.find((u) => u.id === m.user_id);
-      return { id: m.id, user_id: m.user_id, email: user?.email, full_name: user?.full_name, role: m.role, added_at: m.added_at };
+      return { id: m.id, user_id: m.user_id, email: user?.email, full_name: user?.full_name, role: m.role, active: user?.active ?? true, added_at: m.added_at };
     }),
   });
 });
