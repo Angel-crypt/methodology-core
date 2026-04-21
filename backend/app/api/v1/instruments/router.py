@@ -82,3 +82,14 @@ async def update_status(
     await service.repo.db.refresh(instrument)
     return ApiResponse(status="success", message="Estado actualizado",
                        data=InstrumentResponse.model_validate(instrument).model_dump())
+
+
+@router.delete("/{instrument_id}", response_model=ApiResponse,
+               dependencies=[Depends(require_role(Role.superadmin))])
+async def delete_instrument(
+    instrument_id: uuid.UUID,
+    service: InstrumentsService = Depends(get_instruments_service),
+) -> ApiResponse:
+    await service.delete_instrument(instrument_id)
+    await service.repo.db.commit()
+    return ApiResponse(status="success", message="Instrumento eliminado")
