@@ -23,6 +23,7 @@ import ProjectsPage from './pages/ProjectsPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import TermsPage from './pages/TermsPage'
 import PrivacyPage from './pages/PrivacyPage'
+import ConsultaPage from './pages/ConsultaPage'
 import OnboardingPage from './pages/OnboardingPage'
 import AppLayout from './layouts/AppLayout'
 
@@ -51,6 +52,15 @@ function AppRoutes() {
     if (!token) return <Navigate to="/login" replace />
     if (role !== 'superadmin') return <Navigate to="/instruments" replace />
     if (mustChangePassword) return <AppLayout>{null}</AppLayout>
+    return <AppLayout>{page}</AppLayout>
+  }
+
+  const consultaLayout = (page) => {
+    if (!token) return <Navigate to="/login" replace />
+    if (role === 'applicator') return <Navigate to="/instruments" replace />
+    if (mustChangePassword) return <AppLayout>{null}</AppLayout>
+    if (needsTerms) return <Navigate to="/terminos" replace />
+    if (needsOnboarding) return <Navigate to="/onboarding" replace />
     return <AppLayout>{page}</AppLayout>
   }
 
@@ -95,6 +105,9 @@ function AppRoutes() {
         {/* Módulo 2 — Gestión de Instrumentos */}
         <Route path="/instruments" element={authedLayout(<GestionInstrumentos />)} />
         <Route path="/instruments/:id" element={authedLayout(<InstrumentoDetallePage />)} />
+
+        {/* Módulo 5 — Consulta Interna (researcher y superadmin) */}
+        <Route path="/consulta" element={consultaLayout(<ConsultaPage />)} />
 
         {/* Módulo 4 — Registro Operativo Anonimizado (solo Aplicador) */}
         <Route
