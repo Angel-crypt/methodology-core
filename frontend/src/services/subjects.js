@@ -15,3 +15,5 @@ export async function listarAplicacionesSujeto(token, subjectId) {
   const res = await fetch(`${API}/subjects/${subjectId}/applications`, { headers: headers(token) })
   return parseResponse(res)
 }
+
+
