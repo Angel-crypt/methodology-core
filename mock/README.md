@@ -17,7 +17,7 @@ URL base: `http://localhost:3000/api/v1`
 Health check: `GET http://localhost:3000/health`
 
 Superadmin pre-sembrado: definir `SUPERADMIN_EMAIL` y `SUPERADMIN_PASSWORD` en `.env`.
-Defaults de desarrollo: `super@methodology.local` / `metodologia-bootstrap-cambiar-pronto` (fuerza cambio de contraseña al primer login).
+Defaults de desarrollo: `super@methodology.local` / `cambiar-pronto` (fuerza cambio de contraseña al primer login).
 
 ## Tests
 
