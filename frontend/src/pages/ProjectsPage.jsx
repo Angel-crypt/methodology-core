@@ -22,7 +22,7 @@ function CrearProyectoModal({ open, onClose, onCreated, token }) {
   const [description, setDesc]    = useState('')
   const [configMode, setMode]     = useState('defaults')
   const [defaults, setDefaults]   = useState(null)
-  const [customConfig, setCustom] = useState({ education_levels: [], age_cohort_ranges: [], subject_limit: '50', mode: 'normal' })
+  const [customConfig, setCustom] = useState({ education_levels: [], age_cohort_map: {}, cohort_mode: 'libre', subject_limit: 50, mode: 'normal' })
   const [error, setError]         = useState('')
   const [loading, setLoading]     = useState(false)
   const [nameError, setNameError] = useState('')
@@ -30,15 +30,16 @@ function CrearProyectoModal({ open, onClose, onCreated, token }) {
   useEffect(() => {
     if (!open) return
     setName(''); setDesc(''); setMode('defaults'); setError(''); setNameError(''); setLoading(false)
-    setCustom({ education_levels: [], age_cohort_ranges: [], subject_limit: '50', mode: 'normal' })
+    setCustom({ education_levels: [], age_cohort_map: {}, cohort_mode: 'libre', subject_limit: 50, mode: 'normal' })
     obtenerSystemDefaults(token).then((r) => {
       if (r.ok) {
         setDefaults(r.data)
         setCustom({
-          education_levels:  [...(r.data.education_levels || [])],
-          age_cohort_ranges: [...(r.data.age_cohort_ranges || [])],
-          subject_limit:     String(r.data.subject_limit ?? 50),
-          mode:              r.data.mode || 'normal',
+          education_levels: [...(r.data.education_levels || [])],
+          age_cohort_map: { ...(r.data.age_cohort_map || {}) },
+          cohort_mode:    r.data.cohort_mode || 'libre',
+          subject_limit: r.data.subject_limit ?? 50,
+          mode:         r.data.mode || 'normal',
         })
       }
     })
@@ -54,10 +55,11 @@ function CrearProyectoModal({ open, onClose, onCreated, token }) {
       body.use_defaults = true
     } else {
       body.config = {
-        education_levels:  customConfig.education_levels,
-        age_cohort_ranges: customConfig.age_cohort_ranges,
-        subject_limit:     parseInt(customConfig.subject_limit, 10) || 50,
-        mode:              customConfig.mode,
+        education_levels: customConfig.education_levels,
+        age_cohort_map:  customConfig.age_cohort_map,
+        cohort_mode:   customConfig.cohort_mode,
+        subject_limit: customConfig.subject_limit,
+        mode:         customConfig.mode,
       }
     }
 
@@ -149,8 +151,8 @@ function CrearProyectoModal({ open, onClose, onCreated, token }) {
                   id="cfg-limit"
                   label="Límite de sujetos"
                   type="number"
-                  value={customConfig.subject_limit}
-                  onChange={(e) => setCustom((p) => ({ ...p, subject_limit: e.target.value }))}
+                  value={String(customConfig.subject_limit)}
+                  onChange={(e) => setCustom((p) => ({ ...p, subject_limit: Number(e.target.value) || 50 }))}
                   style={{ width: 120 }}
                 />
                 <div>
@@ -159,6 +161,15 @@ function CrearProyectoModal({ open, onClose, onCreated, token }) {
                     <select className="input-base" value={customConfig.mode} onChange={(e) => setCustom((p) => ({ ...p, mode: e.target.value }))}>
                       <option value="normal">Normal</option>
                       <option value="restricted">Restringido</option>
+                    </select>
+                  </label>
+                </div>
+                <div>
+                  <label className="field-label">
+                    Cohorte edad
+                    <select className="input-base" value={customConfig.cohort_mode} onChange={(e) => setCustom((p) => ({ ...p, cohort_mode: e.target.value }))}>
+                      <option value="libre">Libre</option>
+                      <option value="restringido">Restringido</option>
                     </select>
                   </label>
                 </div>
