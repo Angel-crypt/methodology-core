@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Power, RotateCcw, ClipboardList, Search } from 'lucide-react'
+import { Plus, Power, RotateCcw, ClipboardList, Search, Mail } from 'lucide-react'
 import {
   Button,
   DataTable,
@@ -56,6 +56,14 @@ function GestionAplicadores() {
     abrirModalEstado,
     handleConfirmarEstado,
     handleResetearPassword,
+    modalCambiarCorreo,
+    setModalCambiarCorreo,
+    nuevoCorreo,
+    setNuevoCorreo,
+    errorCambioCorreo,
+    guardandoCambioCorreo,
+    abrirModalCambiarCorreo,
+    handleGuardarCambiarCorreo,
     searchQuery,
     setSearchQuery,
     usuariosFiltrados,
@@ -120,15 +128,12 @@ function GestionAplicadores() {
         const status = getUserStatus(row)
         const actions = []
 
-        if (status === 'inactive') {
+        if (status === 'pending_activation') {
+          actions.push({ label: 'Reenviar activación', icon: RotateCcw, onClick: () => handleResetearPassword(row), disabled: guardandoReset })
+        } else if (status === 'disabled') {
           actions.push({ label: 'Activar cuenta', icon: Power, onClick: () => abrirModalEstado(row) })
         } else {
-          actions.push({
-            label: status === 'pending' ? 'Regenerar contraseña' : 'Restablecer contraseña',
-            icon: RotateCcw,
-            onClick: () => handleResetearPassword(row),
-            disabled: guardandoReset,
-          })
+          actions.push({ label: 'Cambiar correo', icon: Mail, onClick: () => abrirModalCambiarCorreo(row) })
           actions.push({ label: 'Desactivar cuenta', icon: Power, onClick: () => abrirModalEstado(row), variant: 'danger' })
         }
 
@@ -311,6 +316,33 @@ function GestionAplicadores() {
           nombreUsuario={credencialesNuevas.nombreUsuario}
         />
       )}
+
+      {/* Modal — Cambiar correo */}
+      <Modal
+        open={modalCambiarCorreo}
+        onClose={() => setModalCambiarCorreo(false)}
+        title="Cambiar correo electrónico"
+        size="sm"
+        footer={
+          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+            <Button variant="ghost" onClick={() => setModalCambiarCorreo(false)} disabled={guardandoCambioCorreo}>Cancelar</Button>
+            <Button onClick={handleGuardarCambiarCorreo} loading={guardandoCambioCorreo}>Guardar</Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          {errorCambioCorreo && <Alert variant="error">{errorCambioCorreo}</Alert>}
+          <FormField
+            id="apl-cambiar-correo"
+            label="Nuevo correo electrónico"
+            type="email"
+            placeholder="nuevo@institución.edu"
+            required
+            value={nuevoCorreo}
+            onChange={(e) => setNuevoCorreo(e.target.value)}
+          />
+        </div>
+      </Modal>
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
