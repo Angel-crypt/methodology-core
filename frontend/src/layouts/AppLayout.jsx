@@ -29,6 +29,7 @@ function getNavSections(role) {
       items: [
         { label: 'Registro Operativo', icon: ClipboardCheck, to: '/registro-operativo' },
         { label: 'Mis Registros',      icon: ClipboardList,  to: '/mis-registros'       },
+        { label: 'Mis Usuarios',       icon: Users,          to: '/mis-usuarios'       },
       ],
     })
   }
