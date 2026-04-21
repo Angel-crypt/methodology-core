@@ -6,22 +6,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/components/app'
 import { Typography, Button, EmptyState, Spinner, ToastContainer } from '@/components/app'
 import { ChevronRight, Users, ClipboardList, Calendar, X } from 'lucide-react'
-
-async function fetchMisSujetos(token) {
-  const res = await fetch('/api/v1/subjects/mine', {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  const json = await res.json()
-  return json.status === 'success' ? json.data : []
-}
-
-async function fetchAplicacionesSujeto(token, subjectId) {
-  const res = await fetch(`/api/v1/subjects/${subjectId}/applications`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  const json = await res.json()
-  return json.status === 'success' ? json.data : []
-}
+import { listarMisSujetos, listarAplicacionesSujeto } from '@/services/subjects'
+import { APP_LOCALE } from '@/constants/locale'
 
 function SujetoRow({ sujeto, seleccionado, onClick }) {
   return (
@@ -50,7 +36,7 @@ function SujetoRow({ sujeto, seleccionado, onClick }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-tertiary)', flexShrink: 0 }}>
         <Calendar size={14} />
         <Typography as="small">
-          {sujeto.created_at ? new Date(sujeto.created_at).toLocaleDateString('es-CO') : '—'}
+          {sujeto.created_at ? new Date(sujeto.created_at).toLocaleDateString(APP_LOCALE) : '—'}
         </Typography>
         <ChevronRight size={16} />
       </div>
@@ -71,7 +57,7 @@ function AplicacionRow({ app }) {
       }}
     >
       <Typography as="small" style={{ color: 'var(--color-text-secondary)' }}>
-        {app.application_date ? new Date(app.application_date).toLocaleDateString('es-CO') : '—'}
+        {app.application_date ? new Date(app.application_date).toLocaleDateString(APP_LOCALE) : '—'}
       </Typography>
       <Typography as="small">{app.instrument_name || '—'}</Typography>
       <Typography as="small" style={{ color: 'var(--color-text-tertiary)', textAlign: 'right' }}>
@@ -100,8 +86,8 @@ export default function MisUsuariosPage() {
     async function cargar() {
       setCargando(true)
       try {
-        const data = await fetchMisSujetos(token)
-        setSujetos(data)
+        const res = await listarMisSujetos(token)
+        if (res.ok) setSujetos(res.data ?? [])
       } catch {
         toast({ type: 'error', title: 'Error', message: 'No se pudieron cargar los usuarios.' })
       } finally {
@@ -117,8 +103,8 @@ export default function MisUsuariosPage() {
     setFiltroInstrumento('')
     setCargandoApps(true)
     try {
-      const apps = await fetchAplicacionesSujeto(token, sujeto.id)
-      setAplicaciones(apps)
+      const res = await listarAplicacionesSujeto(token, sujeto.id)
+      setAplicaciones(res.ok ? (res.data ?? []) : [])
     } catch {
       setAplicaciones([])
     } finally {

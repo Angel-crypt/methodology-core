@@ -193,15 +193,14 @@ function MisRegistrosPage() {
         project_id: filtroProyecto || undefined,
       })
       setCargando(false)
-      if (res.status === 'success') {
+      if (res.ok) {
         setRegistros(res.data || [])
         setMeta(res.meta || { total: (res.data || []).length, page, page_size: pageSize, pages: 1 })
-        // Enriquecer lista de proyectos/instrumentos conocidos (sin filtros aplicados)
         if (!filtroInstrumento && !filtroDesde && !filtroHasta && !filtroProyecto && page === 1) {
           setTodosRegistros(res.data || [])
         }
       } else {
-        toast({ type: 'error', title: 'Error', message: res.message || 'No se pudieron cargar los registros.' })
+        toast({ type: 'error', title: 'Error', message: res.error || 'No se pudieron cargar los registros.' })
       }
     }
     cargar()
