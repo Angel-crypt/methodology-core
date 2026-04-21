@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import PropTypes from 'prop-types'
 import { Button, DatePicker, FormField, Alert, Spinner, Typography, ToastContainer, useToast } from '@/components/app'
 import { useAuth } from '@/contexts/AuthContext'
+import { parseResponse } from '@/lib/api'
+import { APP_LOCALE } from '@/constants/locale'
 
 const AGE_COHORT_REGEX = /^\d+-\d+$/
 
@@ -490,7 +492,7 @@ function Step3Application({
             background: 'var(--color-bg-subtle)',
             borderRadius: 'var(--radius-md)',
           }}>
-            {new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {new Date().toLocaleDateString(APP_LOCALE, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         )}
         {dateMode === 'other' && (
@@ -780,18 +782,6 @@ function RegistroOperativoWizardPage() {
     setUiState((prev) => ({ ...prev, apiError: '', validationError: '' }))
   }
 
-  async function parseResponse(res) {
-    try {
-      return await res.json()
-    } catch {
-      return {
-        status: 'error',
-        message: `Error del servidor (HTTP ${res.status})`,
-        data: null,
-      }
-    }
-  }
-
   const authHeaders = useMemo(
     () => ({
       'Content-Type': 'application/json',
@@ -841,10 +831,10 @@ function RegistroOperativoWizardPage() {
   // CF-015: Cargar proyectos al montar
   useEffect(() => {
     fetch('/api/v1/projects', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
+      .then((r) => parseResponse(r))
       .then((data) => {
         setLoadingProjects(false)
-        if (data.status === 'success') setProjects(data.data || [])
+        if (data.ok) setProjects(data.data || [])
       })
       .catch(() => setLoadingProjects(false))
   }, [token])
@@ -860,8 +850,8 @@ function RegistroOperativoWizardPage() {
         fetch(`/api/v1/projects/${pid}/instruments?is_active=true`, { headers: { Authorization: `Bearer ${token}` } }),
       ])
       const [configData, instData] = await Promise.all([parseResponse(configRes), parseResponse(instRes)])
-      if (configData.status === 'success') setOperativoConfig(configData.data)
-      if (instData.status === 'success')   setInstruments(instData.data || [])
+      if (configData.ok) setOperativoConfig(configData.data)
+      if (instData.ok)   setInstruments(instData.data || [])
     } catch { /* silencioso */ }
     setLoadingConfig(false)
     setLoadingProjectInstruments(false)
@@ -878,7 +868,7 @@ function RegistroOperativoWizardPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = await parseResponse(res)
-      if (data.status === 'success') setMySubjects(data.data || [])
+      if (data.ok) setMySubjects(data.data || [])
     } catch { /* silent */ }
     setLoadingMySubjects(false)
   }
@@ -897,12 +887,12 @@ function RegistroOperativoWizardPage() {
       const data = await parseResponse(response)
       setUiState((prev) => ({ ...prev, loadingMetrics: false }))
 
-      if (data.status === 'success') {
+      if (data.ok) {
         setMetricDefinitions(data.data || [])
         return
       }
 
-      setApiError(data.message || 'No se pudieron cargar las métricas.')
+      setApiError(data.error || 'No se pudieron cargar las métricas.')
     }
 
     loadMetrics()
@@ -921,8 +911,8 @@ function RegistroOperativoWizardPage() {
 
     setUiState((prev) => ({ ...prev, loadingSubject: false }))
 
-    if (data.status !== 'success') {
-      setApiError(data.message || 'No se pudo registrar el sujeto.')
+    if (!data.ok) {
+      setApiError(data.error || 'No se pudo registrar el sujeto.')
       return
     }
 
@@ -944,8 +934,8 @@ function RegistroOperativoWizardPage() {
 
     setUiState((prev) => ({ ...prev, loadingSubject: false }))
 
-    if (data.status !== 'success') {
-      setApiError(data.message || 'No se encontró el sujeto.')
+    if (!data.ok) {
+      setApiError(data.error || 'No se encontró el sujeto.')
       return
     }
 
@@ -1026,9 +1016,9 @@ function RegistroOperativoWizardPage() {
     const data = await parseResponse(response)
     setUiState((prev) => ({ ...prev, loadingContext: false }))
 
-    if (data.status !== 'success') {
+    if (!data.ok) {
       // Transformar errores técnicos de validación de enum en mensajes legibles
-      const raw = data.message || ''
+      const raw = data.error || ''
       const friendlyError =
         raw.includes('education_level') ? 'Nivel educativo no válido. Selecciona una opción de la lista.' :
         raw.includes('school_type')     ? 'Tipo de institución no válido. Selecciona una opción de la lista.' :
@@ -1105,8 +1095,8 @@ function RegistroOperativoWizardPage() {
     const data = await parseResponse(response)
     setUiState((prev) => ({ ...prev, loadingApplication: false }))
 
-    if (data.status !== 'success') {
-      setApiError(data.message || 'No se pudo registrar la aplicacion.')
+    if (!data.ok) {
+      setApiError(data.error || 'No se pudo registrar la aplicacion.')
       return
     }
 
@@ -1205,8 +1195,8 @@ function RegistroOperativoWizardPage() {
     const data = await parseResponse(response)
     setUiState((prev) => ({ ...prev, loadingMetricSubmit: false }))
 
-    if (data.status !== 'success') {
-      setApiError(data.message || 'No se pudieron guardar las métricas.')
+    if (!data.ok) {
+      setApiError(data.error || 'No se pudieron guardar las métricas.')
       return
     }
 
