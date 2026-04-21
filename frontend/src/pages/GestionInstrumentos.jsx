@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import PropTypes from 'prop-types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Power, RotateCw, BookOpen, Search, Trash2, Eye, X } from 'lucide-react'
@@ -144,6 +145,18 @@ function TagChipInput({ label, inputId, tags, tagInput, catalog, onAdd, onRemove
   )
 }
 
+TagChipInput.propTypes = {
+  label: PropTypes.string.isRequired,
+  inputId: PropTypes.string.isRequired,
+  tags: PropTypes.arrayOf(PropTypes.string).isRequired,
+  tagInput: PropTypes.string.isRequired,
+  catalog: PropTypes.arrayOf(PropTypes.string).isRequired,
+  onAdd: PropTypes.func.isRequired,
+  onRemove: PropTypes.func.isRequired,
+  onInputChange: PropTypes.func.isRequired,
+  onKeyDown: PropTypes.func.isRequired,
+}
+
 function emptyMetricForm() {
   return { name: '', metric_type: 'numeric', required: true, description: '', min_value: '', max_value: '', options: '' }
 }
@@ -221,10 +234,10 @@ function GestionInstrumentos() {
     setCargando(true)
     try {
       const res = await listarInstrumentos(token, filtroEstado, tagFilter)
-      if (res.status === 'success') {
+      if (res.ok) {
         setInstrumentos(res.data)
       } else {
-        toast({ type: 'error', title: 'Error', message: res.message || 'No se pudo cargar la lista.' })
+        toast({ type: 'error', title: 'Error', message: res.error || 'No se pudo cargar la lista.' })
       }
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
@@ -241,7 +254,7 @@ function GestionInstrumentos() {
   const cargarTags = useCallback(async () => {
     try {
       const res = await listarTags(token)
-      if (res.status === 'success' && Array.isArray(res.data)) {
+      if (res.ok && Array.isArray(res.data)) {
         setTagCatalog(res.data)
       }
     } catch {
@@ -385,8 +398,8 @@ function GestionInstrumentos() {
 
     try {
       const res = await crearInstrumento(token, body)
-      if (res.status !== 'success') {
-        setErrorApiCrear(res.message || 'Error al crear el instrumento.')
+      if (!res.ok) {
+        setErrorApiCrear(res.error || 'Error al crear el instrumento.')
         setGuardandoCrear(false)
         return
       }
@@ -517,7 +530,7 @@ function GestionInstrumentos() {
 
     try {
       const res = await editarInstrumento(token, instrumentoSeleccionado.id, body)
-      if (res.status === 'success') {
+      if (res.ok) {
         setInstrumentos((prev) =>
           prev.map((i) => (i.id === res.data.id ? { ...i, ...res.data } : i))
         )
@@ -525,7 +538,7 @@ function GestionInstrumentos() {
         cerrarModalEditar()
         cargarTags()
       } else {
-        setErrorApiEditar(res.message || 'Error al actualizar el instrumento.')
+        setErrorApiEditar(res.error || 'Error al actualizar el instrumento.')
       }
     } catch {
       setErrorApiEditar('No se pudo conectar con el servidor.')
@@ -555,7 +568,7 @@ function GestionInstrumentos() {
 
     try {
       const res = await cambiarEstadoInstrumento(token, instrumentoSeleccionado.id, nuevoEstado)
-      if (res.status === 'success') {
+      if (res.ok) {
         setInstrumentos((prev) =>
           prev.map((i) => (i.id === res.data.id ? { ...i, is_active: res.data.is_active } : i))
         )
@@ -563,7 +576,7 @@ function GestionInstrumentos() {
         toast({ type: 'success', title: 'Estado actualizado', message: `El instrumento fue ${etiqueta}.` })
         cerrarModalEstado()
       } else {
-        setErrorApiEstado(res.message || 'Error al cambiar el estado.')
+        setErrorApiEstado(res.error || 'Error al cambiar el estado.')
       }
     } catch {
       setErrorApiEstado('No se pudo conectar con el servidor.')
@@ -590,13 +603,13 @@ function GestionInstrumentos() {
     setErrorApiEliminar('')
     try {
       const res = await eliminarInstrumento(token, instrumentoSeleccionado.id)
-      if (res.status === 'success') {
+      if (res.ok) {
         setInstrumentos((prev) => prev.filter((i) => i.id !== instrumentoSeleccionado.id))
         toast({ type: 'success', title: 'Instrumento eliminado', message: `"${instrumentoSeleccionado.name}" fue eliminado.` })
         setModalEliminar(false)
         setInstrumentoSeleccionado(null)
       } else {
-        setErrorApiEliminar(res.message || 'Error al eliminar el instrumento.')
+        setErrorApiEliminar(res.error || 'Error al eliminar el instrumento.')
       }
     } catch {
       setErrorApiEliminar('No se pudo conectar con el servidor.')

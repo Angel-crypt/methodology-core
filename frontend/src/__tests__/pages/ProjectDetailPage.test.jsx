@@ -1,7 +1,7 @@
 /**
  * Tests de ProjectDetailPage (CF-013)
  */
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { http, HttpResponse } from 'msw'
@@ -77,9 +77,11 @@ describe('ProjectDetailPage — Tab Miembros', () => {
     renderPage()
     await screen.findAllByText('Estudio Piloto 2026')
     await user.click(screen.getByRole('button', { name: /Miembros/i }))
-    // esperar a que cargue la opción del usuario (buscar por email para no confundir con "Investigador")
+    // buscar el usuario por correo en el combobox
+    const searchInput = await screen.findByPlaceholderText(/Buscar usuario/i)
+    await user.type(searchInput, 'r@t')
     const option = await screen.findByRole('option', { name: /r@t\.com/ })
-    await user.selectOptions(option.closest('select'), 'u-r')
+    await user.click(option)
     await user.click(screen.getByRole('button', { name: /^Agregar$/i }))
     expect(await screen.findByText(/Miembro agregado/i)).toBeInTheDocument()
   })
@@ -102,8 +104,10 @@ describe('ProjectDetailPage — Tab Miembros', () => {
     renderPage()
     await screen.findAllByText('Estudio Piloto 2026')
     await user.click(screen.getByRole('button', { name: /Miembros/i }))
+    const searchInput = await screen.findByPlaceholderText(/Buscar usuario/i)
+    await user.type(searchInput, 'r@t')
     const option = await screen.findByRole('option', { name: /r@t\.com/ })
-    await user.selectOptions(option.closest('select'), 'u-r')
+    await user.click(option)
     await user.click(screen.getByRole('button', { name: /^Agregar$/i }))
     expect(await screen.findByText(/ya es miembro/i)).toBeInTheDocument()
   })

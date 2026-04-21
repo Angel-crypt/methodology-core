@@ -256,8 +256,8 @@ function InstrumentoDetallePage() {
     setCargando(true)
     try {
       const res = await obtenerInstrumento(token, id)
-      if (res.status === 'success') setInstrumento(res.data)
-      else toast({ type: 'error', title: 'Error', message: res.message || 'No se pudo cargar el instrumento.' })
+      if (res.ok) setInstrumento(res.data)
+      else toast({ type: 'error', title: 'Error', message: res.error || 'No se pudo cargar el instrumento.' })
     } catch {
       toast({ type: 'error', title: 'Error de red', message: 'No se pudo conectar con el servidor.' })
     } finally {
@@ -269,7 +269,7 @@ function InstrumentoDetallePage() {
     setCargandoMetricas(true)
     try {
       const res = await listarMetricas(token, id)
-      if (res.status === 'success') setMetricas(res.data)
+      if (res.ok) setMetricas(res.data)
     } catch {
       // silencioso — lista vacía
     } finally {
@@ -309,14 +309,14 @@ function InstrumentoDetallePage() {
     try {
       const body = { ...buildBody(formAgregar), instrument_id: id }
       const res = await crearMetrica(token, body)
-      if (res.status === 'success') {
+      if (res.ok) {
         setMetricas((prev) => [...prev, res.data])
         toast({ type: 'success', title: 'Métrica agregada', message: `"${res.data.name}" fue registrada.` })
         setModalAgregar(false)
         setFormAgregar(emptyForm())
         setErroresAgregar({})
       } else {
-        setErrorApiAgregar(res.message || 'Error al crear la métrica.')
+        setErrorApiAgregar(res.error || 'Error al crear la métrica.')
       }
     } catch {
       setErrorApiAgregar('No se pudo conectar con el servidor.')
@@ -349,12 +349,12 @@ function InstrumentoDetallePage() {
     setErrorApiEditar('')
     try {
       const res = await editarMetrica(token, metricaEditar.id, buildBody(formEditar))
-      if (res.status === 'success') {
+      if (res.ok) {
         setMetricas((prev) => prev.map((m) => (m.id === res.data.id ? res.data : m)))
         toast({ type: 'success', title: 'Métrica actualizada', message: 'Los cambios se guardaron correctamente.' })
         setModalEditar(false)
       } else {
-        setErrorApiEditar(res.message || 'Error al actualizar la métrica.')
+        setErrorApiEditar(res.error || 'Error al actualizar la métrica.')
       }
     } catch {
       setErrorApiEditar('No se pudo conectar con el servidor.')
@@ -376,12 +376,12 @@ function InstrumentoDetallePage() {
     setErrorApiEliminar('')
     try {
       const res = await eliminarMetrica(token, metricaEliminar.id)
-      if (res.status === 'success') {
+      if (res.ok) {
         setMetricas((prev) => prev.filter((m) => m.id !== metricaEliminar.id))
         toast({ type: 'success', title: 'Métrica eliminada', message: `"${metricaEliminar.name}" fue eliminada.` })
         setModalEliminar(false)
       } else {
-        setErrorApiEliminar(res.message || 'Error al eliminar la métrica.')
+        setErrorApiEliminar(res.error || 'Error al eliminar la métrica.')
       }
     } catch {
       setErrorApiEliminar('No se pudo conectar con el servidor.')

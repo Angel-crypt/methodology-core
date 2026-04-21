@@ -14,7 +14,7 @@ const { v4: uuidv4 } = require('uuid');
 const SUPERADMIN_ID = uuidv4();
 
 const SUPERADMIN_EMAIL_DEFAULT    = 'super@methodology.local';
-const SUPERADMIN_PASSWORD_DEFAULT = 'metodologia-bootstrap-cambiar-pronto';
+const SUPERADMIN_PASSWORD_DEFAULT = 'cambiar-pronto';
 
 const superadminEmail    = process.env.SUPERADMIN_EMAIL    || SUPERADMIN_EMAIL_DEFAULT;
 const superadminPassword = process.env.SUPERADMIN_PASSWORD || SUPERADMIN_PASSWORD_DEFAULT;

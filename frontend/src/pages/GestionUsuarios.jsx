@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
+import PropTypes from 'prop-types'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Power, RotateCcw, Search } from 'lucide-react'
+import { Plus, Power, RotateCcw, ClipboardList, Search, Mail } from 'lucide-react'
 import {
   Button,
   DataTable,
@@ -24,7 +25,36 @@ import {
 import CredencialesModal from '@/pages/CredencialesModal'
 import SolicitudesCambioCorreoPanel from '@/components/SolicitudesCambioCorreoPanel'
 
-function GestionInvestigadores() {
+const ROLE_CONFIG = {
+  applicator: {
+    title: 'Profesionales Aplicadores',
+    subtitle: 'Cuentas con permisos de registro de sujetos y captura de métricas.',
+    labelSingular: 'aplicador',
+    emptyIcon: ClipboardList,
+    emptyTitle: 'Sin aplicadores registrados',
+    emptyMessage: 'Crea el primer profesional aplicador para comenzar.',
+    namePlaceholder: 'Ej. María López',
+    detailPath: '/usuarios/aplicadores',
+    idPrefix: 'apl',
+  },
+  researcher: {
+    title: 'Investigadores',
+    subtitle: 'Cuentas con permisos de consulta y exportación del dataset.',
+    labelSingular: 'investigador',
+    emptyIcon: Search,
+    emptyTitle: 'Sin investigadores registrados',
+    emptyMessage: 'Crea el primer investigador para habilitar el acceso al dataset.',
+    namePlaceholder: 'Ej. Carlos Ramírez',
+    detailPath: '/usuarios/investigadores',
+    idPrefix: 'inv',
+  },
+}
+
+function GestionUsuarios({ role }) {
+  const cfg = ROLE_CONFIG[role]
+  const label = cfg.labelSingular
+  const LabelCap = label.charAt(0).toUpperCase() + label.slice(1)
+
   const {
     esAdmin,
     usuarios,
@@ -52,20 +82,28 @@ function GestionInvestigadores() {
     handleChangeCrear,
     handleEmailBlur,
     institutionDetected,
+    emailDomainError,
     handleGuardarCrear,
     abrirModalEstado,
     handleConfirmarEstado,
     handleResetearPassword,
+    modalCambiarCorreo,
+    setModalCambiarCorreo,
+    nuevoCorreo,
+    setNuevoCorreo,
+    errorCambioCorreo,
+    guardandoCambioCorreo,
+    abrirModalCambiarCorreo,
+    handleGuardarCambiarCorreo,
     searchQuery,
     setSearchQuery,
     usuariosFiltrados,
     usuariosConSesion,
-  } = useGestionUsuarios({ role: 'researcher', labelSingular: 'investigador' })
+  } = useGestionUsuarios({ role, labelSingular: label })
 
   const location = useLocation()
   const navigate = useNavigate()
 
-  // Navegación desde GlobalSearch: abrir drawer o modal de creación
   useEffect(() => {
     const s = location.state
     if (!s) return
@@ -74,7 +112,6 @@ function GestionInvestigadores() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state])
 
-  // ─── Columnas de tabla ─────────────────────────────────────────
   const columnas = [
     { key: 'full_name', label: 'Nombre completo' },
     { key: 'email', label: 'Correo electrónico' },
@@ -120,15 +157,12 @@ function GestionInvestigadores() {
         const status = getUserStatus(row)
         const actions = []
 
-        if (status === 'inactive') {
+        if (status === 'pending_activation') {
+          actions.push({ label: 'Reenviar activación', icon: RotateCcw, onClick: () => handleResetearPassword(row), disabled: guardandoReset })
+        } else if (status === 'disabled') {
           actions.push({ label: 'Activar cuenta', icon: Power, onClick: () => abrirModalEstado(row) })
         } else {
-          actions.push({
-            label: status === 'pending' ? 'Regenerar contraseña' : 'Restablecer contraseña',
-            icon: RotateCcw,
-            onClick: () => handleResetearPassword(row),
-            disabled: guardandoReset,
-          })
+          actions.push({ label: 'Cambiar correo', icon: Mail, onClick: () => abrirModalCambiarCorreo(row) })
           actions.push({ label: 'Desactivar cuenta', icon: Power, onClick: () => abrirModalEstado(row), variant: 'danger' })
         }
 
@@ -137,24 +171,17 @@ function GestionInvestigadores() {
     }] : []),
   ]
 
-  // ─── Render ────────────────────────────────────────────────────
   return (
     <main className="page-container">
-      {/* Encabezado */}
       <div style={{ marginBottom: 'var(--space-6)' }}>
-        <Typography as="h1">Investigadores</Typography>
-        <Typography
-          as="small"
-          style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)' }}
-        >
-          Cuentas con permisos de consulta y exportación del dataset.
+        <Typography as="h1">{cfg.title}</Typography>
+        <Typography as="small" style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)' }}>
+          {cfg.subtitle}
         </Typography>
       </div>
 
-      {/* Panel solicitudes de cambio de correo — solo superadmin */}
       {esAdmin && <SolicitudesCambioCorreoPanel />}
 
-      {/* Búsqueda y filtros */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
         <div className="page-search-wrapper" style={{ flex: '1 1 200px' }}>
           <Search size={14} className="page-search-icon" aria-hidden="true" />
@@ -165,34 +192,33 @@ function GestionInvestigadores() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        {FILTROS_ESTADO.map(({ value, label }) => (
+        {FILTROS_ESTADO.map(({ value, label: lbl }) => (
           <PillToggle
             key={value}
             selected={filtroEstado === value}
             onClick={() => setFiltroEstado(value)}
           >
-            {label}
+            {lbl}
           </PillToggle>
         ))}
         {esAdmin && (
           <Button icon={Plus} onClick={abrirModalCrear} style={{ marginLeft: 'auto' }}>
-            Nuevo investigador
+            Nuevo {label}
           </Button>
         )}
       </div>
 
-      {/* Tabla / Empty state */}
       {cargando ? (
         <DataTable columns={columnas} data={[]} loading={true} />
       ) : usuarios.length === 0 ? (
         <EmptyState
-          icon={Search}
-          title="Sin investigadores registrados"
-          message="Crea el primer investigador para habilitar el acceso al dataset."
+          icon={cfg.emptyIcon}
+          title={cfg.emptyTitle}
+          message={cfg.emptyMessage}
           action={
             esAdmin ? (
               <Button size="sm" icon={Plus} onClick={abrirModalCrear}>
-                Nuevo investigador
+                Nuevo {label}
               </Button>
             ) : null
           }
@@ -202,27 +228,22 @@ function GestionInvestigadores() {
           columns={columnas}
           data={usuariosFiltrados}
           loading={false}
-          emptyMessage="No hay investigadores que coincidan con el filtro."
-          onRowClick={(row) => navigate(`/usuarios/investigadores/${row.id}`, { state: { usuario: row } })}
+          emptyMessage={`No hay ${label}es que coincidan con el filtro.`}
+          onRowClick={(row) => navigate(`${cfg.detailPath}/${row.id}`, { state: { usuario: row } })}
         />
       )}
 
-      {/* Modal — Crear investigador */}
       <Modal
         open={modalCrear}
         onClose={() => setModalCrear(false)}
-        title="Nuevo investigador"
+        title={`Nuevo ${label}`}
         footer={
           <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
-            <Button
-              variant="ghost"
-              onClick={() => setModalCrear(false)}
-              disabled={guardandoCrear}
-            >
+            <Button variant="ghost" onClick={() => setModalCrear(false)} disabled={guardandoCrear}>
               Cancelar
             </Button>
             <Button onClick={handleGuardarCrear} loading={guardandoCrear}>
-              Crear investigador
+              Crear {label}
             </Button>
           </div>
         }
@@ -230,28 +251,33 @@ function GestionInvestigadores() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {errorApiCrear && <Alert variant="error">{errorApiCrear}</Alert>}
           <FormField
-            id="inv-crear-nombre"
+            id={`${cfg.idPrefix}-crear-nombre`}
             label="Nombre completo"
-            placeholder="Ej. Carlos Ramírez"
+            placeholder={cfg.namePlaceholder}
             required
             value={formCrear.full_name}
             onChange={handleChangeCrear('full_name')}
             error={erroresCrear.full_name}
           />
-          <FormField
-            id="inv-crear-email"
-            label="Correo electrónico"
-            type="email"
-            placeholder="usuario@institución.edu"
-            required
-            value={formCrear.email}
-            onChange={handleChangeCrear('email')}
-            onBlur={handleEmailBlur}
-            error={erroresCrear.email}
-          />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
             <FormField
-              id="inv-crear-institucion"
+              id={`${cfg.idPrefix}-crear-email`}
+              label="Correo electrónico"
+              type="email"
+              placeholder="usuario@institución.edu"
+              required
+              value={formCrear.email}
+              onChange={handleChangeCrear('email')}
+              onBlur={handleEmailBlur}
+              error={erroresCrear.email}
+            />
+            {emailDomainError && (
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-error)' }}>{emailDomainError}</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <FormField
+              id={`${cfg.idPrefix}-crear-institucion`}
               label="Institución (opcional)"
               placeholder="Nombre de la institución"
               value={formCrear.institution}
@@ -266,7 +292,6 @@ function GestionInvestigadores() {
         </div>
       </Modal>
 
-      {/* Modal — Confirmar cambio de estado */}
       <Modal
         open={modalEstado}
         onClose={() => setModalEstado(false)}
@@ -274,11 +299,7 @@ function GestionInvestigadores() {
         size="sm"
         footer={
           <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
-            <Button
-              variant="ghost"
-              onClick={() => setModalEstado(false)}
-              disabled={guardandoEstado}
-            >
+            <Button variant="ghost" onClick={() => setModalEstado(false)} disabled={guardandoEstado}>
               Cancelar
             </Button>
             <Button
@@ -301,7 +322,6 @@ function GestionInvestigadores() {
         </div>
       </Modal>
 
-      {/* Modal — Credenciales de acceso (una sola vez) */}
       {credencialesNuevas && (
         <CredencialesModal
           open={modalCredenciales}
@@ -312,9 +332,39 @@ function GestionInvestigadores() {
         />
       )}
 
+      <Modal
+        open={modalCambiarCorreo}
+        onClose={() => setModalCambiarCorreo(false)}
+        title="Cambiar correo electrónico"
+        size="sm"
+        footer={
+          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+            <Button variant="ghost" onClick={() => setModalCambiarCorreo(false)} disabled={guardandoCambioCorreo}>Cancelar</Button>
+            <Button onClick={handleGuardarCambiarCorreo} loading={guardandoCambioCorreo}>Guardar</Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          {errorCambioCorreo && <Alert variant="error">{errorCambioCorreo}</Alert>}
+          <FormField
+            id={`${cfg.idPrefix}-cambiar-correo`}
+            label="Nuevo correo electrónico"
+            type="email"
+            placeholder="nuevo@institución.edu"
+            required
+            value={nuevoCorreo}
+            onChange={(e) => setNuevoCorreo(e.target.value)}
+          />
+        </div>
+      </Modal>
+
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </main>
   )
 }
 
-export default GestionInvestigadores
+GestionUsuarios.propTypes = {
+  role: PropTypes.oneOf(['applicator', 'researcher']).isRequired,
+}
+
+export default GestionUsuarios

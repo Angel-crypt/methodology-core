@@ -50,14 +50,16 @@ function ProfileDropdown({ fullName, role, email, onChangePassword, onRequestEma
 
           <DropdownMenu.Separator className="profile-dropdown__separator" />
 
-          {/* Cambiar contraseña */}
-          <DropdownMenu.Item
-            className="profile-dropdown__item"
-            onSelect={onChangePassword}
-          >
-            <KeyRound size={14} aria-hidden="true" />
-            Cambiar contraseña
-          </DropdownMenu.Item>
+          {/* Cambiar contraseña — solo superadmin */}
+          {onChangePassword && (
+            <DropdownMenu.Item
+              className="profile-dropdown__item"
+              onSelect={onChangePassword}
+            >
+              <KeyRound size={14} aria-hidden="true" />
+              Cambiar contraseña
+            </DropdownMenu.Item>
+          )}
 
           {/* Solicitar cambio de correo — solo para roles no-superadmin */}
           {role !== 'superadmin' && onRequestEmailChange && (
@@ -79,7 +81,7 @@ ProfileDropdown.propTypes = {
   fullName:             PropTypes.string.isRequired,
   role:                 PropTypes.oneOf(['superadmin', 'researcher', 'applicator']).isRequired,
   email:                PropTypes.string.isRequired,
-  onChangePassword:     PropTypes.func.isRequired,
+  onChangePassword:     PropTypes.func,
   onRequestEmailChange: PropTypes.func,
 }
 

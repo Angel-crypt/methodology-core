@@ -6,27 +6,35 @@
  *   - Chip-input de tags y campo min_days_between_applications en el POST.
  *   - Eliminación de un chip al hacer clic en su botón de cierre.
  */
-import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { render, screen, within, waitFor, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router-dom'
 import { server } from '@/test/server'
-import { AuthProvider } from '@/contexts/AuthContext'
 import GestionInstrumentos from '@/pages/GestionInstrumentos'
 
 // JWT mínimo con payload {"role":"superadmin"} decodeable por atob()
 const SUPERADMIN_TOKEN =
   'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic3VwZXJhZG1pbiJ9.sig'
 
+// Mock de AuthContext similar a otros tests que funcionan (ProjectsPage, InstitutionsPage)
+const AUTH = {
+  token: SUPERADMIN_TOKEN,
+  role: 'superadmin',
+  mustChangePassword: false,
+  login: vi.fn(),
+  logout: vi.fn(),
+}
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => AUTH,
+  AuthProvider: ({ children }) => children,
+}))
+
 function renderPage() {
-  sessionStorage.setItem('access_token', SUPERADMIN_TOKEN)
-  sessionStorage.setItem('role', 'superadmin')
   return render(
     <MemoryRouter>
-      <AuthProvider>
-        <GestionInstrumentos />
-      </AuthProvider>
+      <GestionInstrumentos />
     </MemoryRouter>
   )
 }
@@ -57,7 +65,18 @@ function getDateInputs(dialog) {
 describe('GestionInstrumentos — validación start_date < end_date', () => {
   beforeEach(() => {
     sessionStorage.clear()
-    document.body.innerHTML = ''
+  })
+
+  afterEach(async () => {
+    // Close any open Radix dialog via its close button before RTL cleanup runs.
+    // If the dialog is force-unmounted while open, Radix leaves module-level
+    // FocusScope state and body attributes that break subsequent tests.
+    const closeBtn = document.querySelector('[aria-label="Cerrar modal"]')
+    if (closeBtn) {
+      await act(async () => { fireEvent.click(closeBtn) })
+      await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull(), { timeout: 500 })
+        .catch(() => {})
+    }
   })
 
   it('bloquea el avance del wizard cuando end_date < start_date', async () => {
@@ -161,7 +180,7 @@ describe('GestionInstrumentos — tags y min_days en la creación', () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter>
-        <AuthProvider><GestionInstrumentos /></AuthProvider>
+        <GestionInstrumentos />
       </MemoryRouter>
     )
 
@@ -201,13 +220,13 @@ describe('GestionInstrumentos — tags y min_days en la creación', () => {
     server.use(
       http.get('/api/v1/instruments/tags', () =>
         HttpResponse.json({ status: 'success', data: [] })
-      )
+)
     )
 
     const user = userEvent.setup()
     render(
       <MemoryRouter>
-        <AuthProvider><GestionInstrumentos /></AuthProvider>
+        <GestionInstrumentos />
       </MemoryRouter>
     )
 

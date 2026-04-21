@@ -6,24 +6,14 @@
  * Cada función requiere un JWT válido.
  */
 
+import { parseResponse } from '@/lib/api'
+
 const BASE = '/api/v1/instruments'
 
 function headers(token) {
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
-  }
-}
-
-async function parseResponse(res) {
-  try {
-    return await res.json()
-  } catch {
-    return {
-      status: 'error',
-      message: `Error del servidor (HTTP ${res.status})`,
-      data: null,
-    }
   }
 }
 

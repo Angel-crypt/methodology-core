@@ -2,6 +2,7 @@
  * OnboardingPage — completa el perfil tras aceptar T&C.
  * Carga profileConfig para saber qué campos son obligatorios.
  * Institución: texto libre; pre-llenado y deshabilitado si hay match por dominio.
+ * Teléfono: selector de código de país + número (solo dígitos).
  */
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -9,14 +10,32 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useUser } from '@/contexts/UserContext'
 import { Button, FormField, Alert } from '@/components/app'
 
+// Códigos de país comunes para Latinoamérica y España
+const COUNTRY_CODES = [
+  { code: '+52', label: 'México (+52)' },
+  { code: '+54', label: 'Argentina (+54)' },
+  { code: '+55', label: 'Brasil (+55)' },
+  { code: '+56', label: 'Chile (+56)' },
+  { code: '+57', label: 'Colombia (+57)' },
+  { code: '+58', label: 'Venezuela (+58)' },
+  { code: '+591', label: 'Bolivia (+591)' },
+  { code: '+593', label: 'Ecuador (+593)' },
+  { code: '+595', label: 'Paraguay (+595)' },
+  { code: '+51', label: 'Perú (+51)' },
+  { code: '+598', label: 'Uruguay (+598)' },
+  { code: '+34', label: 'España (+34)' },
+  { code: '+1', label: 'EE.UU./Canadá (+1)' },
+]
+
 export default function OnboardingPage() {
   const { token } = useAuth()
   const { user, reloadUser } = useUser()
   const navigate = useNavigate()
 
   const [profileConfig, setProfileConfig] = useState({ require_phone: false, require_institution: true })
-  const [phone, setPhone] = useState('')
-  const [institution, setInstitution] = useState('')
+  const [countryCode, setCountryCode] = useState('+52')
+  const [phoneNumber, setPhoneNumber] = useState(user?.phone ? user.phone.replace(/^\+\d+/, '') : '')
+  const [institution, setInstitution] = useState(user?.institution || '')
   const [institutionLocked, setInstitutionLocked] = useState(false)
   const [loadingConfig, setLoadingConfig] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -57,16 +76,28 @@ export default function OnboardingPage() {
       setError('El campo Institución es obligatorio.')
       return
     }
-    if (profileConfig.require_phone && !phone.trim()) {
-      setError('El campo Teléfono es obligatorio.')
-      return
+    if (profileConfig.require_phone) {
+      // Validar teléfono: solo dígitos, longitud mínima según país
+      const cleanNumber = phoneNumber.replace(/\D/g, '')
+      if (!cleanNumber) {
+        setError('El campo Teléfono es obligatorio.')
+        return
+      }
+      // Longitud mínima de 7 dígitos para cualquier país
+      if (cleanNumber.length < 7 || cleanNumber.length > 15) {
+        setError('El número de teléfono debe tener entre 7 y 15 dígitos.')
+        return
+      }
     }
 
     setSubmitting(true)
     try {
       const body = {}
       if (profileConfig.require_institution || institution.trim()) body.institution = institution.trim() || null
-      if (profileConfig.require_phone || phone.trim()) body.phone = phone.trim() || null
+      if (profileConfig.require_phone && phoneNumber.trim()) {
+        // Combinar código de país + número
+        body.phone = `${countryCode}${phoneNumber.replace(/\D/g, '')}`
+      }
 
       const res = await fetch('/api/v1/users/me/profile', {
         method: 'PATCH',
@@ -113,15 +144,35 @@ export default function OnboardingPage() {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {profileConfig.require_phone && (
-            <FormField
-              id="onb-phone"
-              label="Teléfono"
-              type="tel"
-              placeholder="+52 55 0000 0000"
-              required
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start' }}>
+              <div style={{ flex: '0 0 140px' }}>
+                <label className="field-label" htmlFor="onb-country-code" style={{ marginBottom: 'var(--space-1)' }}>
+                  País
+                </label>
+                <select
+                  id="onb-country-code"
+                  className="input-base"
+                  value={countryCode}
+                  onChange={(e) => setCountryCode(e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  {COUNTRY_CODES.map((c) => (
+                    <option key={c.code} value={c.code}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <FormField
+                  id="onb-phone"
+                  label="Teléfono"
+                  type="tel"
+                  placeholder="55 0000 0000"
+                  required
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                />
+              </div>
+            </div>
           )}
 
           {profileConfig.require_institution && !institutionLocked && (

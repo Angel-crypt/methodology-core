@@ -29,6 +29,7 @@ function getNavSections(role) {
       items: [
         { label: 'Registro Operativo', icon: ClipboardCheck, to: '/registro-operativo' },
         { label: 'Mis Registros',      icon: ClipboardList,  to: '/mis-registros'       },
+        { label: 'Mis Usuarios',       icon: Users,          to: '/mis-usuarios'       },
       ],
     })
   }
@@ -103,7 +104,7 @@ function AppLayout({ children }) {
             fullName={fullName}
             role={role}
             email={email}
-            onChangePassword={() => setModalOpen(true)}
+            onChangePassword={esAdmin ? () => setModalOpen(true) : undefined}
             onRequestEmailChange={role !== 'superadmin' ? () => setEmailModalOpen(true) : undefined}
           />
         </header>

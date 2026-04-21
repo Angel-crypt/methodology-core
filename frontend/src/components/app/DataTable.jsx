@@ -35,7 +35,7 @@ function DataTable({ columns = [], data = [], loading = false, emptyMessage = 'N
               <tr
                 key={row.id ?? rowIndex}
                 className={[
-                  row.active === false ? 'row-inactive' : '',
+                  (row.is_active === false || row.active === false) ? 'row-inactive' : '',
                   onRowClick ? 'row-clickable' : '',
                 ].filter(Boolean).join(' ')}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}

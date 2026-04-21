@@ -80,7 +80,7 @@ Base URL: `http://localhost:3000/api/v1`
 
 El servidor expone también `GET /health` (sin prefijo `/api/v1`).
 
-Superadmin pre-sembrado: leído de `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (defaults de desarrollo: `super@methodology.local` / `metodologia-bootstrap-cambiar-pronto`).
+Superadmin pre-sembrado: leído de `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (defaults de desarrollo: `super@methodology.local` / `cambiar-pronto`).
 
 ### M1 — Autenticación
 
@@ -266,12 +266,12 @@ Base: `frontend/src/services/`
 
 | ID | Descripción | Impacto | Módulo |
 |----|-------------|---------|--------|
-| P-01 | Autenticación usa email+password en lugar de OIDC/Keycloak (SRS M1 define solo OIDC) | Alto | M1 |
-| P-02 | El token JWT se pasa como prop a todos los componentes en lugar de usar AuthContext | Medio | Global |
 | P-03 | `GestionAplicadores.jsx` y `GestionInvestigadores.jsx` son copias idénticas | Bajo | M1 |
 | P-04 | `CredencialesModal.jsx` está en `/pages` pero es un componente reutilizable | Bajo | M1 |
 | P-05 | M5 solo tiene vista de aplicador; el SRS define consulta para investigador/admin | Alto | M5 |
 | P-06 | M6 (exportación) no tiene ninguna página en el frontend | Alto | M6 |
+
+> P-01 (OIDC) y P-02 (prop drilling de token) — resueltos en Sprint 2 (CF-005, CF-006). Eliminados de esta lista.
 
 ---
 
