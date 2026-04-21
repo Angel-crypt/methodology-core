@@ -24,6 +24,8 @@ import ProjectDetailPage from './pages/ProjectDetailPage'
 import TermsPage from './pages/TermsPage'
 import PrivacyPage from './pages/PrivacyPage'
 import ConsultaPage from './pages/ConsultaPage'
+import AuditLogPage from './pages/AuditLogPage'
+import ExportacionPage from './pages/ExportacionPage'
 import OnboardingPage from './pages/OnboardingPage'
 import AppLayout from './layouts/AppLayout'
 
@@ -58,6 +60,15 @@ function AppRoutes() {
   const consultaLayout = (page) => {
     if (!token) return <Navigate to="/login" replace />
     if (role === 'applicator') return <Navigate to="/instruments" replace />
+    if (mustChangePassword) return <AppLayout>{null}</AppLayout>
+    if (needsTerms) return <Navigate to="/terminos" replace />
+    if (needsOnboarding) return <Navigate to="/onboarding" replace />
+    return <AppLayout>{page}</AppLayout>
+  }
+
+  const researcherLayout = (page) => {
+    if (!token) return <Navigate to="/login" replace />
+    if (role !== 'researcher') return <Navigate to="/instruments" replace />
     if (mustChangePassword) return <AppLayout>{null}</AppLayout>
     if (needsTerms) return <Navigate to="/terminos" replace />
     if (needsOnboarding) return <Navigate to="/onboarding" replace />
@@ -109,6 +120,9 @@ function AppRoutes() {
         {/* Módulo 5 — Consulta Interna (researcher y superadmin) */}
         <Route path="/consulta" element={consultaLayout(<ConsultaPage />)} />
 
+        {/* Módulo 6 — Exportación Estructurada (solo researcher) */}
+        <Route path="/exportar" element={researcherLayout(<ExportacionPage />)} />
+
         {/* Módulo 4 — Registro Operativo Anonimizado (solo Aplicador) */}
         <Route
           path="/registro-operativo"
@@ -141,6 +155,9 @@ function AppRoutes() {
         {/* Sprint 4 — Instituciones y config de perfil (solo Administrador) */}
         <Route path="/instituciones" element={adminLayout(<InstitutionsPage />)} />
         <Route path="/configuracion-perfil" element={adminLayout(<SuperadminProfileConfigPage />)} />
+
+        {/* Audit log — solo Administrador */}
+        <Route path="/audit-log" element={adminLayout(<AuditLogPage />)} />
 
         {/* Configuración Operativa global — deprecada (CF-014), redirige a proyectos */}
         <Route path="/configuracion-operativa" element={<Navigate to="/proyectos" replace />} />
