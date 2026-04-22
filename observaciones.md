@@ -47,7 +47,7 @@ Calificación (0–10) por criterio = puntaje (0–2) × 5
 
 ---
 
-### Criterio 1 — Arquitectura del sistema (DC/Redes) coherente y justificable · **2/2**
+### Criterio 1 — Arquitectura del sistema (DC/Redes) coherente y justificable · **2.0/2**
 
 **Evidencia encontrada:**
 
@@ -71,7 +71,7 @@ Los roles de la arquitectura están justificados: Redis para revocación de JTI 
 
 ---
 
-### Criterio 2 — IaC/automatización (repo funcional, despliegue reproducible) · **2/2**
+### Criterio 2 — IaC/automatización (repo funcional, despliegue reproducible) · **2.0/2**
 
 **Evidencia encontrada:**
 
@@ -98,7 +98,7 @@ Soporta dos topologías documentadas: single-node y cluster (1 server + N agents
 
 ---
 
-### Criterio 3 — Seguridad (controles aplicados y justificados) · **1/2**
+### Criterio 3 — Seguridad (controles aplicados y justificados) · **1.5/2**
 
 **Evidencia de controles implementados:**
 
@@ -135,7 +135,7 @@ Soporta dos topologías documentadas: single-node y cluster (1 server + N agents
 
 ---
 
-### Criterio 4 — Observabilidad (métricas/logs/tableros o evidencia equivalente) · **1/2**
+### Criterio 4 — Observabilidad (métricas/logs/tableros o evidencia equivalente) · **1.3/2**
 
 **Evidencia encontrada:**
 
@@ -163,7 +163,7 @@ Soporta dos topologías documentadas: single-node y cluster (1 server + N agents
 
 ---
 
-### Criterio 5 — Pruebas (carga, fallas, DR o validaciones; evidencia) · **1/2**
+### Criterio 5 — Pruebas (carga, fallas, DR o validaciones; evidencia) · **1.3/2**
 
 **Evidencia encontrada:**
 
@@ -198,7 +198,7 @@ Soporta dos topologías documentadas: single-node y cluster (1 server + N agents
 
 ---
 
-### Criterio 6 — Calidad técnica del repositorio (estructura, documentación, versionado) · **2/2**
+### Criterio 6 — Calidad técnica del repositorio (estructura, documentación, versionado) · **1.9/2**
 
 **Evidencia encontrada:**
 
